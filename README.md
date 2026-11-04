@@ -17,7 +17,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 - Keyboard-accessible project index, reduced-motion support, and Canvas fallback when WebGL is unavailable.
 - Subtle founder credit and LinkedIn link. No NHS affiliation or endorsement claims.
 
-Project planets sit at five distinct radii, from 6.1 to 8.3 scene units. GirlPlanner has a single textured planetary ring that scales with its inspection view; the other worlds are ring-free and no orbit paths or connecting lines are drawn. Original outbound URLs are checked in the test suite.
+Project planets sit at five distinct radii, from 6.1 to 8.3 scene units. GirlPlanner has a single textured planetary ring with directional star lighting and a soft planet shadow that scales with its inspection view; the other worlds are ring-free and no orbit paths or connecting lines are drawn. Original outbound URLs are checked in the test suite.
 
 ## Run locally
 
