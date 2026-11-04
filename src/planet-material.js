@@ -20,6 +20,8 @@ void main(){
  else if(uKind<2.5)pattern=.64+terrain*.22-pow(1.-abs(noise3(p*19.)*2.-1.),12.)*.4;
  else if(uKind<3.5)pattern=terrain*.62+sin(p.y*12.+terrain*8.)*.14+.22;
  else pattern=terrain*.55+pow(1.-abs(noise3(p*15.)*2.-1.),10.)*.4;
+ float detailCoverage=1.-smoothstep(.035,.13,length(fwidth(p)));
+ pattern=mix(terrain*.7+.16,pattern,detailCoverage);
  pattern=clamp(pattern+(grain-.5)*.09,0.,1.);
  vec3 surface=mix(uColor*.12,mix(uColor,vec3(.9,.91,.96),.2),pattern);
  vec3 key=normalize(uLightPosition-vWorld);

@@ -14,3 +14,13 @@ test('a clear name stays directly beneath its planet',()=>{
  const [rect]=layoutLabels([{id:0,x:600,y:400,radius:30,width:140,height:22,priority:0}],[],1366,768);
  assert.equal(rect.left,530);assert.equal(rect.top,443);
 });
+test('fallback rectangles keep consistent bounds even when all space is reserved',()=>{
+ const [rect]=layoutLabels([{id:0,x:200,y:500,radius:20,width:140,height:30,priority:0}],[{left:0,top:0,right:390,bottom:200}],390,200);
+ assert.equal(rect.bottom-rect.top,30);assert.ok(rect.bottom<=180);
+});
+test('hover priority does not reorder crowded name placement',()=>{
+ const names=[0,1].map(id=>({id,x:180,y:240,radius:20,width:120,height:25,priority:0}));
+ const first=layoutLabels(names,[],390,844);
+ const second=layoutLabels(names.map(c=>({...c,priority:c.id===1?1:0})),[],390,844,new Map(first.map(r=>[r.id,r])));
+ assert.deepEqual(second.map(r=>[r.left,r.top]),first.map(r=>[r.left,r.top]));
+});

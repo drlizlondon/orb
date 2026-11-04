@@ -11,7 +11,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 - The nearby star uses a 192 × 128 desktop sphere, seamless per-pixel plasma, granulation, dark regions, limb darkening and a separate textured corona. Mobile uses reduced geometry and the no-WebGL renderer includes a textured fallback.
 - Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
 - 118,000 stars plus 3,600 dust particles on desktop; reduced budgets on mobile.
-- Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions.
+- Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions. Orbital movement holds while a project has keyboard focus.
 - Clickable project names remain beneath visible planets at every zoom level. Radix detail dialogs expose the original destination links; Escape returns to the galaxy.
 - Drag to orbit, scroll to travel, and a discreet pause control. Home/End and arrow keys also control the journey.
 - Keyboard-accessible project index, reduced-motion support, and Canvas fallback when WebGL is unavailable.
@@ -69,4 +69,4 @@ The cloud QA browser validated the Canvas fallback, navigation and dialogs. The 
 
 On the review desktop at 1729 × 1220 in the Night hero, a rolling 120-frame sample measured a median frame interval of 5.7 ms before and after this refinement, with p95 at 5.8 ms before and 5.9 ms after. These are browser frame intervals, not GPU timer measurements or a device guarantee. The Canvas fallback at 1363 × 936 measured median intervals of 66.7 ms before and 50.0 ms after in short review samples.
 
-Mobile uses smaller particle and pixel budgets. Sustained slow WebGL frames first reduce resolution, then reduce drawn particles to a minimum of 70 percent. Diagnostic values live on the canvas data attributes without adding visible interface controls. Asset URLs carry content hashes so updated builds load the matching code and styles.
+Mobile uses smaller particle and pixel budgets. Sustained slow WebGL frames first reduce resolution, then reduce drawn particles to a minimum of 70 percent. Diagnostic values live on the canvas data attributes without adding visible interface controls. Asset URLs carry content hashes so updated builds load the matching code and styles. Lower-density displays receive restrained FXAA after tone mapping; distant planet patterns blend toward simpler terrain to reduce shimmer. Adaptive rendering preserves an initial pixel ratio below one rather than increasing it.
