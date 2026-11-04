@@ -7,7 +7,7 @@ A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch mov
 - Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
 - 130,000 stars plus 4,800 dust particles on desktop; reduced budgets on mobile.
 - Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions.
-- Project detail dialogs with original destination links; Escape returns to the galaxy.
+- Clickable project names remain beneath visible planets at every zoom level. Radix detail dialogs expose the original destination links; Escape returns to the galaxy.
 - Drag to orbit, scroll to travel, and a discreet pause control. Home/End and arrow keys also control the journey.
 - Keyboard-accessible project index, reduced-motion support, and Canvas fallback when WebGL is unavailable.
 - Subtle founder credit and LinkedIn link. No NHS affiliation or endorsement claims.
@@ -40,7 +40,7 @@ The GPU path uses restrained UnrealBloomPass glow, ACES tone mapping and procedu
 | `dist/style.css` | Responsive typography and fixed interface |
 | `dist/index.html` | Clean presentation and accessible dialogs |
 
-Three.js is pinned to 0.187.0. GSAP 3.15.1 provides the travel and fly-in easing; Lenis 1.3.27 normalizes wheel and touch gestures without moving the document. The project inspector uses React, Radix Dialog and Sonner, bundled locally with esbuild. The build bundles the runtime locally and preserves third-party notices. Fonts use Google Fonts with system fallbacks. No backend, analytics or API keys are required. The current ChatGPT deployment is owner-private and requires the owner’s ChatGPT account.
+Three.js is pinned to 0.187.0. GSAP 3.15.1 provides the travel and fly-in easing; Lenis 1.3.27 normalizes wheel and touch gestures without moving the document. The project inspector uses React, Radix Dialog and Sonner, bundled locally with esbuild. The build bundles the runtime locally and preserves third-party notices. Fonts use Google Fonts with system fallbacks. No backend, analytics or API keys are required. The ChatGPT site is publicly accessible; the GitHub source repository remains private.
 
 ## Deploy
 
@@ -50,7 +50,7 @@ Publish the `dist` directory on any static host. Netlify configuration is includ
 
 Canonical deployment: https://lizzie-in-orbit.techtideai.chatgpt.site
 
-The Open Graph and Twitter metadata use the included 1200 × 630 social image. Link previews on external social networks require public access; the current deployment remains owner-private.
+The Open Graph and Twitter metadata use the included 1200 × 630 social image. Link previews on external social networks require public access; the current site is public.
 
 The social cover is generated promotional artwork; the interactive scene remains real-time Three.js.
 
@@ -60,4 +60,4 @@ Project names, descriptions and destination URLs were verified against https://g
 
 ## Review notes
 
-The initial cloud QA browser disables WebGL. It can validate the Canvas fallback, navigation and dialogs; a GPU-enabled browser is required to evaluate the full shader path. Target-device frame rate varies with display size, pixel density and GPU.
+The cloud QA browser validated the Canvas fallback, navigation and dialogs. The deployed WebGL shader path was also checked in a GPU-enabled browser, with no console errors. Target-device frame rate varies with display size, pixel density and GPU.
