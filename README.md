@@ -1,13 +1,13 @@
 # Lizzie in Orbit
 
-A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch movement pull the camera outward from the galaxy core. The document itself never scrolls; the interface stays fixed in the viewport. Five project worlds emerge along the outer constellation. Sparse foreground stars, spiral filaments and a gentle local pointer response add depth.
+A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch movement pull the camera outward from the galaxy core. The document itself never scrolls; the interface stays fixed in the viewport. Five project worlds emerge along the outer constellation. Sparse foreground stars, spiral filaments with narrow dark lanes and a gentle local pointer response add depth. Planet surfaces and atmospheric rims follow the nearby star’s lighting mood.
 
 ## Experience
 
 Doctor by day. Building with AI by night. The headline rotates between orbit, the ER, the way home and a walk.
 
 - Four lighting moods: Night, Dusk, Evening and Day. Click the background or use the lighting button; dragging and project selection stay separate. A nearby star, the particle colors, planets and interface transition together.
-- Logo orbit and headline transitions respect reduced motion and the pause control.
+- Logo orbit and headline transitions respect reduced motion and the pause control. Pausing settles the rotating headline into a fully readable phrase; reduced motion disables the decorative animation toggle.
 - The nearby star uses a 192 × 128 desktop sphere, seamless per-pixel plasma, granulation, dark regions, limb darkening and a separate textured corona. Mobile uses reduced geometry and the no-WebGL renderer includes a textured fallback.
 - Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
 - 118,000 stars plus 3,600 dust particles on desktop; reduced budgets on mobile.
@@ -70,3 +70,5 @@ The cloud QA browser validated the Canvas fallback, navigation and dialogs. The 
 On the review desktop at 1729 × 1220 in the Night hero, a rolling 120-frame sample measured a median frame interval of 5.7 ms before and after this refinement, with p95 at 5.8 ms before and 5.9 ms after. These are browser frame intervals, not GPU timer measurements or a device guarantee. The Canvas fallback at 1363 × 936 measured median intervals of 66.7 ms before and 50.0 ms after in short review samples.
 
 Mobile uses smaller particle and pixel budgets. Sustained slow WebGL frames first reduce resolution, then reduce drawn particles to a minimum of 70 percent. Diagnostic values live on the canvas data attributes without adding visible interface controls. Asset URLs carry content hashes so updated builds load the matching code and styles. Lower-density displays receive restrained FXAA after tone mapping; distant planet patterns blend toward simpler terrain to reduce shimmer. Adaptive rendering preserves an initial pixel ratio below one rather than increasing it.
+
+A further restrained review on 4 November 2026 added spiral lane attenuation during geometry creation, without another draw pass, and directional planet atmosphere lighting. The review browser reported roughly 1000 ms frame intervals while the page remained marked visible, indicating browser scheduling throttling. This session does not establish a reliable performance gain or regression; the earlier measurements above are historical samples, not results for this additional pass.

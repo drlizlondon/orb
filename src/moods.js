@@ -25,9 +25,9 @@ export function createMoods(THREE, gsap, reduced, blocked) {
     button.setAttribute('aria-label', `Lighting: ${mood.name}. Change mood`);
     for (const key of ['background','light','tint']) {
       const color = new THREE.Color(mood[key]);
-      gsap.to(state[key], {r:color.r,g:color.g,b:color.b,duration,ease:'power2.inOut',overwrite:true});
+      gsap.to(state[key], {r:color.r,g:color.g,b:color.b,duration,ease:'power3.inOut',overwrite:true});
     }
-    gsap.to(state,{speed:mood.speed,warmth:mood.warmth,sun:mood.sun,duration,ease:'power2.inOut',overwrite:true});
+    gsap.to(state,{speed:mood.speed,warmth:mood.warmth,sun:mood.sun,duration,ease:'power3.inOut',overwrite:true});
   }
   function cycle() {if (!blocked()) select((current + 1) % moods.length);}
   button.addEventListener('click',cycle);

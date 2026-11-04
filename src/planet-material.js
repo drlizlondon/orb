@@ -4,7 +4,7 @@ const vertex = `varying vec3 vNormal,vWorld,vPos;void main(){vNormal=normalize(m
 const noise = `float hash(vec3 p){p=fract(p*.1031);p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}float noise3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}float fbm(vec3 p){return noise3(p)*.57+noise3(p*2.03+7.)*.28+noise3(p*4.1+13.)*.15;}`;
 const fragment = `
 uniform vec3 uColor,uLightColor,uLightPosition;
-uniform float uTime,uKind,uHover;
+uniform float uTime,uKind,uHover,uLightEnergy;
 varying vec3 vNormal,vWorld,vPos;
 ${noise}
 void main(){
@@ -27,15 +27,15 @@ void main(){
  vec3 key=normalize(uLightPosition-vWorld);
  float sunlight=max(dot(n,key),0.);
  float fill=max(dot(n,normalize(vec3(-.6,.65,1.))),0.);
- surface*=.18+sunlight*.6+fill*.44;
+ surface*=.18+sunlight*(.52+uLightEnergy*.14)+fill*.44;
  float rim=pow(1.-max(dot(n,view),0.),3.5);
  surface+=mix(uColor,uLightColor,.48)*rim*(.38+uHover*.18);
  if(uKind>3.5)surface+=uColor*pow(max(0.,pattern-.66)*3.,2.)*.28;
  gl_FragColor=vec4(surface,1.);
 }`;
-const atmosphereFragment = `uniform vec3 uColor;uniform float uHover;varying vec3 vNormal,vWorld,vPos;void main(){float rim=pow(1.-abs(dot(normalize(vNormal),normalize(cameraPosition-vWorld))),3.2);gl_FragColor=vec4(uColor,rim*(.2+uHover*.23));}`;
+const atmosphereFragment = `uniform vec3 uColor,uLightColor,uLightPosition;uniform float uHover,uLightEnergy;varying vec3 vNormal,vWorld,vPos;void main(){vec3 normal=normalize(vNormal);float rim=pow(1.-abs(dot(normal,normalize(cameraPosition-vWorld))),3.2);float light=smoothstep(-.45,.75,dot(normal,normalize(uLightPosition-vWorld)));vec3 color=mix(uColor,uLightColor,light*.28);gl_FragColor=vec4(color,rim*(.2+uHover*.23)*(.74+light*(.22+uLightEnergy*.12)));}`;
 
 export function createPlanetMaterial(kind,color,mood,lightPosition){
- const uniforms={uColor:{value:new THREE.Color(color)},uLightColor:{value:mood.light},uLightPosition:{value:lightPosition},uKind:{value:kind},uTime:{value:0},uHover:{value:0}};
+ const uniforms={uColor:{value:new THREE.Color(color)},uLightColor:{value:mood.light},uLightPosition:{value:lightPosition},uKind:{value:kind},uTime:{value:0},uHover:{value:0},uLightEnergy:{value:mood.sun}};
  return {surface:new THREE.ShaderMaterial({uniforms,vertexShader:vertex,fragmentShader:fragment}),atmosphere:new THREE.ShaderMaterial({uniforms,vertexShader:vertex,fragmentShader:atmosphereFragment,transparent:true,depthWrite:false,side:THREE.BackSide,blending:THREE.AdditiveBlending})};
 }

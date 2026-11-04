@@ -10,12 +10,14 @@ export function createFounderMotion(gsap, reduced) {
     {prefix: 'on ', word: 'the way home.', long: true},
     {prefix: 'on ', word: 'a walk.'},
   ];
-  let paused = true;
+  let paused = true, stopped = true, currentPhrase = 0;
   const cycle = gsap.timeline({repeat: -1, paused: true});
   for (let step = 1; step <= phrases.length; step++) {
     const phrase = phrases[step % phrases.length];
+    cycle.addLabel(`hold-${(step - 1) % phrases.length}`);
     cycle.to(line, {opacity: 0, y: -9, filter: 'blur(4px)', duration: .3, ease: 'power2.in'}, '+=4.8')
       .call(() => {
+        currentPhrase = step % phrases.length;
         prefix.textContent = phrase.prefix;
         word.textContent = phrase.word;
         line.classList.toggle('is-long', !!phrase.long);
@@ -23,15 +25,26 @@ export function createFounderMotion(gsap, reduced) {
       .set(line, {y: 11})
       .to(line, {opacity: 1, y: 0, filter: 'blur(0px)', duration: .65, ease: 'power3.out'});
   }
+  function settleVisible() {
+    // Resume with a full reading interval, rather than a half-finished dissolve.
+    cycle.pause(`hold-${currentPhrase}`, true);
+    gsap.set(line, {opacity: 1, y: 0, filter: 'none'});
+  }
   function sync() {
-    cycle.paused(paused || reduced.matches || document.hidden || !hero.classList.contains('active') || document.body.classList.contains('detail-open'));
+    const shouldStop = paused || reduced.matches || document.hidden || !hero.classList.contains('active') || document.body.classList.contains('detail-open');
     if (reduced.matches) {
-      cycle.pause(0);
+      currentPhrase = 0;
+      cycle.pause('hold-0', true);
       prefix.textContent = phrases[0].prefix;
       word.textContent = phrases[0].word;
       line.classList.remove('is-long');
       gsap.set(line, {opacity: 1, y: 0, filter: 'none'});
+    } else if (shouldStop && !stopped) {
+      settleVisible();
+    } else if (!shouldStop && stopped) {
+      cycle.play();
     }
+    stopped = shouldStop;
   }
   const observer = new MutationObserver(sync);
   observer.observe(hero, {attributes: true, attributeFilter: ['class']});
