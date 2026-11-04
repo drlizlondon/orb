@@ -63,12 +63,18 @@ void main(){
   float bandPhase=p.y*38.+flow*4.7+stormMask*vortex*1.8;
   float bands=.5+.5*sin(bandPhase);
   bands=mix(.5,bands,coverage(footprint,38.));
+  // Fine, sheared filaments share the broad flow, so detail reads as atmosphere.
+  // Filtering the warped phase itself prevents moving belts from shimmering.
+  float filamentPhase=bandPhase*4.4+fine*2.4+flow*3.;
+  float filamentVisibility=1.-smoothstep(.55,1.5,fwidth(filamentPhase));
+  float filaments=sin(filamentPhase)*filamentVisibility;
+  float belt=pow(1.-bands,3.);
   vec3 deep=uColor*vec3(.37,.25,.45);
   vec3 high=mix(uColor,vec3(.91,.78,.67),.25)*.88;
   albedo=mix(deep,high,smoothstep(.12,.9,bands));
   albedo=mix(albedo,mix(high,deep,.32+.18*vortex),stormMask*.75);
-  albedo*=.84+flow*.29;
-  relief=flow*.3+bands*.12;reliefScale=.0012;
+  albedo*=.84+flow*.29-belt*.045+filaments*.065*(1.-stormMask*.7);
+  relief=flow*.3+bands*.12+filaments*.014;reliefScale=.0012;
   specularStrength=.035;
  }else if(uKind<2.5){
   // Pale ice plates with darker, translucent-looking fracture seams.
@@ -86,11 +92,18 @@ void main(){
   float folds=p.y*20.+terrain*11.;
   float strata=(.5+.5*sin(folds))*coverage(footprint,25.);
   float ridge=1.-abs(terrain*2.-1.);
+  // Reuse the fine field for fractured mineral shelves and shallow stone relief.
+  float fineVisibility=coverage(footprint,43.);
+  float mineralRidge=1.-abs(fine*2.-1.);
+  float seamWidth=max(.018,fwidth(fine)*1.5);
+  float seams=(1.-smoothstep(.018,.018+seamWidth,abs(fine-.47)))*fineVisibility;
   vec3 basalt=uColor*vec3(.19,.17,.26);
   vec3 mineral=mix(uColor,vec3(.76,.60,.48),.32)*.84;
   albedo=mix(basalt,mineral,smoothstep(.29,.72,terrain)*.72+strata*.17);
-  albedo*=.84+fine*.27*coverage(footprint,43.);
+  albedo*=.975+(fine-.5)*.27*fineVisibility;
+  albedo*=1.-seams*.13;
   relief=terrain+strata*.055+ridge*.10;
+  relief+=mineralRidge*.12*fineVisibility-seams*.025+grain*.025;
   reliefScale=.006;specularStrength=.035;
  }else{
   // Cool volcanic crust with sparse warm fissures visible beyond the terminator.

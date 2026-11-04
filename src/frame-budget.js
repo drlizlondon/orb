@@ -1,9 +1,10 @@
 // DOM diagnostics stay out of the interface. Sample only visible, settled frames.
 export function createFrameBudget(renderer, composer, onScale, adaptive = false) {
   const samples = [];
-  const minimumScale = Math.min(1, renderer.getPixelRatio());
-  let warmup = 45, windows = 0, slowWindows = 0, budget = 1, frames = 0;
-  if(typeof document!=='undefined')document.addEventListener('visibilitychange',()=>{samples.length=0;warmup=15;});
+  const initialScale = renderer.getPixelRatio();
+  const minimumScale = Math.min(1, initialScale);
+  let warmup = 45, windows = 0, slowWindows = 0, healthyWindows = 0, budget = 1, frames = 0;
+  if(typeof document!=='undefined')document.addEventListener('visibilitychange',()=>{samples.length=0;warmup=15;slowWindows=0;healthyWindows=0;});
   return function record(milliseconds) {
     const canvas=renderer.domElement;
     if(++frames%30===0){canvas.dataset.frameCount=String(frames);canvas.dataset.frameLastMs=Number(milliseconds).toFixed(2);}
@@ -18,15 +19,29 @@ export function createFrameBudget(renderer, composer, onScale, adaptive = false)
     canvas.dataset.renderScale = renderer.getPixelRatio().toFixed(2);
     canvas.dataset.sampleWindow = String(++windows);
     slowWindows = median > 25 && p95 > 30 ? slowWindows + 1 : 0;
-    if (adaptive && !renderer.isFallback && slowWindows >= 2 && (renderer.getPixelRatio() > minimumScale || budget > .7)) {
-      const next = Math.max(minimumScale, renderer.getPixelRatio() - .2);
-      if (renderer.getPixelRatio() <= minimumScale) budget = Math.max(.7,budget-.15);
-      renderer.setPixelRatio(next);
-      composer?.setPixelRatio(next);
+    healthyWindows = median < 18 && p95 < 22 ? healthyWindows + 1 : 0;
+    const current = renderer.getPixelRatio();
+    let next = current, changed = false;
+    if (adaptive && !renderer.isFallback && slowWindows >= 2 && (current > minimumScale || budget > .7)) {
+      next = Math.max(minimumScale, current - .2);
+      if (current <= minimumScale) budget = Math.max(.7, Number((budget-.15).toFixed(2)));
+      changed = true;
+    } else if (adaptive && !renderer.isFallback && healthyWindows >= 8 && (budget < 1 || current < initialScale)) {
+      // Restore detail gradually after a sustained recovery, before raising pixel density.
+      if (budget < 1) budget = Math.min(1, Number((budget+.15).toFixed(2)));
+      else next = Math.min(initialScale, Number((current+.1).toFixed(4)));
+      changed = true;
+    }
+    if (changed) {
+      if (next !== current) {
+        renderer.setPixelRatio(next);
+        composer?.setPixelRatio(next);
+      }
       onScale(next,budget);
       canvas.dataset.particleBudget=budget.toFixed(2);
-      slowWindows = 0;
-      warmup = 45;
+      slowWindows=0;
+      healthyWindows=0;
+      warmup=45;
     }
     samples.length = 0;
   };

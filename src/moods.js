@@ -50,6 +50,8 @@ export function createMoods(THREE, gsap, reduced, blocked) {
     pointers.delete(event.pointerId); gesture=null;
   });
   space.addEventListener('pointercancel',event=>{pointers.delete(event.pointerId);gesture=null;});
+  // A newly enabled preference also settles a mood transition already in flight.
+  reduced.addEventListener('change',event=>{if(event.matches)select(current);});
   select(0);
   return state;
 }
