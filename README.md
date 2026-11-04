@@ -4,6 +4,10 @@ A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch mov
 
 ## Experience
 
+Doctor by day. Building with AI by night. The headline rotates between orbit, the ER, the way home and a walk.
+
+- Four lighting moods: Night, Dusk, Evening and Day. Click the background or use the lighting button; dragging and project selection stay separate. A nearby star, the particle colors, planets and interface transition together.
+- Logo orbit and headline transitions respect reduced motion and the pause control.
 - Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
 - 130,000 stars plus 4,800 dust particles on desktop; reduced budgets on mobile.
 - Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions.
