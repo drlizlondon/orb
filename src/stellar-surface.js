@@ -47,6 +47,7 @@ void main() {
   cells = mix(.5,cells,1.-smoothstep(.7,1.8,pixelSize*115.));
   micro = mix(.5,micro,1.-smoothstep(.6,1.6,pixelSize*280.));
   float filaments = pow(1.-abs(noise3(p*37.+warp*4.+drift)*2.-1.),9.);
+  filaments *= 1.-smoothstep(.7,1.8,pixelSize*37.);
   float activeRegion = noise3(p*7.+vec3(4.,1.,8.));
   float spots = smoothstep(.66,.79,activeRegion)*smoothstep(.44,.7,noise3(p*24.+warp));
   float detail = clamp(convection*.61 + cells*.31 + micro*.08,0.,1.);

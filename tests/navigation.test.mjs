@@ -18,3 +18,13 @@ test('project destinations match the original Galaxy Cloud collection',()=>{
  assert.equal(new Set(radii.map(r=>r.toFixed(1))).size,5);
  assert.ok(radii.every(r=>r>5&&r<8.5));
 });
+
+test('camera fit cache recalculates for meaningful tilt and viewport changes', async()=>{
+ const {createFitDistanceCache}=await import('../dist/navigation.js');
+ let calls=0;const fit=createFitDistanceCache((w,h,e)=>{calls++;return w+h+e;});
+ const first=fit(1000,800,.6);
+ assert.equal(fit(1000,800,.6004),first);
+ assert.equal(calls,1);
+ fit(1000,800,.601);fit(900,800,.601);
+ assert.equal(calls,3);
+});

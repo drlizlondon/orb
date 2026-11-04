@@ -11,3 +11,14 @@ export function fitGalaxyDistance(width,height,elevation=.6){
  }
  return distance+.5;
 }
+
+// Cache near-identical camera fits while allowing small drag changes to settle smoothly.
+export function createFitDistanceCache(calculate=fitGalaxyDistance){
+ let previous=null;
+ return (width,height,elevation)=>{
+  if(!previous||previous.width!==width||previous.height!==height||Math.abs(previous.elevation-elevation)>.0005){
+   previous={width,height,elevation,value:calculate(width,height,elevation)};
+  }
+  return previous.value;
+ };
+}
