@@ -27,7 +27,9 @@ float granulation(vec3 p) {
   vec3 q = mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*p;
   float broad = noise3(q);
   float fine = noise3(q.zxy*1.91+vec3(5.7,19.1,8.3)+(broad-.5)*.72);
-  return smoothstep(.25,.75,broad*.65+fine*.35);
+  // Hot rising interiors are separated by narrow, cooler intergranular seams.
+  // The fine field distorts the boundaries instead of painting a second speckle layer.
+  return smoothstep(.26,.68,broad*.78+fine*.22);
 }`;
 
 const vertex = `
@@ -51,30 +53,34 @@ void main() {
   p.xz = mat2(cos(shear),-sin(shear),sin(shear),cos(shear))*p.xz;
   vec3 drift = vec3(uTime*.009, -uTime*.005, uTime*.003);
   vec3 warp = vec3(noise3(p*4.8+drift),noise3(p*4.8+8.+drift),noise3(p*4.8+17.-drift));
-  vec3 flow = p+(warp-.5)*.13;
+  vec3 flow = p+(warp-.5)*.10;
   float convection = fbm(flow*11.+drift);
   float pixelSize = length(fwidth(flow));
-  float cells = granulation(flow*74.-drift*.45);
+  float cells = granulation(flow*88.-drift*.45);
   float micro = noise3(flow*185.+drift);
-  cells = mix(.5,cells,1.-smoothstep(.55,1.5,pixelSize*118.));
+  cells = mix(.56,cells,1.-smoothstep(.55,1.5,pixelSize*140.));
   micro = mix(.5,micro,1.-smoothstep(.6,1.6,pixelSize*185.));
-  float magnetic = noise3(flow*32.+warp*.7+drift);
-  float filaments = pow(1.-abs(magnetic*2.-1.),10.);
+  float magnetic = noise3(flow*vec3(32.,24.,32.)+warp*.7+drift);
+  float filaments = pow(1.-abs(magnetic*2.-1.),12.);
   filaments *= 1.-smoothstep(.6,1.5,pixelSize*32.);
   float activeRegion = noise3(flow*6.+vec3(4.,1.,8.));
   float spotField = noise3(flow*21.+warp*.35);
-  float penumbra = smoothstep(.69,.83,activeRegion)*smoothstep(.49,.72,spotField);
-  float umbra = smoothstep(.76,.88,activeRegion)*smoothstep(.58,.78,spotField);
-  float heat = clamp(.22+convection*.4+cells*.28+(micro-.5)*.07,0.,1.);
-  vec3 cool = uColor*vec3(.3,.23,.2);
-  vec3 hot = mix(uColor,vec3(1.,.96,.87),.16);
+  // Sparse magnetic regions are softly bounded, rather than crater-like holes.
+  float penumbra = smoothstep(.74,.89,activeRegion)*smoothstep(.53,.77,spotField);
+  float umbra = smoothstep(.81,.94,activeRegion)*smoothstep(.64,.84,spotField);
+  float heat = clamp(.40+(convection-.5)*.14+cells*.31+(micro-.5)*.045,0.,1.);
+  vec3 hot = mix(uColor,vec3(1.,.96,.88),.25);
+  vec3 cool = mix(uColor*vec3(.48,.39,.34),hot,.12);
   vec3 surface = mix(cool,hot,heat);
-  surface *= 1.-penumbra*.28-umbra*.48;
-  surface += hot*filaments*(.035+.065*uActivity)*(.5+.65*smoothstep(.45,.76,activeRegion));
+  surface *= 1.-penumbra*.20-umbra*.32;
+  // Broken luminous ribbons follow active regions; broad noise no longer dominates.
+  float plage = smoothstep(.52,.79,activeRegion);
+  surface += hot*filaments*(.025+.045*uActivity)*(.30+plage*.70);
+  surface += hot*plage*.035;
   float facing = max(dot(normalize(vNormal),normalize(cameraPosition-vWorld)),0.);
   // Keep the limb softly darker and bright-mode texture below the bloom threshold.
-  surface *= .25+.75*pow(facing,.38);
-  surface *= .23+uActivity*.78;
+  surface *= .26+.74*pow(facing,.38);
+  surface *= .21+uActivity*.78;
   gl_FragColor = vec4(surface,1.);
 }`;
 
@@ -87,8 +93,9 @@ void main() {
   float facing = abs(dot(normalize(vNormal),normalize(cameraPosition-vWorld)));
   float rim = pow(1.-facing,2.8)*smoothstep(0.,.2,facing);
   float streamers = fbm(vSurface*vec3(26.,8.,26.)+vec3(uTime*.008,0.,-uTime*.004));
-  float alpha = rim*(.12+streamers*.46)*(.12+uActivity*.66);
-  gl_FragColor = vec4(uColor*1.08,alpha);
+  float wisps = smoothstep(.26,.76,streamers);
+  float alpha = rim*(.10+wisps*.38)*(.12+uActivity*.66);
+  gl_FragColor = vec4(mix(uColor,vec3(1.,.96,.88),.10),alpha);
 }`;
 
 export function createStellarSurface({mood, compact}) {

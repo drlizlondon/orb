@@ -48,3 +48,6 @@ html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}body{p
 
 /* A quiet placeholder while the selected world is rendered. */
 .inspector .inspector-planet:not(.has-portrait){border-radius:50%;background:radial-gradient(circle at 36% 32%,color-mix(in srgb,var(--planet-color) 42%,#c7cced),color-mix(in srgb,var(--planet-color) 30%,#10121e) 48%,#080a15 78%)}
+
+/* Let the camera begin its approach before the card settles into view. */
+.inspector{animation-delay:.1s;animation-fill-mode:both}

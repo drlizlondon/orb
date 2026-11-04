@@ -2,11 +2,16 @@ import * as THREE from 'three';
 
 // Surface coordinates remain seamless across the sphere and independent of UVs.
 const vertex = `
-varying vec3 vNormal,vWorld,vPos;
+uniform vec3 uLightPosition;
+varying vec3 vNormal,vWorld,vPos,vLocalLight;
 void main(){
  vNormal=normalize(mat3(modelMatrix)*normal);
  vWorld=(modelMatrix*vec4(position,1.)).xyz;
  vPos=normalize(position);
+ vec3 worldLight=uLightPosition-vWorld;
+ // Uniformly scaled worlds: the transposed basis brings light into the same
+ // seamless coordinates as the cloud field, including during card capture.
+ vLocalLight=normalize(vec3(dot(modelMatrix[0].xyz,worldLight),dot(modelMatrix[1].xyz,worldLight),dot(modelMatrix[2].xyz,worldLight)));
  gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
 }`;
 const noise = `
@@ -21,7 +26,7 @@ float coverage(float footprint,float frequency){return 1.-smoothstep(.55,1.55,fo
 const fragment = `
 uniform vec3 uColor,uLightColor,uLightPosition;
 uniform float uTime,uKind,uHover,uLightEnergy;
-varying vec3 vNormal,vWorld,vPos;
+varying vec3 vNormal,vWorld,vPos,vLocalLight;
 ${noise}
 void main(){
  vec3 p=normalize(vPos),baseNormal=normalize(vNormal),view=normalize(cameraPosition-vWorld);
@@ -44,47 +49,63 @@ void main(){
   earth*=.86+(fine-.5)*.20*coverage(footprint,43.);
   albedo=mix(sea,earth,land);
   vec3 cloudDrift=vec3(uTime*.009,0.,uTime*.003);
-  float cloud=fbm(p*7.5+cloudDrift+19.);
-  cloudCover=smoothstep(.54,.73,cloud)*.78;
+  vec3 cloudDomain=p*7.5+cloudDrift+19.;
+  float cloudBroad=noise3(cloudDomain);
+  float cloudWisps=noise3(cloudDomain*2.03+7.);
+  float cloud=cloudBroad*.72+cloudWisps*.28;
+  cloudCover=smoothstep(.53,.75,cloud)*.77;
   cloudCover*=mix(.65,1.,coverage(footprint,32.));
-  // A soft underlying shade makes clouds read above the surface.
-  cloudShadow=1.-smoothstep(.49,.68,cloud)*.17;
+  // A raised cloud deck casts its broad shadow down-light. Two cloud scales
+  // plus this displaced sample cost the same as the previous three-scale fbm.
+  vec3 localLight=normalize(vLocalLight);
+  vec3 cloudOffset=(localLight-p*dot(localLight,p))*.22;
+  float cloudOccluder=noise3(cloudDomain+cloudOffset);
+  cloudShadow=1.-smoothstep(.52,.73,cloudOccluder)*.20;
   relief=mix(.46,terrain,land);
   reliefScale=.004;
   specularStrength=mix(.38,.025,land);
   specularPower=62.;
  }else if(uKind<1.5){
-  // Sheared gas bands and an oval vortex on the ringed world.
-  float flow=fbm(p*7.+vec3(uTime*.005,0.,0.));
+  // Uneven latitude belts and nested wisps share the same advected flow.
+  // The broad modulation avoids evenly spaced, high-contrast zebra stripes.
+  vec3 gasDomain=p*vec3(7.,5.5,7.)+vec3(uTime*.005,0.,0.);
+  float flow=fbm(gasDomain);
   vec3 stormAxis=normalize(vec3(.73,-.22,.64));
-  vec2 stormUV=vec2(dot(p,normalize(vec3(.64,0.,-.73))),p.y+.22)*vec2(1.,1.8);
-  float stormMask=smoothstep(.94,.995,dot(p,stormAxis));
-  float vortex=sin(length(stormUV)*108.-flow*8.)*coverage(footprint,54.);
-  float bandPhase=p.y*38.+flow*4.7+stormMask*vortex*1.8;
-  float bands=.5+.5*sin(bandPhase);
-  bands=mix(.5,bands,coverage(footprint,38.));
-  // Fine, sheared filaments share the broad flow, so detail reads as atmosphere.
-  // Filtering the warped phase itself prevents moving belts from shimmering.
-  float filamentPhase=bandPhase*4.4+fine*2.4+flow*3.;
+  vec2 stormUV=vec2(dot(p,normalize(vec3(.64,0.,-.73))),p.y+.22)*vec2(.82,1.85);
+  float stormRadius=length(stormUV);
+  float stormMask=(1.-smoothstep(.12,.29,stormRadius))*smoothstep(.82,.95,dot(p,stormAxis));
+  float vortexPhase=stormRadius*85.-flow*9.+terrain*3.;
+  float vortex=sin(vortexPhase)*(1.-smoothstep(.55,1.5,fwidth(vortexPhase)));
+  float bandPhase=p.y*28.+sin(p.y*8.4+terrain*2.)*1.8+(flow-.5)*6.4;
+  bandPhase+=stormMask*vortex*1.1;
+  float primary=sin(bandPhase);
+  float secondary=sin(bandPhase*.47+terrain*4.+flow*1.2);
+  float bands=.5+primary*.31+secondary*.15;
+  bands=mix(.5,bands,1.-smoothstep(.55,1.5,fwidth(bandPhase)));
+  // Filter the actual warped phase to hold its texture steady during travel.
+  float filamentPhase=bandPhase*4.8+fine*2.7+flow*3.5;
   float filamentVisibility=1.-smoothstep(.55,1.5,fwidth(filamentPhase));
   float filaments=sin(filamentPhase)*filamentVisibility;
   float belt=pow(1.-bands,3.);
-  vec3 deep=uColor*vec3(.37,.25,.45);
-  vec3 high=mix(uColor,vec3(.91,.78,.67),.25)*.88;
-  albedo=mix(deep,high,smoothstep(.12,.9,bands));
-  albedo=mix(albedo,mix(high,deep,.32+.18*vortex),stormMask*.75);
-  albedo*=.84+flow*.29-belt*.045+filaments*.065*(1.-stormMask*.7);
-  relief=flow*.3+bands*.12+filaments*.014;reliefScale=.0012;
+  vec3 deep=uColor*vec3(.45,.36,.53);
+  vec3 high=mix(uColor,vec3(.91,.78,.67),.19)*.82;
+  albedo=mix(deep,high,smoothstep(.08,.94,bands));
+  vec3 storm=mix(high,deep,.35+.13*vortex+.12*flow);
+  albedo=mix(albedo,storm,stormMask*.79);
+  albedo*=.86+flow*.23-belt*.05+filaments*.075*(1.-stormMask*.55);
+  relief=flow*.24+bands*.09+filaments*.012;reliefScale=.001;
   specularStrength=.035;
  }else if(uKind<2.5){
   // Pale ice plates with darker, translucent-looking fracture seams.
-  float fault=abs(noise3(p*18.+terrain*2.)-.5);
+  float fault=abs(noise3(p*vec3(16.,22.,13.)+terrain*2.)-.5);
   float seamWidth=max(.014,footprint*.32);
   float cracks=1.-smoothstep(.015,.015+seamWidth,fault);
   cracks*=coverage(footprint,28.);
   float frost=smoothstep(.38,.7,terrain);
+  float polar=smoothstep(.62,.94,abs(p.y)+terrain*.10);
   albedo=mix(uColor*vec3(.24,.47,.56),mix(uColor,vec3(.91,.96,1.),.47),.46+frost*.44);
   albedo=mix(albedo,uColor*vec3(.08,.32,.43),cracks*.66);
+  albedo=mix(albedo,mix(uColor,vec3(.94,.97,1.),.65),polar*.23);
   relief=terrain*.30-cracks*.11+(fine-.5)*.055*coverage(footprint,43.);
   reliefScale=.004;specularStrength=.23;specularPower=42.;
  }else if(uKind<3.5){
@@ -130,7 +151,10 @@ void main(){
  vec3 normal=normalize(baseNormal-gradient);
  float sunlight=max(dot(normal,key),0.);
  float fill=max(dot(normal,normalize(vec3(-.6,.65,1.))),0.);
- vec3 surface=albedo*(.14+sunlight*(.60+uLightEnergy*.16)+fill*.36)*cloudShadow;
+ // A restrained cool fill retains the unlit side without flattening the
+ // terminator. Star-tinted direct light supplies the material's main shape.
+ vec3 directLight=mix(vec3(1.),uLightColor,.18)*sunlight*(.72+uLightEnergy*.16);
+ vec3 surface=albedo*(vec3(.14+fill*.29)+directLight)*cloudShadow;
  vec3 halfVector=normalize(key+view);
  float specular=pow(max(dot(normal,halfVector),0.),specularPower)*specularStrength*sunlight;
  surface+=mix(uLightColor,vec3(1.),.35)*specular;
