@@ -109,7 +109,7 @@ planets.forEach((o,i)=>{planetColor.copy(o.baseColor).lerp(mood.light,mood.warmt
 // Cached text metrics avoid layout reads on every frame; the observer tracks
 // font loading and responsive wrapping without changing projected anchors.
 for(const candidate of labelCandidates){const label=labelTextNodes[candidate.id];let size=labelSizes.get(label);if(!size){size={width:label.offsetWidth,height:label.offsetHeight};labelSizes.set(label,size);}candidate.width=size.width;candidate.height=size.height;}
-for(const rect of layoutLabels(labelCandidates,copyBounds,innerWidth,innerHeight,previousLabelLayout)){previousLabelLayout.set(rect.id,rect);const c=labelCandidates.find(item=>item.id===rect.id);labelTextNodes[rect.id].style.transform=`translate(${rect.left+c.width/2-c.x}px,${rect.top-(c.y+c.radius+(mobile()?8:16))}px)`;}
+for(const rect of layoutLabels(labelCandidates,copyBounds,innerWidth,innerHeight,previousLabelLayout,paused||reduced.matches?Infinity:elapsed)){previousLabelLayout.set(rect.id,rect);const c=labelCandidates.find(item=>item.id===rect.id);labelTextNodes[rect.id].style.transform=`translate(${rect.left+c.width/2-c.x}px,${rect.top-(c.y+c.radius+(mobile()?8:16))}px)`;}
 profiler.endLayout();updateChapters(p);profiler.beginRender();if(composer){bloom.strength=.22+state.focus*.06;composer.render(dt);}else renderer.render(scene,camera);profiler.endRender();profiler.endFrame();}
 try{init();}catch(e){console.error('Galaxy initialization failed',e);$('#fallback').hidden=false;}
 

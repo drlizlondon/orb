@@ -54,23 +54,23 @@ void main(){
   vec3 cloudP=p;
   float cloudShear=uTime*.007+sin(p.y*3.1)*.22;
   cloudP.xz=mat2(cos(cloudShear),-sin(cloudShear),sin(cloudShear),cos(cloudShear))*cloudP.xz;
-  vec3 cloudDomain=(mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*cloudP)*vec3(8.5,13.5,8.5)+19.;
+  vec3 cloudDomain=(mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*cloudP)*vec3(17.,23.,17.)+19.;
   float cloudBroad=noise3(cloudDomain);
   float cloudWisps=noise3(cloudDomain*vec3(1.8,2.4,1.8)+7.+cloudBroad*.9);
-  cloudWisps=mix(.5,cloudWisps,coverage(footprint,33.));
-  float cloudEnvelope=smoothstep(.48,.73,cloudBroad);
+  cloudWisps=mix(.5,cloudWisps,coverage(footprint,58.));
+  float cloudEnvelope=smoothstep(.40,.80,cloudBroad);
   // Fine structure erodes the edges of larger systems instead of turning
   // every noise cell into a separate opaque patch.
-  cloudCover=smoothstep(.06,.78,cloudEnvelope-(1.-cloudWisps)*.34)*.72;
+  cloudCover=pow(smoothstep(.14,.88,cloudEnvelope-(1.-cloudWisps)*.28),1.2)*.55;
   // A raised cloud deck casts its broad shadow down-light. Two cloud scales
   // plus this displaced sample cost the same as the previous three-scale fbm.
   vec3 localLight=normalize(vLocalLight);
   vec3 shadowP=normalize(p+(localLight-p*dot(localLight,p))*.022);
   float shadowShear=uTime*.007+sin(shadowP.y*3.1)*.22;
   shadowP.xz=mat2(cos(shadowShear),-sin(shadowShear),sin(shadowShear),cos(shadowShear))*shadowP.xz;
-  vec3 shadowDomain=(mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*shadowP)*vec3(8.5,13.5,8.5)+19.;
+  vec3 shadowDomain=(mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*shadowP)*vec3(17.,23.,17.)+19.;
   float cloudOccluder=noise3(shadowDomain);
-  cloudShadow=1.-smoothstep(.48,.73,cloudOccluder)*.18;
+  cloudShadow=1.-smoothstep(.40,.80,cloudOccluder)*.14;
   relief=mix(.46,terrain,land);
   reliefScale=.004;
   specularStrength=mix(.38,.025,land);

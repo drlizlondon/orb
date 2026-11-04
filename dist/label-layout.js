@@ -4,7 +4,7 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 // Project labels against actual obstacle edges. A moving anchor can slide along
 // an edge continuously rather than switching between coarse vertical rows.
-export function layoutLabels(candidates,reserved,width,height,previous=new Map()){
+export function layoutLabels(candidates,reserved,width,height,previous=new Map(),seconds=1/60){
  const placed=[],output=[];
  const planetBounds=candidates.map(c=>({left:c.x-c.radius,top:c.y-c.radius,right:c.x+c.radius,bottom:c.y+c.radius}));
  for(const c of [...candidates].sort((a,b)=>a.id-b.id)){
@@ -17,7 +17,32 @@ export function layoutLabels(candidates,reserved,width,height,previous=new Map()
   // Keep this path allocation-light for paused and settled camera views.
   if(retained){
    const rect={...retained,right:retained.left+c.width,bottom:retained.top+c.height};
-   if(!obstacles.some(box=>overlaps(rect,box))){placed.push(rect);output.push({...rect,id:c.id,anchorX:c.x,anchorY:c.y});continue;}
+   if(!obstacles.some(box=>overlaps(rect,box))){
+    // Restore tight attachment after the hero clears or a planet shrinks. Only
+    // correct the text offset; the projected anchor remains exact. A swept
+    // rectangle prevents a correction from travelling through copy or a world.
+    const attachment=[
+     {left,top:preferred},
+     {left,top:c.y-c.radius-c.height-13},
+     {left:c.x-c.radius-c.width-13,top:c.y-c.height/2},
+     {left:c.x+c.radius+13,top:c.y-c.height/2},
+    ];
+    let goal=null,goalCost=Infinity;
+    for(const [rank,position] of attachment.entries()){
+     const target={left:clamp(position.left,12,width-c.width-12),top:clamp(position.top,86,height-c.height-20)};
+     target.right=target.left+c.width;target.bottom=target.top+c.height;
+     const swept={left:Math.min(rect.left,target.left),top:Math.min(rect.top,target.top),right:Math.max(rect.right,target.right),bottom:Math.max(rect.bottom,target.bottom)};
+     if(obstacles.some(box=>overlaps(swept,box)))continue;
+     const cost=Math.hypot(target.left-rect.left,target.top-rect.top)+rank*4;
+     if(cost<goalCost){goal=target;goalCost=cost;}
+    }
+    if(goal){
+     const response=Number.isFinite(seconds)?1-Math.exp(-Math.max(0,seconds)*10):1;
+     rect.left+=(goal.left-rect.left)*response;rect.top+=(goal.top-rect.top)*response;
+     rect.right=rect.left+c.width;rect.bottom=rect.top+c.height;
+    }
+    placed.push(rect);output.push({...rect,id:c.id,anchorX:c.x,anchorY:c.y});continue;
+   }
   }
   const xs=[left],ys=[preferred,c.y-c.radius-c.height-13];
   if(retained){xs.push(retained.left);ys.push(retained.top);}

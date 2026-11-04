@@ -52,3 +52,29 @@ test('an obstructed retained placement projects to a nearby obstacle edge',()=>{
  assert.ok(Math.hypot(rect.left-old.left,rect.top-old.top)<=8);
  assert.ok(!reserved.some(box=>intersects(rect,box)));
 });
+
+
+test('a clear displaced name restores tight attachment consistently at 30, 60 and 144 Hz',()=>{
+ const results=[30,60,144].map(hz=>{
+  const c={id:0,x:300,y:200,radius:20,width:120,height:25};
+  let rect={left:240,top:350,right:360,bottom:375,id:0,anchorX:300,anchorY:200};
+  for(let frame=0;frame<hz;frame++){
+   [rect]=layoutLabels([c],[],800,700,new Map([[0,rect]]),1/hz);
+   assert.ok(!intersects(rect,{left:273,top:173,right:327,bottom:227}));
+  }
+  return rect;
+ });
+ for(const r of results)assert.ok(Math.abs(r.top-233)<.006);
+ assert.ok(Math.abs(results[0].top-results[1].top)<1e-10);
+ assert.ok(Math.abs(results[1].top-results[2].top)<1e-10);
+});
+
+test('a remote name above a planet tightens above it without crossing its surface',()=>{
+ const c={id:0,x:300,y:337,radius:20,width:120,height:25};
+ let rect={left:240,top:190,right:360,bottom:215,id:0,anchorX:300,anchorY:337};
+ for(let i=0;i<60;i++){
+  [rect]=layoutLabels([c],[],800,700,new Map([[0,rect]]),1/60);
+  assert.ok(rect.bottom<=304);
+ }
+ assert.ok(Math.abs(rect.top-279)<.006);
+});
