@@ -8,6 +8,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 
 - Four lighting moods: Night, Dusk, Evening and Day. Click the background or use the lighting button; dragging and project selection stay separate. A nearby star, the particle colors, planets and interface transition together.
 - Logo orbit and headline transitions respect reduced motion and the pause control.
+- The nearby star uses a 192 × 128 desktop sphere, seamless per-pixel plasma, granulation, dark regions, limb darkening and a separate textured corona. Mobile uses reduced geometry and the no-WebGL renderer includes a textured fallback.
 - Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
 - 130,000 stars plus 4,800 dust particles on desktop; reduced budgets on mobile.
 - Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions.
