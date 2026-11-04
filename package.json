@@ -1,0 +1,1 @@
+{"name":"orbit-galaxy","private":true,"version":"1.0.0","type":"module","scripts":{"build":"node scripts/build.mjs","check":"node --check dist/app.js && node --check dist/canvas-fallback.js && node --check dist/projects.js"},"dependencies":{"three":"0.170.0"}}
