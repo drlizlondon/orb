@@ -1,8 +1,8 @@
 export const moods = [
-  {name:'Night', background:'#010105', light:'#9894ff', tint:'#b9caff', accent:'#c1bbff', ink:'#f2f0f8', muted:'#aaaec5', panel:'#101221', speed:1, warmth:0, sun:.08},
-  {name:'Dusk', background:'#09020d', light:'#dd7bca', tint:'#ff9cc7', accent:'#efb9df', ink:'#fff0fa', muted:'#c6aabe', panel:'#211020', speed:.88, warmth:.32, sun:.28},
-  {name:'Evening', background:'#0b0403', light:'#f1a15f', tint:'#ffc28e', accent:'#f2c39b', ink:'#fff3e7', muted:'#c9b2a2', panel:'#231710', speed:.76, warmth:.56, sun:.55},
-  {name:'Day', background:'#100d09', light:'#ffe6a8', tint:'#fff2cc', accent:'#ffe1a3', ink:'#fffaf0', muted:'#d2c9b6', panel:'#252216', speed:.66, warmth:.72, sun:.95},
+  {name:'Night', background:'#010105', light:'#9894ff', tint:'#b9caff', accent:'#c1bbff', ink:'#f2f0f8', muted:'#e2e2f1', panel:'#101221', speed:1, warmth:0, sun:.08},
+  {name:'Dusk', background:'#09020d', light:'#dd7bca', tint:'#ff9cc7', accent:'#efb9df', ink:'#fff0fa', muted:'#f2dfea', panel:'#211020', speed:.88, warmth:.32, sun:.28},
+  {name:'Evening', background:'#0b0403', light:'#f1a15f', tint:'#ffc28e', accent:'#f2c39b', ink:'#fff3e7', muted:'#f4e4d7', panel:'#231710', speed:.76, warmth:.56, sun:.55},
+  {name:'Day', background:'#100d09', light:'#ffe6a8', tint:'#fff2cc', accent:'#ffe1a3', ink:'#fffaf0', muted:'#f6edda', panel:'#252216', speed:.66, warmth:.72, sun:.95},
 ];
 
 export function createMoods(THREE, gsap, reduced, blocked) {
