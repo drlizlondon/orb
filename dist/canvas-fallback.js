@@ -1,4 +1,4 @@
-import * as THREE from './vendor/three.module.js';
+import * as THREE from 'three';
 // A lightweight projection renderer for devices without a WebGL context.
 // The Three.js scene and camera remain the single source of truth.
 export class CanvasGalaxyRenderer {
