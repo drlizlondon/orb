@@ -24,3 +24,10 @@ test('hover priority does not reorder crowded name placement',()=>{
  const second=layoutLabels(names.map(c=>({...c,priority:c.id===1?1:0})),[],390,844,new Map(first.map(r=>[r.id,r])));
  assert.deepEqual(second.map(r=>[r.left,r.top]),first.map(r=>[r.left,r.top]));
 });
+
+test('a retained name moves clear when its planet grows underneath it',()=>{
+ const c={id:0,x:300,y:300,radius:55,width:120,height:25,priority:0};
+ const old={left:240,top:315,right:360,bottom:340,id:0,anchorX:300,anchorY:300};
+ const [rect]=layoutLabels([c],[],800,700,new Map([[0,old]]));
+ assert.ok(rect.top>=368||rect.bottom<=232);
+});
