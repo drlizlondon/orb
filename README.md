@@ -41,6 +41,7 @@ The GPU path uses restrained UnrealBloomPass glow, ACES tone mapping and procedu
 | `dist/projects.js` | Five project names, descriptions, original URLs, colors and 3D positions |
 | `src/galaxy.js` | Scene generation, GSAP camera journey, Lenis input, bloom and shaders |
 | `src/inspector.jsx` | Radix project inspector and Sonner notifications |
+| `src/planet-portrait.js` | Card portraits rendered from the actual selected world |
 | `dist/canvas-fallback.js` | Lightweight renderer for devices without WebGL |
 | `dist/style.css` | Responsive typography and fixed interface |
 | `dist/index.html` | Clean presentation and accessible dialogs |
@@ -77,3 +78,5 @@ A further restrained review on 4 November 2026 added spiral lane attenuation dur
 The cinematic materials pass on 4 November 2026 retained the particle counts and render-pass count, added filtered surface relief and latitude-dependent stellar plasma flow, and refined the inspection camera and card transitions. On the GPU review browser at 1729 × 1220 in the Night wide view, both baseline and updated 120-frame windows reported a 5.7 ms median interval and 5.8 ms p95 at rendering scale 1.00. These are short browser frame-interval samples, not isolated GPU benchmarks. The review covered all four moods, desktop close/wide views, a 390 × 844 mobile viewport, all five project cards and destination hrefs, keyboard opening/return, and pause state. The 12 automated checks passed and live WebGL logs had no shader errors. Reduced-motion behavior was reviewed in source; a physical phone performance benchmark is still outside this browser review.
 
 A further materials review replaced regular stellar granules with two rotated, warped noise scales, refined gas filaments and mineral shelves without extra noise samples, and settled active lighting transitions immediately when reduced motion is enabled. The automated suite now includes 16 checks, covering gradual quality recovery and preference changes during an active mood transition.
+
+Project cards use a one-time 192 px render of the selected planet mesh, atmosphere and optional GirlPlanner ring. They share the live geometry, materials, orientation and mood, with the same ACES and sRGB output conversion. No second WebGL context or continuous card render loop is created. Canvas fallback portraits use the same fallback scene renderer.

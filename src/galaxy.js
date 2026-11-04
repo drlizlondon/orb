@@ -7,6 +7,7 @@ import {createStellarSurface} from './stellar-surface.js';
 import {createFrameBudget} from './frame-budget.js';
 import {createPlanetMaterial} from './planet-material.js';
 import {createPlanetRing} from './planet-ring.js';
+import {createPlanetPortrait} from './planet-portrait.js';
 import {layoutLabels} from '../dist/label-layout.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
@@ -38,7 +39,21 @@ function goHome(e){e?.preventDefault();setProgress(0);targetYaw=0;targetTilt=0;}
 $('.wordmark').onclick=goHome;$('#projects-nav').onclick=openIndex;$('#skip-projects').onclick=openIndex;$('#fallback-projects').onclick=openIndex;
 index.querySelector('.close-dialog').onclick=()=>index.close();
 index.addEventListener('click',e=>{if(e.target===index){const r=index.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)index.close();}});
-function openProject(i,trigger){selected=i;focusIndex=i;lastTrigger=trigger;gsap.to(flight,{focus:1,duration:reduced.matches?0:1.65,ease:'power3.inOut',overwrite:true});document.body.classList.add('detail-open');window.dispatchEvent(new CustomEvent('orbit:inspect',{detail:{project:{...projects[i],color:planets[i]?'#'+planets[i].mesh.material.uniforms.uColor.value.getHexString():projects[i].color}}}));}
+let portraitRequest=0;
+function openProject(i,trigger){
+ selected=i;focusIndex=i;lastTrigger=trigger;
+ const request=++portraitRequest;
+ gsap.to(flight,{focus:1,duration:reduced.matches?0:1.65,ease:'power3.inOut',overwrite:true});
+ document.body.classList.add('detail-open');
+ window.dispatchEvent(new CustomEvent('orbit:inspect',{detail:{project:{...projects[i],portraitRequest:request,color:planets[i]?'#'+planets[i].mesh.material.uniforms.uColor.value.getHexString():projects[i].color}}}));
+ // Let the card open before the one-off GPU readback; a closed or replaced
+ // inspection must never receive another world's delayed portrait.
+ requestAnimationFrame(()=>{
+  if(selected!==i||request!==portraitRequest||!planets[i])return;
+  try{const portrait=createPlanetPortrait(renderer,planets[i],mobile());if(selected===i&&request===portraitRequest)window.dispatchEvent(new CustomEvent('orbit:portrait',{detail:{id:projects[i].id,request,portrait}}));}
+  catch(error){console.warn('Planet preview unavailable',error);}
+ });
+}
 window.addEventListener('orbit:close',()=>{selected=-1;gsap.to(flight,{focus:0,duration:reduced.matches?0:1.45,ease:'power3.inOut',overwrite:true});document.body.classList.remove('detail-open');requestAnimationFrame(()=>{const trigger=lastTrigger&&!lastTrigger.hidden?lastTrigger:$('#projects-nav');if(document.activeElement===document.body||document.activeElement?.closest('[role=dialog]'))trigger.focus({preventScroll:true});});});
 const founderMotion=createFounderMotion(gsap,reduced);
 function updateMotion(){founderMotion.setPaused(paused);document.body.classList.toggle('motion-paused',paused);const b=$('#motion');b.textContent=paused?'▷':'Ⅱ';b.disabled=reduced.matches;b.setAttribute('aria-label',reduced.matches?'Reduced motion enabled':paused?'Resume animation':'Pause animation');b.setAttribute('aria-pressed',String(paused));}

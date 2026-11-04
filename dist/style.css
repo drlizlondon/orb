@@ -38,10 +38,10 @@ html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}body{p
 /* Project cards share the camera's gentle settling motion. */
 .inspector{animation-duration:.7s;animation-timing-function:cubic-bezier(.22,1,.36,1);box-shadow:0 30px 110px #0008,inset 0 1px 0 #ffffff14}
 .inspector-planet{box-shadow:inset -9px -4px 14px #02030ba8,0 0 25px color-mix(in srgb,var(--planet-color) 13%,transparent)}
-.inspector[data-world=gp] .inspector-planet{background:repeating-linear-gradient(172deg,#83709d 0 5px,#c4a7d4 7px,#6b5a83 10px,#a08ab6 14px)}
-.inspector[data-world=sms] .inspector-planet{background:repeating-linear-gradient(125deg,#7195a0 0 1px,transparent 2px 12px),radial-gradient(circle at 30% 25%,#d8e7ed,#91b7c6 35%,#263a50 85%)}
-.inspector[data-world=da] .inspector-planet{background:repeating-linear-gradient(32deg,transparent 0 12px,#bb68523d 13px 14px),radial-gradient(circle at 30% 25%,#a2768a,#41354c 45%,#080b16 85%)}
 .inspector-bento>*{animation:inspectorReveal .65s cubic-bezier(.22,1,.36,1) both}.inspector-bento>:nth-child(2),.inspector-bento>:nth-child(3){animation-delay:.07s}.inspector-bento>:last-child{animation-delay:.14s}
 @keyframes inspectorReveal{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
 .motion-paused .inspector,.motion-paused .inspector-overlay,.motion-paused .inspector-bento>*{animation:none}
 @media(prefers-reduced-motion:reduce){.inspector,.inspector-overlay,.inspector-bento>*{animation:none}}
+
+/* Card portraits are rendered from the selected 3D world. */
+.inspector .inspector-planet{background:none;box-shadow:none;border-radius:0;display:grid;place-items:center;overflow:visible}.inspector-planet img{display:block;width:100%;height:100%;object-fit:contain}
