@@ -1,6 +1,6 @@
 # Lizzie in Orbit
 
-A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch movement pull the camera outward from the galaxy core. The document itself never scrolls; the interface stays fixed in the viewport. Five project worlds emerge along the outer constellation. Sparse foreground stars, spiral filaments with narrow dark lanes and a gentle local pointer response add depth. Planet surfaces and atmospheric rims follow the nearby star’s lighting mood.
+A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch movement pull the camera outward from the galaxy core. The document itself never scrolls; the interface stays fixed in the viewport. Five project worlds emerge along the outer galaxy. Sparse foreground stars, spiral filaments with narrow dark lanes and a gentle local pointer response add depth. Planet surfaces and atmospheric rims follow the nearby star’s lighting mood.
 
 ## Experience
 
@@ -17,7 +17,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 - Keyboard-accessible project index, reduced-motion support, and Canvas fallback when WebGL is unavailable.
 - Subtle founder credit and LinkedIn link. No NHS affiliation or endorsement claims.
 
-Project planets sit at five distinct radii, from 6.1 to 8.3 scene units. Original outbound URLs are checked in the test suite.
+Project planets sit at five distinct radii, from 6.1 to 8.3 scene units. GirlPlanner has a single planetary ring; the other worlds are ring-free and no orbit paths or connecting lines are drawn. Original outbound URLs are checked in the test suite.
 
 ## Run locally
 
