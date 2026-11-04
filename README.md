@@ -39,7 +39,10 @@ The GPU path uses restrained UnrealBloomPass glow, ACES tone mapping and procedu
 | File | Purpose |
 | --- | --- |
 | `dist/projects.js` | Five project names, descriptions, original URLs, colors and 3D positions |
-| `src/galaxy.js` | Scene generation, GSAP camera journey, Lenis input, bloom and shaders |
+| `src/galaxy.js` | Scene composition, camera integration, input, lighting and rendering |
+| `src/camera-motion.js` | Coordinated camera travel, drag, inspection and return |
+| `src/touch-gesture.js` | Touch lifecycle and multi-touch gesture ownership |
+| `src/render-profiler.js` | Optional CPU and GPU timing diagnostics |
 | `src/inspector.jsx` | Radix project inspector and Sonner notifications |
 | `src/planet-portrait.js` | Card portraits rendered from the actual selected world |
 | `dist/canvas-fallback.js` | Lightweight renderer for devices without WebGL |
