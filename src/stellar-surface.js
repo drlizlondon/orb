@@ -51,14 +51,14 @@ void main() {
   float spots = smoothstep(.66,.79,activeRegion)*smoothstep(.44,.7,noise3(p*24.+warp));
   float detail = clamp(convection*.61 + cells*.31 + micro*.08,0.,1.);
   vec3 dark = uColor * vec3(.22,.15,.12);
-  vec3 hot = mix(uColor,vec3(1.,.96,.87),.36);
+  vec3 hot = mix(uColor,vec3(1.,.96,.87),.24);
   vec3 surface = mix(dark,hot,smoothstep(.22,.75,detail));
-  surface *= 1.-spots*.82;
+  surface *= 1.-spots*.64;
   surface += hot*filaments*.17*(.3+uActivity);
   float facing = max(dot(normalize(vNormal),normalize(cameraPosition-vWorld)),0.);
   // Limb darkening preserves a spherical silhouette without a hard sticker edge.
   surface *= .28+.72*pow(facing,.34);
-  surface *= .25+uActivity*1.03;
+  surface *= .23+uActivity*.78;
   gl_FragColor = vec4(surface,1.);
 }`;
 
@@ -70,8 +70,8 @@ ${noiseGLSL}
 void main() {
   float facing = abs(dot(normalize(vNormal),normalize(cameraPosition-vWorld)));
   float rim = pow(1.-facing,3.4);
-  float streamers = fbm(vSurface*22.+vec3(uTime*.008,0.,-uTime*.004));
-  float alpha = rim*(.18+streamers*.55)*(.12+uActivity*.66);
+  float streamers = fbm(vSurface*vec3(26.,8.,26.)+vec3(uTime*.008,0.,-uTime*.004));
+  float alpha = rim*(.15+streamers*.5)*(.12+uActivity*.66);
   gl_FragColor = vec4(uColor*1.2,alpha);
 }`;
 

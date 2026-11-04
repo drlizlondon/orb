@@ -1,6 +1,6 @@
 # Lizzie in Orbit
 
-A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch movement pull the camera outward from the galaxy core. The document itself never scrolls; the interface stays fixed in the viewport. Five project worlds emerge along the outer constellation.
+A cinematic project universe for Dr Lizzie Soyode. Wheel, trackpad and touch movement pull the camera outward from the galaxy core. The document itself never scrolls; the interface stays fixed in the viewport. Five project worlds emerge along the outer constellation. Sparse foreground stars, spiral filaments and a gentle local pointer response add depth.
 
 ## Experience
 
@@ -10,7 +10,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 - Logo orbit and headline transitions respect reduced motion and the pause control.
 - The nearby star uses a 192 × 128 desktop sphere, seamless per-pixel plasma, granulation, dark regions, limb darkening and a separate textured corona. Mobile uses reduced geometry and the no-WebGL renderer includes a textured fallback.
 - Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
-- 130,000 stars plus 4,800 dust particles on desktop; reduced budgets on mobile.
+- 118,000 stars plus 3,600 dust particles on desktop; reduced budgets on mobile.
 - Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions.
 - Clickable project names remain beneath visible planets at every zoom level. Radix detail dialogs expose the original destination links; Escape returns to the galaxy.
 - Drag to orbit, scroll to travel, and a discreet pause control. Home/End and arrow keys also control the journey.
@@ -63,6 +63,10 @@ The social cover is generated promotional artwork; the interactive scene remains
 
 Project names, descriptions and destination URLs were verified against https://galaxycloud.lovable.app/ on 4 November 2026. Founder identity and LinkedIn URL were supplied by the project owner. The visual galaxy is procedural, not a screenshot or generated image.
 
-## Review notes
+## Performance and review notes
 
 The cloud QA browser validated the Canvas fallback, navigation and dialogs. The deployed WebGL shader path was also checked in a GPU-enabled browser, with no console errors. Target-device frame rate varies with display size, pixel density and GPU.
+
+On the review desktop at 1729 × 1220 in the Night hero, a rolling 120-frame sample measured a median frame interval of 5.7 ms before and after this refinement, with p95 at 5.8 ms before and 5.9 ms after. These are browser frame intervals, not GPU timer measurements or a device guarantee. The Canvas fallback at 1363 × 936 measured median intervals of 66.7 ms before and 50.0 ms after in short review samples.
+
+Mobile uses smaller particle and pixel budgets. Sustained slow WebGL frames first reduce resolution, then reduce drawn particles to a minimum of 70 percent. Diagnostic values live on the canvas data attributes without adding visible interface controls. Asset URLs carry content hashes so updated builds load the matching code and styles.
