@@ -100,7 +100,9 @@ export function createGalaxyParticleMaterial(dust, {mood, pointerLocal}) {
         vDepth=-mv.z;
         gl_Position=projectionMatrix*mv;
         float projectedSize=aSize*uPixelRatio*(230./max(.1,-mv.z));
-        gl_PointSize=clamp(projectedSize,.65,${dust ? '104.' : '10.'});
+        // Cap nearby sprites before they become soft disks; distant projected
+        // sizes are untouched, retaining the wide-view spiral luminosity.
+        gl_PointSize=clamp(projectedSize,.65,${dust ? '96.' : '7.8'});
         // Preserve coverage when distant stars fall below one fragment instead
         // of letting every unresolved point become an equally bright pixel.
         vCoverage=${dust ? '1.' : 'clamp(projectedSize/.65,.34,1.)'};
@@ -128,7 +130,10 @@ export function createGalaxyParticleMaterial(dust, {mood, pointerLocal}) {
           a*=wisp;` : ''}
         float haze=smoothstep(8.,38.,vDepth);
         c=mix(c,c*uTint,.16*haze);
-        gl_FragColor=vec4(c,a*uAlpha*twinkle*vCoverage*(1.-haze*.18));
+        // A restrained near-field falloff leaves dark space between the
+        // foreground stars instead of accumulating a flat glitter veil.
+        float nearVisibility=${dust ? '.92+.08*smoothstep(1.,8.,vDepth)' : '.82+.18*smoothstep(1.,8.,vDepth)'};
+        gl_FragColor=vec4(c,a*uAlpha*twinkle*vCoverage*nearVisibility*(1.-haze*.18));
       }`,
   });
 }

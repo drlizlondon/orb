@@ -41,6 +41,7 @@ The GPU path uses restrained UnrealBloomPass glow, ACES tone mapping and procedu
 | `dist/projects.js` | Five project names, descriptions, original URLs, colors and 3D positions |
 | `src/galaxy.js` | Scene composition, camera integration, input, lighting and rendering |
 | `src/camera-motion.js` | Coordinated camera travel, drag, inspection and return |
+| `src/frame-time.js` | Elapsed camera time and bounded decorative simulation |
 | `src/touch-gesture.js` | Touch lifecycle and multi-touch gesture ownership |
 | `src/render-profiler.js` | Optional CPU and GPU timing diagnostics |
 | `src/inspector.jsx` | Radix project inspector and Sonner notifications |
@@ -69,9 +70,9 @@ Project names, descriptions and destination URLs were verified against https://g
 
 ## Rendering and motion
 
-The galaxy uses two particle clouds with irregular spiral density, narrow dark lanes, sparse clusters and a soft outer falloff. Particle counts and render passes are unchanged. Planet and star detail uses seamless procedural shaders with derivative filtering; the material refinement retains the existing noise-sample budget.
+The galaxy uses two particle clouds with irregular spiral density, narrow dark lanes, sparse clusters and a soft outer falloff. Particle counts and render passes are unchanged. Planet and star detail uses seamless procedural shaders with derivative filtering; the material refinement retains the existing noise-sample budget. Ocean clouds use sheared, eroded weather fronts. Stellar granulation emphasizes luminous interiors and narrow downflow lanes. Nearby sprite diameter and alpha are restrained so foreground glitter does not veil the disk.
 
-Wheel events are coalesced once per frame. The camera uses one critically damped response for each conceptual channel, with no second position or look-at smoothing layer. Direction reversal clears the pending tail of the old gesture. Inspection and return begin at the current rendered pose, so selecting another world during a return remains continuous. Phone framing fades through the close-to-wide transition rather than switching abruptly.
+Wheel events are coalesced once per frame. The camera uses one critically damped response for each conceptual channel, with no second position or look-at smoothing layer. Direction reversal clears the pending tail of the old gesture. Inspection and return begin at the current rendered pose, so selecting another world during a return remains continuous. Phone framing fades through the close-to-wide transition rather than switching abruptly. Camera springs consume actual elapsed time after a long frame while decorative simulation remains capped. Visibility changes reset the timing origin. Label placement projects against obstacle edges instead of coarse rows; clear retained positions remain stable. Pause settles hover and lighting responses immediately and stops decorative shader time and CSS animation.
 
 Project cards use a one-time 192 px render of the selected planet mesh, atmosphere and optional GirlPlanner ring. They share the live geometry, materials, orientation and mood, with the same ACES and sRGB output conversion. No second WebGL context or continuous card render loop is created. Canvas fallback portraits use the fallback scene renderer.
 
@@ -79,7 +80,7 @@ Mobile uses smaller particle and pixel budgets. Sustained slow WebGL frames redu
 
 ## Verification and profiling
 
-`npm run check` runs 35 tests covering camera response at 30, 60 and 144 Hz, wheel reversal, touch release, multi-touch identity and zoom limits, interrupted inspection, mobile framing, reduced motion, label collisions, original project destinations, portrait fallback, shared ring lighting, quality adaptation and profiler resource handling.
+`npm run check` runs 40 tests covering camera response at 30, 60 and 144 Hz, long visible frames and visibility resets, wheel reversal, touch release, multi-touch identity and zoom limits, interrupted inspection, mobile framing, reduced motion, stable collision placement, pause-aware lighting, original project destinations, portrait fallback, shared ring lighting, quality adaptation and profiler resource handling.
 
 Frame interval diagnostics are published on the canvas data attributes. Add `?profile=1` for CPU frame, label-layout and render-submission timings plus asynchronous GPU timer queries when the browser supports them. Add `&still=1` for a deterministic paused opening view. Profiling adds no interface and transmits no telemetry. GPU queries are sparse, nonblocking and discarded during disjoint intervals. Unsupported timers are reported as unavailable, never substituted with CPU time.
 

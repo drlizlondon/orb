@@ -29,5 +29,26 @@ test('a retained name moves clear when its planet grows underneath it',()=>{
  const c={id:0,x:300,y:300,radius:55,width:120,height:25,priority:0};
  const old={left:240,top:315,right:360,bottom:340,id:0,anchorX:300,anchorY:300};
  const [rect]=layoutLabels([c],[],800,700,new Map([[0,old]]));
- assert.ok(rect.top>=368||rect.bottom<=232);
+ assert.ok(!intersects(rect,{left:238,top:238,right:362,bottom:362}));
+});
+
+test('a valid placement follows a one-pixel anchor change without switching to another corridor',()=>{
+ const names=[{id:0,x:180,y:138,radius:20,width:130,height:25},{id:1,x:220,y:245,radius:22,width:130,height:25}];
+ const old={left:115,top:324,right:245,bottom:349,id:0,anchorX:180,anchorY:137};
+ const reserved=[{left:30,top:145,right:160,bottom:310}];
+ const result=layoutLabels(names,reserved,390,844,new Map([[0,old]]));
+ const current=result.find(r=>r.id===0);
+ assert.ok(Math.hypot(current.left-old.left,current.top-old.top)<=8);
+ assert.ok(result.every(rect=>!reserved.some(box=>intersects(rect,box))));
+ assert.ok(!intersects(result[0],result[1]));
+});
+
+
+test('an obstructed retained placement projects to a nearby obstacle edge',()=>{
+ const names=[{id:0,x:180,y:136,radius:20,width:130,height:25},{id:1,x:220,y:245,radius:22,width:130,height:25}];
+ const old={left:115,top:317,right:245,bottom:342,id:0,anchorX:180,anchorY:137};
+ const reserved=[{left:30,top:145,right:160,bottom:310}];
+ const [rect]=layoutLabels(names,reserved,390,844,new Map([[0,old]]));
+ assert.ok(Math.hypot(rect.left-old.left,rect.top-old.top)<=8);
+ assert.ok(!reserved.some(box=>intersects(rect,box)));
 });

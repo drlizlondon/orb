@@ -27,9 +27,12 @@ float granulation(vec3 p) {
   vec3 q = mat3(0.,.8,.6,-.8,.36,-.48,-.6,-.48,.64)*p;
   float broad = noise3(q);
   float fine = noise3(q.zxy*1.91+vec3(5.7,19.1,8.3)+(broad-.5)*.72);
-  // Hot rising interiors are separated by narrow, cooler intergranular seams.
-  // The fine field distorts the boundaries instead of painting a second speckle layer.
-  return smoothstep(.26,.68,broad*.78+fine*.22);
+  // Fold the warped field into bright interiors separated by thin, darker
+  // downflow lanes. Its fine field distorts the lanes, rather than painting
+  // independent rocky-looking light and dark noise patches.
+  float field = broad*.78+fine*.22;
+  float interior = smoothstep(.012,.085,abs(field-.5));
+  return interior*(.86+fine*.14);
 }`;
 
 const vertex = `
@@ -56,9 +59,11 @@ void main() {
   vec3 flow = p+(warp-.5)*.10;
   float convection = fbm(flow*11.+drift);
   float pixelSize = length(fwidth(flow));
-  float cells = granulation(flow*88.-drift*.45);
+  // Spend the granule scale on detail that the visible stellar disk can
+  // resolve; the former 88x field was mostly filtered out at the wide view.
+  float cells = granulation(flow*64.-drift*.45);
   float micro = noise3(flow*185.+drift);
-  cells = mix(.56,cells,1.-smoothstep(.55,1.5,pixelSize*140.));
+  cells = mix(.64,cells,1.-smoothstep(.55,1.5,pixelSize*105.));
   micro = mix(.5,micro,1.-smoothstep(.6,1.6,pixelSize*185.));
   float magnetic = noise3(flow*vec3(32.,24.,32.)+warp*.7+drift);
   float filaments = pow(1.-abs(magnetic*2.-1.),12.);
@@ -68,9 +73,9 @@ void main() {
   // Sparse magnetic regions are softly bounded, rather than crater-like holes.
   float penumbra = smoothstep(.74,.89,activeRegion)*smoothstep(.53,.77,spotField);
   float umbra = smoothstep(.81,.94,activeRegion)*smoothstep(.64,.84,spotField);
-  float heat = clamp(.40+(convection-.5)*.14+cells*.31+(micro-.5)*.045,0.,1.);
+  float heat = clamp(.41+(convection-.5)*.10+cells*.30+(micro-.5)*.055,0.,1.);
   vec3 hot = mix(uColor,vec3(1.,.96,.88),.25);
-  vec3 cool = mix(uColor*vec3(.48,.39,.34),hot,.12);
+  vec3 cool = mix(uColor*vec3(.48,.39,.34),hot,.22);
   vec3 surface = mix(cool,hot,heat);
   surface *= 1.-penumbra*.20-umbra*.32;
   // Broken luminous ribbons follow active regions; broad noise no longer dominates.
@@ -79,8 +84,9 @@ void main() {
   surface += hot*plage*.035;
   float facing = max(dot(normalize(vNormal),normalize(cameraPosition-vWorld)),0.);
   // Keep the limb softly darker and bright-mode texture below the bloom threshold.
-  surface *= .26+.74*pow(facing,.38);
-  surface *= .21+uActivity*.78;
+  surface *= .36+.64*pow(facing,.46);
+  // Keep the quiet mood self-luminous while bright modes retain headroom.
+  surface *= .28+uActivity*.69;
   gl_FragColor = vec4(surface,1.);
 }`;
 

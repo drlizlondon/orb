@@ -51,3 +51,5 @@ html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}body{p
 
 /* Let the camera begin its approach before the card settles into view. */
 .inspector{animation-delay:.1s;animation-fill-mode:both}
+
+.motion-paused .wordmark svg,.motion-paused .wordmark .logo-core,.motion-paused .idea-lead,.motion-paused .idea-line em,.motion-paused .creator,.motion-paused .creator>span,.motion-paused .star-label .label-text,.motion-paused .star-label .target,.motion-paused #mood svg,.motion-paused #projects-nav,.motion-paused #mood,.motion-paused #motion,.motion-paused .founder-signature,.motion-paused .signature-night,.motion-paused .inspector-copy,.motion-paused .inspector-close,.motion-paused .inspector-return,.motion-paused .inspector-launch,.motion-paused{transition:none}

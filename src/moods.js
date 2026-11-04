@@ -6,7 +6,7 @@ export const moods = [
 ];
 
 export function createMoods(THREE, gsap, reduced, blocked) {
-  let current = 0;
+  let current = 0, paused = false;
   const state = {
     background: new THREE.Color(moods[0].background),
     light: new THREE.Color(moods[0].light),
@@ -17,7 +17,7 @@ export function createMoods(THREE, gsap, reduced, blocked) {
   const label = button.querySelector('span');
   function select(index) {
     current = index;
-    const mood = moods[current], duration = reduced.matches ? 0 : 2.1;
+    const mood = moods[current], duration = paused || reduced.matches ? 0 : 2.1;
     document.documentElement.dataset.mood = mood.name.toLowerCase();
     for (const key of ['accent','ink','muted','panel']) document.documentElement.style.setProperty(`--mood-${key}`, mood[key]);
     document.documentElement.style.setProperty('--mood-light', mood.light);
@@ -52,6 +52,11 @@ export function createMoods(THREE, gsap, reduced, blocked) {
   space.addEventListener('pointercancel',event=>{pointers.delete(event.pointerId);gesture=null;});
   // A newly enabled preference also settles a mood transition already in flight.
   reduced.addEventListener('change',event=>{if(event.matches)select(current);});
+  state.setPaused = value => {
+    const wasPaused = paused;
+    paused = !!value;
+    if (paused && !wasPaused) select(current);
+  };
   select(0);
   return state;
 }
