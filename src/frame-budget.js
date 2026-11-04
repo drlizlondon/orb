@@ -2,14 +2,16 @@
 export function createFrameBudget(renderer, composer, onScale, adaptive = false) {
   const samples = [];
   const minimumScale = Math.min(1, renderer.getPixelRatio());
-  let warmup = 45, windows = 0, slowWindows = 0, budget = 1;
+  let warmup = 45, windows = 0, slowWindows = 0, budget = 1, frames = 0;
+  if(typeof document!=='undefined')document.addEventListener('visibilitychange',()=>{samples.length=0;warmup=15;});
   return function record(milliseconds) {
-    if (warmup-- > 0 || !Number.isFinite(milliseconds) || milliseconds <= 0 || milliseconds > 2000) return;
+    const canvas=renderer.domElement;
+    if(++frames%30===0){canvas.dataset.frameCount=String(frames);canvas.dataset.frameLastMs=Number(milliseconds).toFixed(2);}
+    if (warmup-- > 0 || !Number.isFinite(milliseconds) || milliseconds <= 0) return;
     samples.push(milliseconds);
     if (samples.length < 120) return;
     const sorted = [...samples].sort((a,b)=>a-b);
     const median = sorted[60], p95 = sorted[114];
-    const canvas = renderer.domElement;
     canvas.dataset.frameMedianMs = median.toFixed(2);
     canvas.dataset.frameP95Ms = p95.toFixed(2);
     canvas.dataset.renderer = renderer.isFallback ? 'canvas' : 'webgl';
