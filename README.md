@@ -9,7 +9,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 - Four lighting moods: Night, Dusk, Evening and Day. Click the background or use the lighting button; dragging and project selection stay separate. A nearby star, the particle colors, planets and interface transition together.
 - Logo orbit and headline transitions respect reduced motion and the pause control. Pausing settles the rotating headline into a fully readable phrase; reduced motion disables the decorative animation toggle.
 - The nearby star uses a 192 × 128 desktop sphere, seamless per-pixel plasma, granulation, dark regions, limb darkening and a separate textured corona. Mobile uses reduced geometry and the no-WebGL renderer includes a textured fallback.
-- Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders.
+- Three.js r187 with custom GLSL particle, planet-surface and atmosphere shaders. Five world types use ocean shelves and clouds, gas bands and storms, ice fractures, mineral strata, and volcanic fissures. Fine detail fades with pixel footprint to limit shimmer.
 - 118,000 stars plus 3,600 dust particles on desktop; reduced budgets on mobile.
 - Slow rotation, subtle core breathing, hover emphasis and project fly-to transitions. Orbital movement holds while a project has keyboard focus.
 - Clickable project names remain beneath visible planets at every zoom level. Radix detail dialogs expose the original destination links; Escape returns to the galaxy.
@@ -17,7 +17,7 @@ Doctor by day. Building with AI by night. The headline rotates between orbit, th
 - Keyboard-accessible project index, reduced-motion support, and Canvas fallback when WebGL is unavailable.
 - Subtle founder credit and LinkedIn link. No NHS affiliation or endorsement claims.
 
-Project planets sit at five distinct radii, from 6.1 to 8.3 scene units. GirlPlanner has a single planetary ring; the other worlds are ring-free and no orbit paths or connecting lines are drawn. Original outbound URLs are checked in the test suite.
+Project planets sit at five distinct radii, from 6.1 to 8.3 scene units. GirlPlanner has a single textured planetary ring that scales with its inspection view; the other worlds are ring-free and no orbit paths or connecting lines are drawn. Original outbound URLs are checked in the test suite.
 
 ## Run locally
 
@@ -72,3 +72,6 @@ On the review desktop at 1729 × 1220 in the Night hero, a rolling 120-frame sam
 Mobile uses smaller particle and pixel budgets. Sustained slow WebGL frames first reduce resolution, then reduce drawn particles to a minimum of 70 percent. Diagnostic values live on the canvas data attributes without adding visible interface controls. Asset URLs carry content hashes so updated builds load the matching code and styles. Lower-density displays receive restrained FXAA after tone mapping; distant planet patterns blend toward simpler terrain to reduce shimmer. Adaptive rendering preserves an initial pixel ratio below one rather than increasing it.
 
 A further restrained review on 4 November 2026 added spiral lane attenuation during geometry creation, without another draw pass, and directional planet atmosphere lighting. The review browser reported roughly 1000 ms frame intervals while the page remained marked visible, indicating browser scheduling throttling. This session does not establish a reliable performance gain or regression; the earlier measurements above are historical samples, not results for this additional pass.
+
+
+The cinematic materials pass on 4 November 2026 retained the particle counts and render-pass count, added filtered surface relief and latitude-dependent stellar plasma flow, and refined the inspection camera and card transitions. On the GPU review browser at 1729 × 1220 in the Night wide view, both baseline and updated 120-frame windows reported a 5.7 ms median interval and 5.8 ms p95 at rendering scale 1.00. These are short browser frame-interval samples, not isolated GPU benchmarks. The review covered all four moods, desktop close/wide views, a 390 × 844 mobile viewport, all five project cards and destination hrefs, keyboard opening/return, and pause state. The 12 automated checks passed and live WebGL logs had no shader errors. Reduced-motion behavior was reviewed in source; a physical phone performance benchmark is still outside this browser review.

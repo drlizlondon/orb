@@ -10,7 +10,7 @@ function Inspector(){
  useEffect(()=>{const inspect=e=>{setProject(e.detail.project);setOpen(true);};window.addEventListener('orbit:inspect',inspect);return()=>window.removeEventListener('orbit:inspect',inspect);},[]);
  function change(next){setOpen(next);if(!next)window.dispatchEvent(new Event('orbit:close'));}
  async function copy(){try{await navigator.clipboard.writeText(project.url);toast.success('Project link copied');}catch{toast.error('Could not copy. Use the project link below.');}}
- return <><Dialog.Root open={open} onOpenChange={change}><Dialog.Portal><Dialog.Overlay className="inspector-overlay"/><Dialog.Content className="inspector" style={{'--planet-color':project?.color}} onCloseAutoFocus={e=>e.preventDefault()}>
+ return <><Dialog.Root open={open} onOpenChange={change}><Dialog.Portal><Dialog.Overlay className="inspector-overlay"/><Dialog.Content className="inspector" data-world={project?.id} style={{'--planet-color':project?.color}} onCloseAutoFocus={e=>e.preventDefault()}>
  <Dialog.Close className="inspector-close" aria-label="Return to galaxy"><svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></Dialog.Close>
  <div className="inspector-heading"><div className="inspector-planet" aria-hidden="true"/><div><span className="inspector-category">{project?.category}</span><Dialog.Title className="inspector-title">{project?.title}</Dialog.Title></div></div>
  <div className="inspector-bento"><div className="inspector-summary"><Dialog.Description className="inspector-description">{project?.description}</Dialog.Description></div>

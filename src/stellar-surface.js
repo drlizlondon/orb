@@ -18,8 +18,22 @@ float noise3(vec3 p) {
 }
 float fbm(vec3 p) {
   float value = 0., amplitude = .55;
-  for(int i=0;i<4;i++) {value += amplitude*noise3(p);p=p*2.03+vec3(7.1,3.7,1.9);amplitude*=.47;}
+  for(int i=0;i<3;i++) {value += amplitude*noise3(p);p=p*2.03+vec3(7.1,3.7,1.9);amplitude*=.47;}
   return value;
+}
+// Eight jittered cell corners give the photosphere rounded convective granules.
+// The fixed small search replaces another high-frequency fractal octave.
+float granulation(vec3 p) {
+  vec3 cell = floor(p), f = fract(p);
+  float nearest = 4.;
+  for(int z=0;z<2;z++) for(int y=0;y<2;y++) for(int x=0;x<2;x++) {
+    vec3 corner = vec3(float(x),float(y),float(z));
+    vec3 id = cell + corner;
+    vec3 jitter = vec3(hash31(id),hash31(id+13.7),hash31(id+31.3));
+    vec3 d = f - corner - (jitter-.5)*.28;
+    nearest = min(nearest,dot(d,d));
+  }
+  return 1.-smoothstep(.18,.72,sqrt(nearest));
 }`;
 
 const vertex = `
@@ -38,27 +52,34 @@ varying vec3 vNormal, vWorld, vSurface;
 ${noiseGLSL}
 void main() {
   vec3 p = normalize(vSurface);
-  vec3 drift = vec3(uTime*.012, -uTime*.007, uTime*.005);
-  vec3 warp = vec3(noise3(p*5.+drift),noise3(p*5.+8.+drift),noise3(p*5.+17.-drift));
-  float convection = fbm(p*12.+warp*2.3+drift);
-  float cells = noise3(p*115.+warp*3.-drift*.6);
-  float micro = noise3(p*280.+drift);
-  float pixelSize = length(fwidth(p));
-  cells = mix(.5,cells,1.-smoothstep(.7,1.8,pixelSize*115.));
-  micro = mix(.5,micro,1.-smoothstep(.6,1.6,pixelSize*280.));
-  float filaments = pow(1.-abs(noise3(p*37.+warp*4.+drift)*2.-1.),9.);
-  filaments *= 1.-smoothstep(.7,1.8,pixelSize*37.);
-  float activeRegion = noise3(p*7.+vec3(4.,1.,8.));
-  float spots = smoothstep(.66,.79,activeRegion)*smoothstep(.44,.7,noise3(p*24.+warp));
-  float detail = clamp(convection*.61 + cells*.31 + micro*.08,0.,1.);
-  vec3 dark = uColor * vec3(.22,.15,.12);
-  vec3 hot = mix(uColor,vec3(1.,.96,.87),.24);
-  vec3 surface = mix(dark,hot,smoothstep(.22,.75,detail));
-  surface *= 1.-spots*.64;
-  surface += hot*filaments*.17*(.3+uActivity);
+  // Differential advection keeps the plasma flowing across latitude bands.
+  float shear = uTime*.002*(1.-p.y*p.y);
+  p.xz = mat2(cos(shear),-sin(shear),sin(shear),cos(shear))*p.xz;
+  vec3 drift = vec3(uTime*.009, -uTime*.005, uTime*.003);
+  vec3 warp = vec3(noise3(p*4.8+drift),noise3(p*4.8+8.+drift),noise3(p*4.8+17.-drift));
+  vec3 flow = p+(warp-.5)*.13;
+  float convection = fbm(flow*11.+drift);
+  float pixelSize = length(fwidth(flow));
+  float cells = granulation(flow*74.-drift*.45);
+  float micro = noise3(flow*185.+drift);
+  cells = mix(.5,cells,1.-smoothstep(.55,1.5,pixelSize*74.));
+  micro = mix(.5,micro,1.-smoothstep(.6,1.6,pixelSize*185.));
+  float magnetic = noise3(flow*32.+warp*.7+drift);
+  float filaments = pow(1.-abs(magnetic*2.-1.),10.);
+  filaments *= 1.-smoothstep(.6,1.5,pixelSize*32.);
+  float activeRegion = noise3(flow*6.+vec3(4.,1.,8.));
+  float spotField = noise3(flow*21.+warp*.35);
+  float penumbra = smoothstep(.64,.8,activeRegion)*smoothstep(.42,.67,spotField);
+  float umbra = smoothstep(.72,.84,activeRegion)*smoothstep(.54,.75,spotField);
+  float heat = clamp(.16+convection*.58+cells*.22+(micro-.5)*.07,0.,1.);
+  vec3 cool = uColor*vec3(.3,.23,.2);
+  vec3 hot = mix(uColor,vec3(1.,.96,.87),.16);
+  vec3 surface = mix(cool,hot,heat);
+  surface *= 1.-penumbra*.28-umbra*.48;
+  surface += hot*filaments*(.035+.065*uActivity)*(.45+activeRegion);
   float facing = max(dot(normalize(vNormal),normalize(cameraPosition-vWorld)),0.);
-  // Limb darkening preserves a spherical silhouette without a hard sticker edge.
-  surface *= .28+.72*pow(facing,.34);
+  // Keep the limb softly darker and bright-mode texture below the bloom threshold.
+  surface *= .25+.75*pow(facing,.38);
   surface *= .23+uActivity*.78;
   gl_FragColor = vec4(surface,1.);
 }`;
@@ -70,10 +91,10 @@ varying vec3 vNormal, vWorld, vSurface;
 ${noiseGLSL}
 void main() {
   float facing = abs(dot(normalize(vNormal),normalize(cameraPosition-vWorld)));
-  float rim = pow(1.-facing,3.4);
+  float rim = pow(1.-facing,2.8)*smoothstep(0.,.2,facing);
   float streamers = fbm(vSurface*vec3(26.,8.,26.)+vec3(uTime*.008,0.,-uTime*.004));
-  float alpha = rim*(.15+streamers*.5)*(.12+uActivity*.66);
-  gl_FragColor = vec4(uColor*1.2,alpha);
+  float alpha = rim*(.12+streamers*.46)*(.12+uActivity*.66);
+  gl_FragColor = vec4(uColor*1.08,alpha);
 }`;
 
 export function createStellarSurface({mood, compact}) {
