@@ -81,9 +81,44 @@ export function createPlanetPortrait(renderer, planet, compact = false) {
 }
 
 function canvasPortrait(scene, camera, size) {
-  const renderer = new CanvasGalaxyRenderer();
-  renderer.setSize(size, size);
-  renderer.setClearColor(0x000000, 0);
-  renderer.render(scene, camera);
-  return renderer.domElement.toDataURL('image/png');
+  // The 2D fallback renders spheres and lines, not ring-shaped meshes.
+  // Recreate a ring outline using its world transform without touching the
+  // original scene or disposing its shared geometry and materials.
+  scene.updateWorldMatrix(true, true);
+  const fallbackScene = new THREE.Scene();
+  const temporaryResources = [];
+  try {
+    for (const source of scene.children) {
+      let copy;
+      if (source.isMesh && source.geometry.type === 'RingGeometry') {
+        const {innerRadius, outerRadius} = source.geometry.parameters;
+        const radius = (innerRadius + outerRadius) / 2;
+        const points = Array.from({length: 129}, (_, index) => {
+          const angle = index * Math.PI * 2 / 128;
+          return new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
+        });
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineBasicMaterial({
+          color: source.material.color || source.material.uniforms.uColor.value,
+          transparent: true,
+          opacity: source.material.opacity,
+        });
+        temporaryResources.push(geometry, material);
+        copy = new THREE.LineLoop(geometry, material);
+      } else {
+        copy = source.clone(false);
+      }
+      copy.matrixAutoUpdate = false;
+      copy.matrix.copy(source.matrixWorld);
+      fallbackScene.add(copy);
+    }
+    const renderer = new CanvasGalaxyRenderer();
+    renderer.setSize(size, size);
+    renderer.setClearColor(0x000000, 0);
+    renderer.render(fallbackScene, camera);
+    return renderer.domElement.toDataURL('image/png');
+  } finally {
+    fallbackScene.clear();
+    for (const resource of temporaryResources) resource.dispose();
+  }
 }

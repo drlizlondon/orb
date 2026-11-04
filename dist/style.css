@@ -45,3 +45,6 @@ html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}body{p
 
 /* Card portraits are rendered from the selected 3D world. */
 .inspector .inspector-planet{background:none;box-shadow:none;border-radius:0;display:grid;place-items:center;overflow:visible}.inspector-planet img{display:block;width:100%;height:100%;object-fit:contain}
+
+/* A quiet placeholder while the selected world is rendered. */
+.inspector .inspector-planet:not(.has-portrait){border-radius:50%;background:radial-gradient(circle at 36% 32%,color-mix(in srgb,var(--planet-color) 42%,#c7cced),color-mix(in srgb,var(--planet-color) 30%,#10121e) 48%,#080a15 78%)}
