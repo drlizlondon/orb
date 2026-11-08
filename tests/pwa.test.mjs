@@ -22,3 +22,8 @@ test('T9 manifest, icons, service worker hash and /app redirect',()=>{
  const html=read('index.html').toString();
  assert.ok(html.includes('rel="manifest"')&&html.includes('apple-mobile-web-app-capable'));
 });
+test('service worker is registered relative to app.js, not the page (works from /orb/app/)',()=>{
+ const src=readFileSync(new URL('../src/galaxy.js',import.meta.url),'utf8');
+ assert.ok(src.includes("serviceWorker.register(new URL('sw.js',import.meta.url))"));
+ assert.ok(!/serviceWorker\.register\(['"]\.\/sw\.js/.test(src),'page-relative ./sw.js 404s under /orb/app/');
+});

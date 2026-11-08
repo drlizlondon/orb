@@ -153,6 +153,6 @@ function setView(list){viewList=list;document.body.classList.toggle('view-list',
 $('#view-toggle').onclick=()=>setView(!viewList);
 if(mine&&lsGet('orbit.view')==='list')setView(true);
 if(mine){$('#replay-intro').hidden=false;$('#replay-intro').onclick=()=>{try{store?.removeItem('orbit.introSeen');}catch{}introMarked=false;index.close();setProgress(0);targetYaw=0;targetTilt=0;};}
-if(mine&&'serviceWorker' in navigator)addEventListener('load',()=>{navigator.serviceWorker.register('./sw.js').catch(()=>{});});
+if(mine&&'serviceWorker' in navigator)addEventListener('load',()=>{navigator.serviceWorker.register(new URL('sw.js',import.meta.url)).catch(()=>{});});
 
 function updateChapters(p){const hero=$('#origin');const visible=p<.17;if(hero.classList.contains('active')!==visible)hero.classList.toggle('active',visible);hero.inert=!visible;}
