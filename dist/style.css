@@ -53,3 +53,46 @@ html,body{height:100%;width:100%;overflow:hidden;overscroll-behavior:none}body{p
 .inspector{animation-delay:.1s;animation-fill-mode:both}
 
 .motion-paused .wordmark svg,.motion-paused .wordmark .logo-core,.motion-paused .idea-lead,.motion-paused .idea-line em,.motion-paused .creator,.motion-paused .creator>span,.motion-paused .star-label .label-text,.motion-paused .star-label .target,.motion-paused #mood svg,.motion-paused #projects-nav,.motion-paused #mood,.motion-paused #motion,.motion-paused .founder-signature,.motion-paused .signature-night,.motion-paused .inspector-copy,.motion-paused .inspector-close,.motion-paused .inspector-return,.motion-paused .inspector-launch,.motion-paused{transition:none}
+
+/* ORB-1: app icons on the planets, personal mode, List view. */
+.star-label .target{position:relative;display:block}
+.app-icon{position:absolute;inset:0;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#0b0d1a;box-shadow:0 0 0 1px #ffffff26,0 4px 14px #0007}
+.app-icon img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.app-icon.is-monogram{background:var(--icon-color,#9ab7ff);color:#05060d;font:600 calc(var(--marker-size,33px)*.46)/1 'DM Sans',sans-serif}
+.star-label:hover .app-icon,.star-label:focus-visible .app-icon{box-shadow:0 0 0 2px #ccc6ff,0 0 24px #9d89ff55}
+body.mine .hero .creator,body.mine .founder-signature{display:none}
+#replay-intro{margin-top:18px;padding:12px 0;font-size:13px;color:var(--mood-muted)}
+#view-toggle{font-size:13px;padding:12px 0;min-width:44px;min-height:44px;color:var(--mood-ink);text-shadow:0 1px 6px #000}
+@media(max-width:600px){#view-toggle{font-size:12px}}
+body.view-list #origin,body.view-list #labels,body.view-list .founder-signature,body.view-list #space,body.view-list .vignette{display:none}
+#directory{position:fixed;z-index:6;left:0;right:0;bottom:0;top:96px;overflow-y:auto;overflow-x:hidden;padding:8px 6vw 40px;background:var(--bg);-webkit-overflow-scrolling:touch}
+#directory[hidden]{display:none}
+@media(max-width:600px){#directory{top:76px;padding:6px 16px 32px}}
+.dir-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 auto 12px;max-width:760px}
+.dir-search{flex:1 1 100%;min-height:44px;border-radius:22px;border:1px solid #ffffff2b;background:#ffffff0f;color:var(--ink);padding:0 18px;font:inherit;font-size:16px}
+.dir-action{min-height:44px;padding:0 18px;border-radius:22px;border:1px solid #ffffff2b;background:#ffffff0a;font-size:13px}
+.dir-status{max-width:760px;margin:0 auto;min-height:20px;font-size:12px;color:var(--muted)}
+.dir-list{list-style:none;margin:0 auto;padding:0;max-width:760px}
+.dir-row{display:flex;align-items:center;gap:8px;border-top:1px solid #ffffff16}
+.dir-open{flex:1 1 auto;min-width:0;min-height:64px;display:flex;align-items:center;gap:14px;padding:10px 0;text-align:left}
+.dir-open .app-icon{position:relative;inset:auto;flex:0 0 44px;width:44px;height:44px;--marker-size:44px}
+.dir-text{display:flex;flex-direction:column;min-width:0;gap:2px}
+.dir-title{font-size:15px;font-weight:500}
+.dir-desc{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.dir-host{font-size:11.5px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir-remove{flex:0 0 auto;min-width:64px;min-height:44px;padding:0 12px;font-size:12px;color:var(--muted);border-radius:22px}
+.dir-remove.is-confirm{color:#fff;background:#8a2f4a}
+.dir-empty{max-width:760px;margin:24px auto;color:var(--muted)}
+.dir-dialog{width:min(420px,calc(100vw - 32px));border:1px solid #bbb8e52b;border-radius:20px;background:var(--mood-panel,#101221);color:var(--ink);padding:24px}
+.dir-dialog::backdrop{background:#02040bb0}
+.dir-form h2{margin:0 0 12px;font-size:22px;font-weight:500}
+.dir-form label{display:block;margin-top:12px;font-size:12px;color:var(--muted)}
+.dir-form input{display:block;width:100%;min-height:44px;margin-top:4px;border-radius:12px;border:1px solid #ffffff2b;background:#ffffff0f;color:var(--ink);padding:0 12px;font:inherit;font-size:16px}
+.dir-preview{position:relative;height:44px;width:44px;margin-top:14px}
+.dir-preview:empty{display:none}
+.dir-preview .app-icon{position:relative;inset:auto;width:44px;height:44px;--marker-size:44px}
+.dir-error{min-height:18px;margin:8px 0 0;font-size:12.5px;color:#ff9aa8}
+.dir-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.dir-dialog-actions button{min-height:44px;min-width:88px;padding:0 18px;border-radius:22px;border:1px solid #ffffff2b;font-size:14px}
+.dir-dialog-actions .ok{background:var(--accent);color:#05060d;border-color:transparent}
+.dir-dialog p:not(.dir-error){margin:0 0 6px;font-size:15px}
