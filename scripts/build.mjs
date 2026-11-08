@@ -10,3 +10,11 @@ console.log('Three.js / GSAP / Lenis scene and Radix / Sonner inspector built.')
 let html=await readFile('dist/index.html','utf8');
 for(const file of ['app.js','inspector.js','style.css']){const hash=createHash('sha256').update(await readFile('dist/'+file)).digest('hex').slice(0,12);html=html.replace(new RegExp('([\"\'])\\./'+file.replace('.','\\.')+'(?:\\?v=[a-f0-9]+)?([\"\'])','g'),'$1./'+file+'?v='+hash+'$2');}
 await writeFile('dist/index.html',html);
+
+// Service worker cache name: changes whenever the shell changes.
+const shellHash=createHash('sha256');
+for(const file of ['app.js','inspector.js','style.css'])shellHash.update(await readFile('dist/'+file));
+const buildHash=shellHash.digest('hex').slice(0,12);
+let worker=await readFile('dist/sw.js','utf8');
+worker=worker.replace(/const BUILD='orbit-[a-f0-9]+';/,"const BUILD='orbit-"+buildHash+"';");
+await writeFile('dist/sw.js',worker);
