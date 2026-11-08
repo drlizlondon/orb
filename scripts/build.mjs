@@ -18,3 +18,8 @@ const buildHash=shellHash.digest('hex').slice(0,12);
 let worker=await readFile('dist/sw.js','utf8');
 worker=worker.replace(/const BUILD='orbit-[a-f0-9]+';/,"const BUILD='orbit-"+buildHash+"';");
 await writeFile('dist/sw.js',worker);
+
+// Personal mode page: a real dist/app/index.html (static hosts like GitHub Pages have no rewrites).
+// Same page, with every ./asset link pointing one folder up.
+await mkdir('dist/app',{recursive:true});
+await writeFile('dist/app/index.html',html.replace(/((?:href|src)=")\.\//g,'$1../'));
