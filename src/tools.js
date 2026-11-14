@@ -26,7 +26,7 @@ const SEED_ICONS = {
   bpp: 'https://bigpictureplanner.app/favicon.svg',
   gp: 'https://girlplanner.lovable.app/favicon.png',
   sms: 'https://savemysummary.lovable.app/favicon.ico',
-  ppd: 'https://portfoliocommander.lovable.app/favicon.ico',
+  ppd: 'https://publishingdesk.lovable.app/favicon.ico',
   da: 'https://webuildforgood.com/departure-alarm/icon.svg',
 };
 
