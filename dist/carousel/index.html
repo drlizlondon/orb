@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interactive Carousel Card Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    background: #EAE5D9;
+    color: #1E1E2F;
+    padding: 24px;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Top Controls Bar */
+  .toolbar {
+    max-width: 1200px;
+    margin: 0 auto 30px auto;
+    background: #FFFFFF;
+    border: 4px solid #1E1E2F;
+    border-radius: 24px;
+    padding: 16px 28px;
+    box-shadow: 6px 6px 0px #1E1E2F;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .toolbar-title {
+    font-family: 'Fredoka', cursive, sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tabs {
+    display: flex;
+    gap: 10px;
+  }
+  .tab-btn {
+    font-family: 'Fredoka', cursive, sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    background: #F1F5F9;
+    border: 3px solid #1E1E2F;
+    border-radius: 999px;
+    padding: 10px 22px;
+    cursor: pointer;
+    box-shadow: 3px 3px 0px #1E1E2F;
+    transition: all 0.1s;
+  }
+  .tab-btn.active {
+    background: #FEF08A;
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0px #1E1E2F;
+  }
+  .actions {
+    display: flex;
+    gap: 12px;
+  }
+  .action-btn {
+    font-size: 16px;
+    font-weight: 800;
+    background: #DCFCE7;
+    border: 3px solid #1E1E2F;
+    border-radius: 14px;
+    padding: 10px 20px;
+    cursor: pointer;
+    box-shadow: 3px 3px 0px #1E1E2F;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .action-btn:hover {
+    background: #BBF7D0;
+  }
+  .action-btn.secondary {
+    background: #FFE4E6;
+  }
+
+  /* Instruction banner */
+  .banner {
+    max-width: 1200px;
+    margin: 0 auto 30px auto;
+    background: #FFFDF0;
+    border: 3px dashed #64748B;
+    border-radius: 16px;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Cards Gallery */
+  .gallery {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+  }
+
+  /* Card Preview Container */
+  .card-wrap {
+    width: 800px;
+    height: 800px;
+    position: relative;
+    background: #F4EFE6;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 32px;
+    border: 2px dashed #CBD5E1;
+  }
+  .card-container {
+    width: 720px;
+    height: 720px;
+    border: 4.5px solid #1E1E2F;
+    border-radius: 36px;
+    box-shadow: 12px 12px 0px #1E1E2F;
+    padding: 48px 52px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .washi-tape {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 150px;
+    height: 40px;
+    border-left: 2px dashed rgba(30, 30, 47, 0.3);
+    border-right: 2px dashed rgba(30, 30, 47, 0.3);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+    z-index: 10;
+  }
+  .header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+  }
+  .step-label {
+    font-family: 'Fredoka', cursive, sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #64748B;
+  }
+  .badge {
+    border: 3px solid #1E1E2F;
+    border-radius: 999px;
+    padding: 6px 18px;
+    font-size: 16px;
+    font-weight: 800;
+    box-shadow: 3px 3px 0px #1E1E2F;
+  }
+  .content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: 20px 0;
+  }
+  h1 {
+    font-family: 'Fredoka', cursive, sans-serif;
+    line-height: 1.18;
+    color: #1E1E2F;
+    margin-bottom: 18px;
+    outline: none;
+  }
+  .subtitle {
+    font-size: 21px;
+    line-height: 1.45;
+    color: #475569;
+    font-weight: 600;
+    outline: none;
+  }
+  .body-text {
+    font-size: 20px;
+    line-height: 1.5;
+    color: #334155;
+    font-weight: 500;
+    outline: none;
+  }
+  .rule-box {
+    margin-top: 22px;
+    background: #FFFFFF;
+    border: 3px solid #1E1E2F;
+    border-radius: 16px;
+    padding: 16px 22px;
+    font-size: 18px;
+    font-weight: 800;
+    color: #0F172A;
+    box-shadow: 4px 4px 0px #1E1E2F;
+    display: inline-block;
+    outline: none;
+  }
+  .footer-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 2.5px dashed #CBD5E1;
+    padding-top: 18px;
+  }
+  .category-tag {
+    font-size: 16px;
+    font-weight: 800;
+    color: #64748B;
+    text-transform: uppercase;
+  }
+  .slide-count {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    background: #1E1E2F;
+    color: #FFFFFF;
+    padding: 5px 14px;
+    border-radius: 999px;
+  }
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    border: 1.5px solid #1E1E2F;
+  }
+  .dot.active {
+    background: #FEF08A;
+    width: 22px;
+    border-radius: 10px;
+  }
+
+  /* Editable Highlight Effect on Focus */
+  [contenteditable="true"]:hover {
+    outline: 2px dashed #3B82F6;
+    background: rgba(59, 130, 246, 0.04);
+    border-radius: 6px;
+  }
+  [contenteditable="true"]:focus {
+    outline: 2.5px solid #2563EB;
+    background: #FFFFFF;
+    border-radius: 6px;
+    padding: 2px 6px;
+  }
+
+  /* PRINT STYLES FOR NATIVE PDF CAROUSEL EXPORT */
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body { 
+      padding: 0; 
+      background: none; 
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .toolbar, .banner { display: none !important; }
+    .gallery { gap: 0 !important; }
+    .card-wrap {
+      width: 1080px !important;
+      height: 1080px !important;
+      border: none !important;
+      padding: 0 !important;
+      background: none !important;
+      page-break-after: always !important;
+      page-break-inside: avoid !important;
+    }
+    .card-container {
+      width: 940px !important;
+      height: 940px !important;
+      border: 5px solid #1E1E2F !important;
+      box-shadow: 14px 14px 0px #1E1E2F !important;
+      padding: 64px 68px !important;
+    }
+    h1 { font-size: 46px !important; }
+    .subtitle { font-size: 27px !important; }
+    .body-text { font-size: 26px !important; }
+    .rule-box { font-size: 22px !important; }
+    [contenteditable="true"]:hover, [contenteditable="true"]:focus {
+      outline: none !important;
+      background: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <div class="toolbar-title">✨ Carousel Card Editor</div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-antislop" onclick="switchDeck('antislop')">🎨 Anti-Slop Guide</button>
+      <button class="tab-btn" id="tab-priorart" onclick="switchDeck('priorart')">⏱️ Prior Art Rule</button>
+      <button class="tab-btn" id="tab-aicoding" onclick="switchDeck('aicoding')">💻 Human-Ready AI Code</button>
+    </div>
+    <div class="actions">
+      <button class="action-btn" id="save-btn" style="background: #FEF08A;" onclick="manualSave()">💾 Save Changes</button>
+      <button class="action-btn" onclick="window.print()">📄 Save as PDF Carousel</button>
+      <button class="action-btn secondary" onclick="exportJson()">📥 Export JSON</button>
+      <button class="action-btn secondary" style="background: #F1F5F9;" onclick="resetCurrentDeck()">🔄 Reset Deck</button>
+    </div>
+  </div>
+
+  <div class="banner">
+    <div>💡 <b>Auto-Save Enabled:</b> Any word you type or edit is automatically saved to your browser in real-time. Even if you refresh or close the tab, your edits will stay!</div>
+    <div id="save-status" style="font-size: 13px; color: #16A34A; font-weight: 700;">✓ All edits saved</div>
+  </div>
+
+  <div class="gallery" id="cards-container">
+    <!-- Populated by JavaScript -->
+  </div>
+
+<script>
+let currentDeck = 'antislop';
+
+const decks = {
+  antislop: {
+    tag: "Interface Craft Guide",
+    cards: [
+      {
+        step: "GUIDE #01",
+        tag: "DESIGN POLISH",
+        tagBg: "#FFE4E6",
+        bg: "#FFFDF0",
+        tapeColor: "rgba(253, 164, 175, 0.65)",
+        tapeRot: "-2deg",
+        title: "How to make AI-generated designs look human.",
+        subtitle: "A 4-step polish guide for non-designers using Claude, ChatGPT, or Lovable.",
+        isCover: true
+      },
+      {
+        step: "STEP 1",
+        tag: "BACKGROUND & TONE",
+        tagBg: "#E0E7FF",
+        bg: "#F8FAFC",
+        tapeColor: "rgba(199, 210, 254, 0.65)",
+        tapeRot: "1.5deg",
+        title: "Quiet the background",
+        body: "AI defaults to neon gradients, glowing borders, and harsh contrast that strains the eye.<br><br>Tone it down. Use soft, warm neutrals so the reader's eye knows where to rest.",
+        rule: "Rule: When everything glows, nothing is important.",
+        isCover: false
+      },
+      {
+        step: "STEP 2",
+        tag: "HIERARCHY",
+        tagBg: "#FEF08A",
+        bg: "#FFFDF4",
+        tapeColor: "rgba(254, 240, 138, 0.75)",
+        tapeRot: "-1.5deg",
+        title: "Choose a single focal point",
+        body: "AI interfaces tend to cram multiple badges, charts, and cards onto one screen.<br><br>Pick <b>one element</b> to carry the visual weight, and let the surrounding layout support it quietly.",
+        rule: "Rule: One screen, one focal point.",
+        isCover: false
+      },
+      {
+        step: "STEP 3",
+        tag: "VOICE & COPY",
+        tagBg: "#DCFCE7",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(187, 247, 208, 0.65)",
+        tapeRot: "2deg",
+        title: "Write like a thoughtful adult",
+        body: "Cut the AI corporate dialect:<br>• 'Revolutionary solution'<br>• 'Seamless end-to-end experience'<br>• 'Supercharge your potential'<br><br>State plainly what the product does and why it matters.",
+        rule: "Rule: If you would not say it to a colleague, delete it.",
+        isCover: false
+      },
+      {
+        step: "STEP 4 & THE GOLDEN RULE",
+        tag: "TAKEAWAY",
+        tagBg: "#FED7AA",
+        bg: "#FFFBEB",
+        tapeColor: "rgba(254, 215, 170, 0.75)",
+        tapeRot: "-1deg",
+        title: "Give the content room to breathe",
+        body: "Dense, cluttered layouts are the clearest tell of an unedited AI prompt.<br><br>Increase margins and whitespace. Generous spacing gives an interface quiet authority.",
+        rule: "The Golden Rule: Craft is not about adding decoration. It is knowing what to remove.",
+        isCover: false
+      },
+      {
+        step: "ACTION STEP",
+        tag: "📋 COPY-PASTE PROMPT",
+        tagBg: "#FEF08A",
+        bg: "#FFFDF0",
+        tapeColor: "rgba(254, 240, 138, 0.75)",
+        tapeRot: "1deg",
+        title: "The De-Slop Prompt",
+        subtitle: "Paste this into Claude, ChatGPT, Lovable, or v0 alongside your screen or code:",
+        body: "<i>\"Please redesign this interface with a quiet, editorial craft feel. Strip out all purple neon gradients, glowing borders, and harsh dark contrast in favor of warm, restful neutrals and a single accent color. Choose one clear hero element to carry the visual weight, give the entire layout generous margins and breathing room, and rewrite all headings and copy in plain, confident English without corporate buzzwords or decorative emojis.\"</i>",
+        rule: "Tip: Bookmark this post or save this card for your next build.",
+        isCover: false
+      }
+    ]
+  },
+  priorart: {
+    tag: "The 10-Minute Playbook",
+    cards: [
+      {
+        step: "GUIDE #02",
+        tag: "BUILD DISCIPLINE",
+        tagBg: "#FEF08A",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(254, 240, 138, 0.75)",
+        tapeRot: "-2deg",
+        title: "The 10-Minute Rule before you build anything with AI.",
+        subtitle: "How to stop spending weeks building tools that already exist for free.",
+        isCover: true
+      },
+      {
+        step: "STEP 1",
+        tag: "THE URGE TO CODE",
+        tagBg: "#E0E7FF",
+        bg: "#F8FAFC",
+        tapeColor: "rgba(199, 210, 254, 0.65)",
+        tapeRot: "1.5deg",
+        title: "Search before you prompt",
+        body: "AI loves saying <i>'Let's build this!'</i> and immediately generating 500 lines of code.<br><br>Pause. Spend ten minutes looking for pre-built templates, free tools, and existing libraries.<br><br>Most problems have already been solved by someone else.",
+        rule: "Rule: A ten-minute search saves three weeks of rebuilding the wheel.",
+        isCover: false
+      },
+      {
+        step: "STEP 2",
+        tag: "THE QUICK CHECKUP",
+        tagBg: "#FFE4E6",
+        bg: "#FFFDF0",
+        tapeColor: "rgba(253, 164, 175, 0.65)",
+        tapeRot: "-1.5deg",
+        title: "Check if it is alive and safe",
+        body: "If you find an existing tool, do a 60-second health check:<br><br>• Was it updated recently, or abandoned years ago?<br>• Are real people actually using it?<br>• Is it free and safe for commercial use?<br><br>A tested foundation is worth months of custom code.",
+        rule: "Rule: A proven foundation beats writing code from zero.",
+        isCover: false
+      },
+      {
+        step: "STEP 3",
+        tag: "THE STRATEGY",
+        tagBg: "#DCFCE7",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(187, 247, 208, 0.65)",
+        tapeRot: "2deg",
+        title: "The Three Smart Paths",
+        body: "Before you write a single line of code, pick one:<br><br><b>1. Use it as-is:</b> The fastest route. Plug it in and start using it.<br><b>2. Borrow the engine:</b> Take the existing tool and put your own simple front door on it.<br><b>3. Build from scratch:</b> The last resort. Only do this if nobody on earth has built it yet.",
+        rule: "Rule: Building from scratch is an expensive decision, not a default.",
+        isCover: false
+      },
+      {
+        step: "STEP 4",
+        tag: "THE MINDSET",
+        tagBg: "#FED7AA",
+        bg: "#FFFBEB",
+        tapeColor: "rgba(254, 215, 170, 0.75)",
+        tapeRot: "-1deg",
+        title: "Save your energy for what makes you unique",
+        body: "Nobody buys your product for the login box, the database settings, or the buttons. Those are commodities.<br><br>Borrow the boring parts so you can spend 100% of your energy on your unique idea.",
+        rule: "The Golden Rule: The smartest builder is the one who wrote the least new code.",
+        isCover: false
+      },
+      {
+        step: "ACTION STEP",
+        tag: "📋 COPY-PASTE PROMPT",
+        tagBg: "#FEF08A",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(254, 240, 138, 0.75)",
+        tapeRot: "1deg",
+        title: "The Pre-Build Research Prompt",
+        subtitle: "Paste this into Claude or ChatGPT before starting any new build:",
+        body: "<i>\"Before writing any code or architecture plans for this idea, act as an adversarial researcher. Search for existing open-source projects, free libraries, and established tools that already solve this problem. Evaluate the top two alternatives for active maintenance and real-world adoption, compare the cost of maintaining custom code versus using an existing base, and give me a clear verdict: should we adopt an existing tool, build a thin layer on top of a proven foundation, or build from scratch?\"</i>",
+        rule: "Tip: Bookmark this post or screenshot this card before your next build.",
+        isCover: false
+      }
+    ]
+  },
+  aicoding: {
+    tag: "Human-Ready AI Code",
+    cards: [
+      {
+        step: "GUIDE #03",
+        tag: "CODEBASE HEALTH",
+        tagBg: "#FEF08A",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(254, 240, 138, 0.75)",
+        tapeRot: "-2deg",
+        title: "3 things to do when coding with AI (before a real developer sees it).",
+        subtitle: "How to stop AI from writing bloated, messy files that make human developers want to quit.",
+        isCover: true
+      },
+      {
+        step: "STEP 1",
+        tag: "READABILITY",
+        tagBg: "#E0E7FF",
+        bg: "#F8FAFC",
+        tapeColor: "rgba(199, 210, 254, 0.65)",
+        tapeRot: "1.5deg",
+        title: "Turn on Prettier (The Auto-Iron)",
+        body: "AI writes sloppy spacing and weird indentation by default. A human developer opening your project will immediately spot unformatted AI slop.<br><br>Turn on <b>Prettier</b> (or check 'Format on Save' in your editor). It presses every line flat and clean so your code looks like a professional engineer wrote it.",
+        rule: "Rule: Clean formatting earns instant respect from real coders.",
+        isCover: false
+      },
+      {
+        step: "STEP 2",
+        tag: "AVOID BLOAT",
+        tagBg: "#FFE4E6",
+        bg: "#FFFDF0",
+        tapeColor: "rgba(253, 164, 175, 0.65)",
+        tapeRot: "-1.5deg",
+        title: "Cap your files at 400 lines",
+        body: "AI loves dumping an entire app into a single, 2,000-line monster file. It creates tangled bloat that human reviewers dread untangling.<br><br>Force the AI to split your app into modular files under 400 lines. When you hire an engineer later, they can review and fix things in hours instead of days.",
+        rule: "Rule: Small files save you thousands in developer audit fees.",
+        isCover: false
+      },
+      {
+        step: "STEP 3",
+        tag: "REAL VERIFICATION",
+        tagBg: "#DCFCE7",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(187, 247, 208, 0.65)",
+        tapeRot: "2deg",
+        title: "Test your rules with real smoke",
+        body: "AI will cheerfully tell you <i>'All features are complete and working!'</i> But when a real coder inspects the logic, half the edge cases are hollow.<br><br>Never trust a test that always passes. Deliberately feed the AI a broken scenario to prove your checks actually catch mistakes.",
+        rule: "Rule: If a test cannot fail, it proves nothing.",
+        isCover: false
+      },
+      {
+        step: "STEP 4",
+        tag: "THE BIG PICTURE",
+        tagBg: "#FED7AA",
+        bg: "#FFFBEB",
+        tapeColor: "rgba(254, 215, 170, 0.75)",
+        tapeRot: "-1deg",
+        title: "Build like someone has to review it",
+        body: "You might build your first prototype with AI, but eventually you will want a human engineer to audit security, connect payments, or scale it.<br><br>If your codebase is neat, modular, and formatted, they will happily build on top of it instead of telling you to rewrite everything from scratch.",
+        rule: "The Golden Rule: A clean codebase today stops an expensive rewrite tomorrow.",
+        isCover: false
+      },
+      {
+        step: "ACTION STEP",
+        tag: "📋 COPY-PASTE PROMPT",
+        tagBg: "#FEF08A",
+        bg: "#F0FDF4",
+        tapeColor: "rgba(254, 240, 138, 0.75)",
+        tapeRot: "1deg",
+        title: "The Human-Ready AI Coder Prompt",
+        subtitle: "Paste this into Claude, Cursor, or ChatGPT before building:",
+        body: "<i>\"Please act as a disciplined software engineer building clean code for a non-technical founder. Format all code with standard Prettier on every save, split large components so no single file exceeds 400 lines, and avoid bloated one-file shortcuts. Build modularly so that any senior human developer reviewing this repository later can easily read, test, and maintain it without having to rewrite it from scratch.\"</i>",
+        rule: "Tip: Bookmark this post or screenshot this card before your next build.",
+        isCover: false
+      }
+    ]
+  }
+};
+
+function renderDeck() {
+  const deck = decks[currentDeck];
+  const container = document.getElementById('cards-container');
+  container.innerHTML = '';
+
+  deck.cards.forEach((card, index) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'card-wrap';
+    wrap.innerHTML = `
+      <div class="card-container" style="background: ${card.bg};">
+        <div class="washi-tape" style="background: ${card.tapeColor}; transform: translateX(-50%) rotate(${card.tapeRot});"></div>
+        
+        <div class="header-bar">
+          <div class="step-label" contenteditable="true">${card.step}</div>
+          <div class="badge" style="background: ${card.tagBg};" contenteditable="true">${card.tag}</div>
+        </div>
+
+        <div class="content">
+          <h1 style="font-size: ${card.isCover ? '42px' : '34px'};" contenteditable="true">${card.title}</h1>
+          ${card.subtitle ? `<div class="subtitle" contenteditable="true">${card.subtitle}</div>` : ''}
+          ${card.body ? `<div class="body-text" contenteditable="true">${card.body}</div>` : ''}
+          ${card.rule ? `<div class="rule-box" contenteditable="true">✨ ${card.rule}</div>` : ''}
+        </div>
+
+        <div class="footer-bar">
+          <div class="category-tag" contenteditable="true">📌 ${deck.tag}</div>
+          <div class="dots">
+            ${deck.cards.map((_, i) => `<div class="dot ${i === index ? 'active' : ''}"></div>`).join('')}
+          </div>
+          <div class="slide-count">${index + 1} / ${deck.cards.length}</div>
+        </div>
+      </div>
+    `;
+    container.appendChild(wrap);
+  });
+}
+
+function switchDeck(deckKey) {
+  syncDomToState();
+  currentDeck = deckKey;
+  document.getElementById('tab-antislop').classList.toggle('active', deckKey === 'antislop');
+  document.getElementById('tab-priorart').classList.toggle('active', deckKey === 'priorart');
+  document.getElementById('tab-aicoding').classList.toggle('active', deckKey === 'aicoding');
+  renderDeck();
+}
+
+function syncDomToState() {
+  const container = document.getElementById('cards-container');
+  const cardElements = container.querySelectorAll('.card-wrap');
+  if (!decks[currentDeck]) return;
+  cardElements.forEach((wrap, i) => {
+    if (decks[currentDeck].cards[i]) {
+      const card = decks[currentDeck].cards[i];
+      const stepEl = wrap.querySelector('.step-label');
+      const badgeEl = wrap.querySelector('.badge');
+      const titleEl = wrap.querySelector('h1');
+      const subEl = wrap.querySelector('.subtitle');
+      const bodyEl = wrap.querySelector('.body-text');
+      const ruleEl = wrap.querySelector('.rule-box');
+      if (stepEl) card.step = stepEl.innerText.trim();
+      if (badgeEl) card.tag = badgeEl.innerText.trim();
+      if (titleEl) card.title = titleEl.innerText.trim();
+      if (subEl) card.subtitle = subEl.innerText.trim();
+      if (bodyEl) card.body = bodyEl.innerHTML;
+      if (ruleEl) card.rule = ruleEl.innerText.replace(/^✨\s*/, '').trim();
+    }
+  });
+  localStorage.setItem('carousel_decks_v2', JSON.stringify(decks));
+  const statusEl = document.getElementById('save-status');
+  if (statusEl) {
+    statusEl.innerText = '✓ All edits saved';
+    statusEl.style.color = '#16A34A';
+  }
+}
+
+function manualSave() {
+  syncDomToState();
+  const btn = document.getElementById('save-btn');
+  const statusEl = document.getElementById('save-status');
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (btn) {
+    const origText = btn.innerText;
+    btn.innerText = '✓ Saved!';
+    btn.style.background = '#86EFAC';
+    setTimeout(() => {
+      btn.innerText = origText;
+      btn.style.background = '#FEF08A';
+    }, 1500);
+  }
+  if (statusEl) {
+    statusEl.innerText = `✓ Manually saved at ${now}`;
+    statusEl.style.color = '#16A34A';
+  }
+}
+
+// Auto-save on every keystroke
+document.getElementById('cards-container').addEventListener('input', () => {
+  const statusEl = document.getElementById('save-status');
+  if (statusEl) {
+    statusEl.innerText = 'Saving...';
+    statusEl.style.color = '#D97706';
+  }
+  syncDomToState();
+});
+
+function exportJson() {
+  syncDomToState();
+  const data = JSON.stringify(decks[currentDeck].cards, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${currentDeck}-cards.json`;
+  a.click();
+}
+
+function resetCurrentDeck() {
+  if (confirm("Reset this deck back to default text? Any custom edits on this deck will be cleared.")) {
+    localStorage.removeItem('carousel_decks_v2');
+    location.reload();
+  }
+}
+
+// Load from localStorage on startup if present
+const savedDecks = localStorage.getItem('carousel_decks_v2');
+if (savedDecks) {
+  try {
+    const parsed = JSON.parse(savedDecks);
+    // Merge saved cards
+    Object.keys(parsed).forEach(k => {
+      if (decks[k]) decks[k] = parsed[k];
+    });
+  } catch (e) {
+    console.error("Failed to load saved decks", e);
+  }
+}
+
+renderDeck();
+</script>
+</body>
+</html>

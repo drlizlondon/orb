@@ -12,10 +12,10 @@ test('the complete galaxy fits phone, tablet, desktop and ultrawide viewports',(
 });
 
 import {projects} from '../dist/projects.js';
-test('project destinations match the original Galaxy Cloud collection',()=>{
- assert.deepEqual(projects.map(p=>p.url),['https://bigpictureplanner.app','https://girlplanner.lovable.app','https://savemysummary.lovable.app/','https://publishingdesk.lovable.app','https://webuildforgood.com/departure-alarm/']);
+test('project destinations are the original Galaxy Cloud collection plus Carousel Studio',()=>{
+ assert.deepEqual(projects.map(p=>p.url),['https://bigpictureplanner.app','https://girlplanner.lovable.app','https://savemysummary.lovable.app/','https://publishingdesk.lovable.app','https://webuildforgood.com/departure-alarm/','https://drlizlondon.github.io/orb/carousel/']);
  const radii=projects.map(p=>Math.hypot(p.position[0],p.position[2]));
- assert.equal(new Set(radii.map(r=>r.toFixed(1))).size,5);
+ assert.equal(new Set(radii.map(r=>r.toFixed(1))).size,6);
  assert.ok(radii.every(r=>r>5&&r<8.5));
 });
 

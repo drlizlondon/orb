@@ -28,6 +28,7 @@ const SEED_ICONS = {
   sms: 'https://savemysummary.lovable.app/favicon.ico',
   ppd: 'https://publishingdesk.lovable.app/favicon.ico',
   da: 'https://webuildforgood.com/departure-alarm/icon.svg',
+  cards: 'https://drlizlondon.github.io/orb/carousel/icon.svg',
 };
 
 export function seedTools(now = Date.now()) {
