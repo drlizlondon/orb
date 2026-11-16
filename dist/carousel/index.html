@@ -266,6 +266,35 @@
     padding: 2px 6px;
   }
 
+  /* Per-card slide controls (editor only, hidden in print) */
+  .card-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 6px;
+    z-index: 20;
+  }
+  .card-controls button {
+    font-size: 16px;
+    font-weight: 800;
+    width: 34px;
+    height: 34px;
+    background: #FFFFFF;
+    border: 2.5px solid #1E1E2F;
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px #1E1E2F;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+  .card-controls button:hover { background: #FEF08A; }
+  .card-controls button.danger:hover { background: #FECACA; }
+  .card-controls button:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
+
   /* PRINT STYLES FOR NATIVE PDF CAROUSEL EXPORT */
   @media print {
     * {
@@ -278,7 +307,7 @@
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    .toolbar, .banner { display: none !important; }
+    .toolbar, .banner, .card-controls { display: none !important; }
     .gallery { gap: 0 !important; }
     .card-wrap {
       width: 1080px !important;
@@ -320,6 +349,7 @@
       <button class="action-btn" id="save-btn" style="background: #FEF08A;" onclick="manualSave()">💾 Save Changes</button>
       <button class="action-btn" onclick="window.print()">📄 Save as PDF Carousel</button>
       <button class="action-btn secondary" onclick="exportJson()">📥 Export JSON</button>
+      <button class="action-btn" style="background: #DBEAFE;" onclick="addCard()">➕ Add Slide</button>
       <button class="action-btn secondary" style="background: #F1F5F9;" onclick="resetCurrentDeck()">🔄 Reset Deck</button>
     </div>
   </div>
@@ -578,7 +608,14 @@ function renderDeck() {
   deck.cards.forEach((card, index) => {
     const wrap = document.createElement('div');
     wrap.className = 'card-wrap';
+    const total = deck.cards.length;
     wrap.innerHTML = `
+      <div class="card-controls">
+        <button title="Move slide up" onclick="moveCard(${index}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+        <button title="Move slide down" onclick="moveCard(${index}, 1)" ${index === total - 1 ? 'disabled' : ''}>↓</button>
+        <button title="Duplicate slide" onclick="duplicateCard(${index})">⧉</button>
+        <button class="danger" title="Delete slide" onclick="deleteCard(${index})" ${total <= 1 ? 'disabled' : ''}>✕</button>
+      </div>
       <div class="card-container" style="background: ${card.bg};">
         <div class="washi-tape" style="background: ${card.tapeColor}; transform: translateX(-50%) rotate(${card.tapeRot});"></div>
         
@@ -674,6 +711,68 @@ document.getElementById('cards-container').addEventListener('input', () => {
   }
   syncDomToState();
 });
+
+// A blank slide: neutral placeholder scaffolding only, never invented copy.
+function newCard() {
+  return {
+    step: "STEP",
+    tag: "TAG",
+    tagBg: "#E0E7FF",
+    bg: "#F8FAFC",
+    tapeColor: "rgba(199, 210, 254, 0.65)",
+    tapeRot: "1deg",
+    title: "New slide title",
+    body: "Write this slide.",
+    rule: "",
+    isCover: false
+  };
+}
+
+// Save state and status, then re-render. Call after mutating cards.
+function persistDecks() {
+  localStorage.setItem('carousel_decks_v2', JSON.stringify(decks));
+  const statusEl = document.getElementById('save-status');
+  if (statusEl) { statusEl.innerText = '✓ All edits saved'; statusEl.style.color = '#16A34A'; }
+}
+
+function moveCard(index, dir) {
+  syncDomToState();
+  const cards = decks[currentDeck].cards;
+  const target = index + dir;
+  if (target < 0 || target >= cards.length) return;
+  [cards[index], cards[target]] = [cards[target], cards[index]];
+  persistDecks();
+  renderDeck();
+}
+
+function duplicateCard(index) {
+  syncDomToState();
+  const cards = decks[currentDeck].cards;
+  const copy = JSON.parse(JSON.stringify(cards[index]));
+  cards.splice(index + 1, 0, copy);
+  persistDecks();
+  renderDeck();
+}
+
+function deleteCard(index) {
+  syncDomToState();
+  const cards = decks[currentDeck].cards;
+  if (cards.length <= 1) return;
+  if (!confirm('Delete this slide?')) return;
+  cards.splice(index, 1);
+  persistDecks();
+  renderDeck();
+}
+
+function addCard() {
+  syncDomToState();
+  decks[currentDeck].cards.push(newCard());
+  persistDecks();
+  renderDeck();
+  const wraps = document.querySelectorAll('.card-wrap');
+  const last = wraps[wraps.length - 1];
+  if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 function exportJson() {
   syncDomToState();
