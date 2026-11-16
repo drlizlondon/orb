@@ -143,15 +143,15 @@ planets.forEach((o,i)=>{planetColor.copy(o.baseColor).lerp(mood.light,mood.warmt
 // Cached text metrics avoid layout reads on every frame; the observer tracks
 // font loading and responsive wrapping without changing projected anchors.
 for(const candidate of labelCandidates){const label=labelTextNodes[candidate.id];let size=labelSizes.get(label);if(!size){size={width:label.offsetWidth,height:label.offsetHeight};labelSizes.set(label,size);}candidate.width=size.width;candidate.height=size.height;}
-for(const rect of layoutLabels(labelCandidates,copyBounds,innerWidth,innerHeight,previousLabelLayout,paused||reduced.matches?Infinity:elapsed)){previousLabelLayout.set(rect.id,rect);const c=labelCandidates.find(item=>item.id===rect.id);labelTextNodes[rect.id].style.transform=`translate(${rect.left+c.width/2-c.x}px,${rect.top-(c.y+c.radius+(mobile()?8:16))}px)`;}
+if(mobile()){for(const c of labelCandidates){labelTextNodes[c.id].style.transform='';previousLabelLayout.delete(c.id);}}else for(const rect of layoutLabels(labelCandidates,copyBounds,innerWidth,innerHeight,previousLabelLayout,paused||reduced.matches?Infinity:elapsed)){previousLabelLayout.set(rect.id,rect);const c=labelCandidates.find(item=>item.id===rect.id);labelTextNodes[rect.id].style.transform=`translate(${rect.left+c.width/2-c.x}px,${rect.top-(c.y+c.radius+(mobile()?8:16))}px)`;}
 profiler.endLayout();updateChapters(p);profiler.beginRender();if(composer){bloom.strength=.22+state.focus*.06;composer.render(dt);}else renderer.render(scene,camera);profiler.endRender();profiler.endFrame();}
 try{init();}catch(e){console.error('Galaxy initialization failed',e);$('#fallback').hidden=false;}
 
 // Directory (List view) and the personal-mode extras.
 const directory=createDirectory({mine,getTools:()=>allTools,openUrl:url=>window.open(url,'_blank','noopener'),onChange:next=>{allTools=next;saveTools(store,next);worlds=makeWorlds();if(planetGroup)buildPlanets();buildLabels();directory.render();}});
-function setView(list){viewList=list;document.body.classList.toggle('view-list',list);$('#directory').hidden=!list;const t=$('#view-toggle');t.textContent=list?'Galaxy':'List';t.setAttribute('aria-pressed',String(list));if(mine)lsSet('orbit.view',list?'list':'galaxy');if(list)directory.render();else frameClock.reset();}
+function setView(list){viewList=list;document.body.classList.toggle('view-list',list);$('#directory').hidden=!list;$('#projects-nav').hidden=list;const t=$('#view-toggle');t.textContent=list?'Galaxy':'List';t.setAttribute('aria-pressed',String(list));if(mine)lsSet('orbit.view',list?'list':'galaxy');if(list)directory.render();else frameClock.reset();}
 $('#view-toggle').onclick=()=>setView(!viewList);
-if(mine&&lsGet('orbit.view')==='list')setView(true);
+{const savedView=lsGet('orbit.view');if(mine&&(savedView==='list'||(!savedView&&mobile())))setView(true);}
 if(mine){$('#replay-intro').hidden=false;$('#replay-intro').onclick=()=>{try{store?.removeItem('orbit.introSeen');}catch{}introMarked=false;index.close();setProgress(0);targetYaw=0;targetTilt=0;};}
 if(mine&&'serviceWorker' in navigator)addEventListener('load',()=>{navigator.serviceWorker.register(new URL('sw.js',import.meta.url)).catch(()=>{});});
 
