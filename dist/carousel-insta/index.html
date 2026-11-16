@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instagram Carousel Studio</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body {
+    font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #15141b; color: #f3f1ee; padding: 24px;
+    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    max-width: 1100px; margin: 0 auto 26px auto;
+    background: #221f2b; border: 2px solid #3a3647; border-radius: 18px;
+    padding: 16px 24px; display: flex; justify-content: space-between;
+    align-items: center; flex-wrap: wrap; gap: 14px;
+  }
+  .toolbar-title { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 9px; color: #ffd9a0; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .action-btn {
+    font-size: 15px; font-weight: 700; background: #ffd9a0; color: #1a1724;
+    border: none; border-radius: 12px; padding: 10px 18px; cursor: pointer;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .action-btn.ghost { background: #2d2938; color: #f3f1ee; border: 1.5px solid #4a4559; }
+  .action-btn:hover { filter: brightness(1.06); }
+
+  .banner {
+    max-width: 1100px; margin: 0 auto 26px auto; background: #1d1b26;
+    border: 1.5px dashed #4a4559; border-radius: 14px; padding: 12px 18px;
+    font-size: 14px; color: #c9c4d4; display: flex; justify-content: space-between;
+    align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  #save-status { font-size: 13px; color: #8be4a0; font-weight: 700; }
+  #save-status.warn { color: #ffb37a; }
+
+  .gallery { display: flex; flex-direction: column; align-items: center; gap: 40px; }
+
+  /* On-screen card frame (4:5 ratio, 1080x1350) */
+  .ig-wrap { position: relative; width: 460px; }
+  .ig-card {
+    position: relative; width: 460px; height: 575px; border-radius: 22px;
+    overflow: hidden; background: #2b2a33; background-size: cover; background-position: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  }
+  .ig-scrim {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to top, rgba(10,10,16,0.92) 0%, rgba(10,10,16,0.78) 38%, rgba(10,10,16,0.30) 72%, rgba(10,10,16,0.05) 100%);
+  }
+  .ig-handle { position: absolute; top: 24px; left: 30px; font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9); z-index: 3; outline: none; }
+  .ig-count { position: absolute; top: 24px; right: 30px; font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.85); z-index: 3; }
+  .ig-content {
+    position: absolute; left: 34px; right: 34px; bottom: 46px; top: 60px;
+    display: flex; flex-direction: column; justify-content: flex-end; z-index: 3;
+  }
+  .ig-kicker { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #ffd9a0; margin-bottom: 12px; outline: none; min-height: 1px; }
+  .ig-num { font-size: 92px; font-weight: 800; line-height: 0.9; color: #ffd9a0; margin-bottom: 8px; outline: none; }
+  .ig-title { font-size: 30px; font-weight: 800; line-height: 1.14; letter-spacing: -0.5px; outline: none; }
+  .ig-sub { margin-top: 15px; font-size: 19px; font-weight: 500; line-height: 1.26; color: #f3f1ee; outline: none; }
+  .ig-swipe { margin-top: 18px; font-size: 15px; font-weight: 700; color: #ffd9a0; outline: none; min-height: 1px; }
+  .ig-photo-ph {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; color: #ffd9a0; font-size: 15px; font-weight: 700; z-index: 2;
+  }
+  .ig-photo-ph span { border: 2px dashed #ffd9a0; border-radius: 16px; padding: 18px 22px; opacity: 0.85; }
+
+  [contenteditable="true"]:hover { outline: 1.5px dashed rgba(255,217,160,0.8); border-radius: 5px; }
+  [contenteditable="true"]:focus { outline: 2px solid #ffd9a0; border-radius: 5px; background: rgba(0,0,0,0.25); }
+
+  /* Per-card controls */
+  .card-controls { position: absolute; top: -16px; right: -6px; display: flex; gap: 6px; z-index: 20; }
+  .card-controls button {
+    font-size: 15px; font-weight: 800; width: 34px; height: 34px; background: #2d2938;
+    color: #f3f1ee; border: 1.5px solid #4a4559; border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1;
+  }
+  .card-controls button:hover { background: #ffd9a0; color: #1a1724; }
+  .card-controls button:disabled { opacity: 0.35; cursor: default; }
+
+  /* PRINT: real 1080x1350 Instagram portrait pages */
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { padding: 0; background: none; }
+    .toolbar, .banner, .card-controls { display: none !important; }
+    .gallery { gap: 0 !important; }
+    .ig-wrap { width: 1080px !important; }
+    .ig-card {
+      width: 1080px !important; height: 1350px !important; border-radius: 0 !important;
+      box-shadow: none !important; page-break-after: always !important; page-break-inside: avoid !important;
+    }
+    .ig-handle { top: 70px !important; left: 80px !important; font-size: 30px !important; }
+    .ig-count { top: 70px !important; right: 80px !important; font-size: 30px !important; }
+    .ig-content { left: 80px !important; right: 80px !important; bottom: 110px !important; top: 140px !important; }
+    .ig-kicker { font-size: 30px !important; letter-spacing: 3px !important; margin-bottom: 28px !important; }
+    .ig-num { font-size: 220px !important; margin-bottom: 20px !important; }
+    .ig-title { font-size: 70px !important; }
+    .ig-sub { font-size: 46px !important; margin-top: 36px !important; }
+    .ig-swipe { font-size: 36px !important; margin-top: 44px !important; }
+    [contenteditable="true"]:hover, [contenteditable="true"]:focus { outline: none !important; background: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <div class="toolbar-title">📸 Instagram Carousel Studio</div>
+    <div class="actions">
+      <button class="action-btn" onclick="addCard()">➕ Add Slide</button>
+      <button class="action-btn" onclick="window.print()">📄 Save as PDF Carousel</button>
+      <button class="action-btn ghost" onclick="exportJson()">📥 Export JSON</button>
+      <button class="action-btn ghost" onclick="resetDeck()">🔄 Reset</button>
+    </div>
+  </div>
+
+  <div class="banner">
+    <div>💡 Tap any text to edit. Tap 📷 on a slide to drop your own photo behind the words (it stays on your device). Slides auto-save in this browser.</div>
+    <div id="save-status">✓ All edits saved</div>
+  </div>
+
+  <div class="gallery" id="cards-container"></div>
+
+  <input type="file" id="photo-input" accept="image/*" style="display:none">
+
+<script>
+const STORE_KEY = 'ig_carousel_v1';
+const HANDLE = '@drlizlondon';
+
+// Default deck = the Dr Liz Instagram framework (hook+double-hook / proof / story /
+// 3 ideas / honest limit / one CTA). Facts she must supply are left as [bracketed]
+// placeholders; nothing is invented in her voice.
+function defaultDeck() {
+  return [
+    { kicker: '', num: '', title: 'Your bold first line goes here.', sub: 'A second line that flips what they expected, so they have to swipe.', swipe: 'Swipe →', photo: '' },
+    { kicker: 'Why I can say this', num: '', title: 'One real result of yours.', sub: '[Your proof: a number, a screenshot, a win. Leave blank until it is true.]', swipe: '', photo: '' },
+    { kicker: 'The story', num: '', title: 'What happened to you first.', sub: '[The mistake or the moment, before any teaching.]', swipe: '', photo: '' },
+    { kicker: 'Idea', num: '1', title: 'First idea, one action.', sub: 'One use, one prompt, one step.', swipe: '', photo: '' },
+    { kicker: 'Idea', num: '2', title: 'Second idea, one action.', sub: 'Short enough to read in three seconds.', swipe: '', photo: '' },
+    { kicker: 'Idea', num: '3', title: 'Third idea, one action.', sub: 'One clear thing they can do today.', swipe: '', photo: '' },
+    { kicker: 'Real talk', num: '', title: 'The honest limit.', sub: "AI didn't do the thinking for me. It gave me the time back.", swipe: '', photo: '' },
+    { kicker: 'One thing', num: '', title: 'Comment KEYWORD.', sub: "And I'll send you [the freebie].", swipe: '', photo: '' }
+  ];
+}
+
+let cards = loadDeck();
+
+function loadDeck() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { const d = JSON.parse(raw); if (Array.isArray(d) && d.length) return d; }
+  } catch (e) { /* fall through */ }
+  return defaultDeck();
+}
+
+function persist() {
+  const statusEl = document.getElementById('save-status');
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(cards));
+    if (statusEl) { statusEl.textContent = '✓ All edits saved'; statusEl.classList.remove('warn'); }
+  } catch (e) {
+    // Photos can overflow browser storage. Save text only, keep photos this session.
+    try {
+      const textOnly = cards.map(c => ({ ...c, photo: '' }));
+      localStorage.setItem(STORE_KEY, JSON.stringify(textOnly));
+    } catch (e2) { /* nothing we can do */ }
+    if (statusEl) { statusEl.textContent = '⚠ Text saved; photos kept for this session only'; statusEl.classList.add('warn'); }
+  }
+}
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function render() {
+  const container = document.getElementById('cards-container');
+  container.innerHTML = '';
+  const total = cards.length;
+  cards.forEach((card, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ig-wrap';
+    const hasPhoto = card.photo && card.photo.length > 0;
+    wrap.innerHTML = `
+      <div class="card-controls">
+        <button title="Add / replace photo" onclick="pickPhoto(${i})">📷</button>
+        <button title="Move up" onclick="moveCard(${i}, -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button title="Move down" onclick="moveCard(${i}, 1)" ${i === total - 1 ? 'disabled' : ''}>↓</button>
+        <button title="Duplicate" onclick="duplicateCard(${i})">⧉</button>
+        <button title="Delete" onclick="deleteCard(${i})" ${total <= 1 ? 'disabled' : ''}>✕</button>
+      </div>
+      <div class="ig-card" style="${hasPhoto ? `background-image:url('${card.photo}')` : ''}">
+        ${hasPhoto ? '' : '<div class="ig-photo-ph"><span>📷 Tap to add your photo</span></div>'}
+        <div class="ig-scrim"></div>
+        <div class="ig-handle" contenteditable="true" data-f="handle">${esc(card.handle || HANDLE)}</div>
+        <div class="ig-count">${i + 1} / ${total}</div>
+        <div class="ig-content">
+          <div class="ig-kicker" contenteditable="true" data-f="kicker" data-ph="KICKER (optional)">${esc(card.kicker)}</div>
+          ${card.num ? `<div class="ig-num" contenteditable="true" data-f="num">${esc(card.num)}</div>` : ''}
+          <div class="ig-title" contenteditable="true" data-f="title">${esc(card.title)}</div>
+          <div class="ig-sub" contenteditable="true" data-f="sub">${esc(card.sub)}</div>
+          <div class="ig-swipe" contenteditable="true" data-f="swipe" data-ph="swipe cue (optional)">${esc(card.swipe)}</div>
+        </div>
+      </div>
+    `;
+    container.appendChild(wrap);
+  });
+}
+
+function syncDomToState() {
+  const wraps = document.querySelectorAll('.ig-wrap');
+  wraps.forEach((wrap, i) => {
+    if (!cards[i]) return;
+    wrap.querySelectorAll('[contenteditable="true"]').forEach(el => {
+      const f = el.getAttribute('data-f');
+      if (f === 'handle') cards[i].handle = el.innerText.trim();
+      else if (f) cards[i][f] = el.innerText.trim();
+    });
+  });
+  persist();
+}
+
+function moveCard(i, dir) {
+  syncDomToState();
+  const j = i + dir;
+  if (j < 0 || j >= cards.length) return;
+  [cards[i], cards[j]] = [cards[j], cards[i]];
+  persist(); render();
+}
+
+function duplicateCard(i) {
+  syncDomToState();
+  cards.splice(i + 1, 0, JSON.parse(JSON.stringify(cards[i])));
+  persist(); render();
+}
+
+function deleteCard(i) {
+  syncDomToState();
+  if (cards.length <= 1) return;
+  if (!confirm('Delete this slide?')) return;
+  cards.splice(i, 1);
+  persist(); render();
+}
+
+function addCard() {
+  syncDomToState();
+  cards.push({ kicker: '', num: '', title: 'New slide title', sub: 'Write this slide.', swipe: '', photo: '' });
+  persist(); render();
+  const wraps = document.querySelectorAll('.ig-wrap');
+  if (wraps.length) wraps[wraps.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ---- Photo upload (downscaled, stays on device) ----
+let photoTarget = -1;
+function pickPhoto(i) { photoTarget = i; document.getElementById('photo-input').click(); }
+
+document.getElementById('photo-input').addEventListener('change', (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!file || photoTarget < 0) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      // Downscale so the data URL does not overflow browser storage.
+      const maxW = 1200;
+      const scale = Math.min(1, maxW / img.width);
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      syncDomToState();
+      cards[photoTarget].photo = canvas.toDataURL('image/jpeg', 0.85);
+      persist(); render();
+      photoTarget = -1;
+    };
+    img.onerror = () => { alert('Could not read that image.'); photoTarget = -1; };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+function exportJson() {
+  syncDomToState();
+  const blob = new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'instagram-carousel.json'; a.click();
+}
+
+function resetDeck() {
+  if (!confirm('Reset to the default framework? Your edits and photos in this browser will be cleared.')) return;
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+  cards = defaultDeck(); render();
+}
+
+document.getElementById('cards-container').addEventListener('input', () => {
+  const statusEl = document.getElementById('save-status');
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.classList.remove('warn'); }
+  syncDomToState();
+});
+
+render();
+</script>
+</body>
+</html>

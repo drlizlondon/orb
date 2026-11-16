@@ -6,18 +6,18 @@ import {iconCandidates} from '../src/icons.js';
 import {publicTools} from '../src/public-tools.js';
 import {projects} from '../dist/projects.js';
 const memory=(initial)=>{const m=new Map(initial?Object.entries(initial):[]);return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),m};};
-test('T3 empty storage loads the six-tool seed and persists it',()=>{
+test('T3 empty storage loads the seven-tool seed and persists it',()=>{
  const s=memory();const tools=loadTools(s,1000);
- assert.equal(tools.length,6);
- assert.deepEqual(tools.map(t=>t.id),['bpp','gp','sms','ppd','da','cards']);
+ assert.equal(tools.length,7);
+ assert.deepEqual(tools.map(t=>t.id),['bpp','gp','sms','ppd','da','cards','igc']);
  assert.deepEqual(tools.map(t=>t.url),projects.map(p=>p.url));
  assert.deepEqual(tools.map(t=>t.desc),projects.map(p=>p.description));
  assert.ok(s.m.has(TOOLS_KEY));
  assert.equal(loadTools(s,2000)[0].addedAt,1000);
 });
 test('T3 corrupt storage falls back to the seed',()=>{
- assert.equal(loadTools(memory({[TOOLS_KEY]:'{oops'})).length,6);
- assert.equal(loadTools(memory({[TOOLS_KEY]:'{"version":2}'})).length,6);
+ assert.equal(loadTools(memory({[TOOLS_KEY]:'{oops'})).length,7);
+ assert.equal(loadTools(memory({[TOOLS_KEY]:'{"version":2}'})).length,7);
 });
 test('T3 addTool rejects non-URLs, dedupes by hostname, defaults the title',()=>{
  assert.throws(()=>addTool([],{url:'not a url'}));
@@ -52,8 +52,8 @@ test('T3 export then import round-trips; bad files throw and never merge',()=>{
  assert.deepEqual(importTools(exportTools([])),[]);
 });
 test('removeTool and saveTools',()=>{
- const t=seedTools(0);assert.equal(removeTool(t,'gp').length,5);
- const s=memory();assert.equal(saveTools(s,t),true);assert.equal(loadTools(s).length,6);
+ const t=seedTools(0);assert.equal(removeTool(t,'gp').length,6);
+ const s=memory();assert.equal(saveTools(s,t),true);assert.equal(loadTools(s).length,7);
  assert.equal(saveTools({setItem(){throw new Error('full');}},t),false);
 });
 test('domainOf and titleFromDomain match galaxycloud',()=>{
