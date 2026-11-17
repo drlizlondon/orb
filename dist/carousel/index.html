@@ -347,6 +347,8 @@
     </div>
     <div class="actions">
       <button class="action-btn" id="save-btn" style="background: #FEF08A;" onclick="manualSave()">💾 Save Changes</button>
+      <button class="action-btn" id="copy-btn" style="background: #CFFAFE;" onclick="copyAllText()">📋 Copy Text</button>
+      <button class="action-btn" style="background: #E0E7FF;" onclick="openPasteModal()">📥 Paste Text</button>
       <button class="action-btn" onclick="window.print()">📄 Save as PDF Carousel</button>
       <button class="action-btn secondary" onclick="exportJson()">📥 Export JSON</button>
       <button class="action-btn" style="background: #DBEAFE;" onclick="addCard()">➕ Add Slide</button>
@@ -806,7 +808,157 @@ if (savedDecks) {
   }
 }
 
+// ---- Copy all text / paste back (added 2026-11-17) ----
+const STYLE_PALETTE = [
+  {bg:'#FFFDF0', tagBg:'#FFE4E6', tapeColor:'rgba(253,164,175,0.65)', tapeRot:'-2deg'},
+  {bg:'#F8FAFC', tagBg:'#E0E7FF', tapeColor:'rgba(199,210,254,0.65)', tapeRot:'1.5deg'},
+  {bg:'#FFFDF4', tagBg:'#FEF08A', tapeColor:'rgba(254,240,138,0.75)', tapeRot:'-1.5deg'},
+  {bg:'#F0FDF4', tagBg:'#DCFCE7', tapeColor:'rgba(187,247,208,0.65)', tapeRot:'2deg'},
+  {bg:'#FFFBEB', tagBg:'#FED7AA', tapeColor:'rgba(254,215,170,0.75)', tapeRot:'-1deg'}
+];
+function defaultStyleFor(i){
+  const p = STYLE_PALETTE[i % STYLE_PALETTE.length];
+  return {step:'', tag:'', title:'', bg:p.bg, tagBg:p.tagBg, tapeColor:p.tapeColor, tapeRot:p.tapeRot, isCover:i===0};
+}
+
+// Card HTML (e.g. body with <br>/<b>/<i>) -> readable text with markdown emphasis.
+function htmlToText(html){
+  if(!html) return '';
+  let t = String(html)
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/?(?:b|strong)\s*>/gi, '**')
+    .replace(/<\s*\/?(?:i|em)\s*>/gi, '*')
+    .replace(/<[^>]+>/g, '');
+  const ta = document.createElement('textarea');
+  ta.innerHTML = t;                 // decode entities
+  return ta.value.replace(/[ \t]+$/gm, '').trim();
+}
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Pasted text -> card HTML (markdown emphasis + newlines back to <br>).
+function textToHtml(text){
+  if(text===undefined || text===null) return '';
+  let t = escapeHtml(text)
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*]+)\*/g, '<i>$1</i>');
+  return t.replace(/\n/g, '<br>');
+}
+
+function buildCopyText(){
+  syncDomToState();
+  const deck = decks[currentDeck];
+  let out = 'CAROUSEL: ' + deck.tag + '  ·  ' + deck.cards.length + ' slides\n';
+  out += '(Edit the text below. Keep the "=== SLIDE n ===" dividers and the LABEL: lines so each block goes back on the right square. **bold** and *italic* are kept.)\n';
+  deck.cards.forEach((c, i) => {
+    out += '\n=== SLIDE ' + (i+1) + ' ===\n';
+    if(c.step)     out += 'STEP: '     + htmlToText(c.step)  + '\n';
+    if(c.tag)      out += 'BADGE: '    + htmlToText(c.tag)   + '\n';
+    if(c.title)    out += 'TITLE: '    + htmlToText(c.title) + '\n';
+    if(c.subtitle) out += 'SUBTITLE: ' + htmlToText(c.subtitle) + '\n';
+    if(c.body)     out += 'BODY: '     + htmlToText(c.body)  + '\n';
+    if(c.rule)     out += 'RULE: '     + htmlToText(c.rule)  + '\n';
+  });
+  return out.trim();
+}
+
+function flashBtn(id, msg){
+  const b = document.getElementById(id);
+  if(!b) return;
+  if(!b.dataset.label) b.dataset.label = b.innerText;
+  b.innerText = msg;
+  setTimeout(() => { b.innerText = b.dataset.label; }, 1600);
+}
+function copyAllText(){
+  const text = buildCopyText();
+  const ok = () => flashBtn('copy-btn', '✓ Copied all text!');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok));
+  } else { fallbackCopy(text, ok); }
+}
+function fallbackCopy(text, cb){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.top='-9999px';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta); if(cb) cb();
+}
+
+function openPasteModal(){
+  const ta = document.getElementById('paste-area');
+  if(ta) ta.value = '';
+  const ov = document.getElementById('paste-overlay');
+  if(ov) ov.style.display = 'flex';
+}
+function closePasteModal(){ const ov = document.getElementById('paste-overlay'); if(ov) ov.style.display = 'none'; }
+
+function isDividerLine(line){
+  const s = line.trim();
+  if(!s) return false;
+  return /^[=\-*#_~\s]*slide\b[\s\d=/.:#\-ofOF]*$/i.test(s);
+}
+function applyPastedText(){
+  const area = document.getElementById('paste-area');
+  const text = area ? area.value : '';
+  if(!text.trim()){ alert('Paste the text first.'); return; }
+  const lines = text.split(/\r?\n/);
+  const labelRe = /^(STEP|BADGE|TITLE|SUBTITLE|BODY|RULE)\s*:\s?(.*)$/i;
+  const slides = []; let cur = null; let bodyMode = false;
+  lines.forEach(line => {
+    if(isDividerLine(line)){ cur = { _body:null }; slides.push(cur); bodyMode = false; return; }
+    if(!cur) return; // skip preamble before first divider
+    const m = line.match(labelRe);
+    if(m){
+      const key = m[1].toUpperCase(); const val = m[2];
+      if(key==='STEP') cur.step = val.trim();
+      else if(key==='BADGE') cur.tag = val.trim();
+      else if(key==='TITLE') cur.title = val.trim();
+      else if(key==='SUBTITLE') cur.subtitle = val.trim();
+      else if(key==='RULE') cur.rule = val.trim();
+      else if(key==='BODY'){ cur._body = [val]; }
+      bodyMode = (key==='BODY');
+      return;
+    }
+    if(bodyMode){ cur._body.push(line); return; }
+    if(cur.title===undefined && line.trim()){ cur.title = line.trim(); return; }
+    if(line.trim()!=='' || cur._body){ if(!cur._body) cur._body = []; cur._body.push(line); bodyMode = true; }
+  });
+  slides.forEach(s => {
+    if(s._body){ const joined = s._body.join('\n').replace(/\s+$/,''); s.body = joined ? textToHtml(joined) : undefined; }
+    delete s._body;
+  });
+  const valid = slides.filter(s => (s.title && s.title.length) || s.body || s.subtitle || s.rule || s.step || s.tag);
+  if(!valid.length){ alert("Couldn't find any slides. Keep the '=== SLIDE n ===' dividers from the copied text."); return; }
+  const old = decks[currentDeck].cards;
+  decks[currentDeck].cards = valid.map((s, i) => {
+    const base = old[i] ? Object.assign({}, old[i]) : defaultStyleFor(i);
+    if(s.step!==undefined) base.step = s.step;
+    if(s.tag!==undefined) base.tag = s.tag;
+    if(s.title!==undefined) base.title = s.title;
+    if(s.subtitle!==undefined) base.subtitle = s.subtitle;
+    if(s.body!==undefined) base.body = s.body;
+    if(s.rule!==undefined) base.rule = s.rule;
+    return base;
+  });
+  localStorage.setItem('carousel_decks_v2', JSON.stringify(decks));
+  closePasteModal();
+  renderDeck();
+  const statusEl = document.getElementById('save-status');
+  if(statusEl){ statusEl.innerText = '✓ Pasted ' + decks[currentDeck].cards.length + ' slide(s)'; statusEl.style.color = '#16A34A'; }
+  alert('Updated ' + decks[currentDeck].cards.length + ' slide(s) from your pasted text. Designs and colours were kept.');
+}
+
 renderDeck();
 </script>
+
+  <div id="paste-overlay" style="display:none; position:fixed; inset:0; background:rgba(30,30,47,0.55); z-index:200; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#FFFFFF; border:4px solid #1E1E2F; border-radius:22px; box-shadow:8px 8px 0px #1E1E2F; width:min(700px, 94vw); max-height:90vh; display:flex; flex-direction:column; padding:24px;">
+      <div style="font-family:'Fredoka', cursive, sans-serif; font-size:24px; font-weight:700; margin-bottom:6px;">📥 Paste text back in</div>
+      <div style="font-size:14px; color:#475569; font-weight:600; margin-bottom:14px; line-height:1.5;">Paste the edited text. Keep the <b>=== SLIDE n ===</b> dividers and the <b>LABEL:</b> lines so each block lands on the right square. Your designs and colours stay the same. <b>**bold**</b> and <b>*italic*</b> are kept.</div>
+      <textarea id="paste-area" style="flex:1; min-height:340px; width:100%; border:3px solid #1E1E2F; border-radius:12px; padding:14px; font-family:ui-monospace, 'SF Mono', Menlo, monospace; font-size:13px; line-height:1.5; resize:vertical;" placeholder="Paste the copied (and edited) carousel text here..."></textarea>
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
+        <button class="action-btn" style="background:#F1F5F9;" onclick="closePasteModal()">Cancel</button>
+        <button class="action-btn" onclick="applyPastedText()">✓ Apply to carousel</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
