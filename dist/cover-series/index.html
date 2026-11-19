@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dr Liz Cover Series</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Caveat:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #15141b; color: #f3f1ee; padding: 24px; }
+  .toolbar { max-width: 1100px; margin: 0 auto 22px; background: #221f2b; border: 2px solid #3a3647; border-radius: 18px; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; }
+  .toolbar-title { font-size: 22px; font-weight: 800; color: #f29bd0; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  button { font: inherit; font-size: 15px; font-weight: 700; background: #f29bd0; color: #3a1150; border: none; border-radius: 12px; padding: 10px 18px; cursor: pointer; }
+  button.ghost { background: #2d2938; color: #f3f1ee; border: 1.5px solid #4a4559; }
+  button.on { background: #ffd21e; color: #3a1150; }
+  button:hover { filter: brightness(1.07); }
+  .layout { max-width: 1100px; margin: 0 auto; display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .panel { flex: 1 1 340px; background: #1d1b26; border: 1.5px solid #3a3647; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  label { font-size: 13px; font-weight: 700; color: #c9c4d4; display: flex; flex-direction: column; gap: 5px; }
+  input[type=text], input[type=number], textarea { font: inherit; font-size: 15px; background: #2b2836; color: #f3f1ee; border: 1.5px solid #4a4559; border-radius: 9px; padding: 8px 10px; width: 100%; }
+  textarea { resize: vertical; min-height: 70px; }
+  input[type=range] { width: 100%; }
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row label { flex: 1; }
+  .status { font-size: 13px; color: #8be4a0; font-weight: 700; min-height: 18px; }
+  .status.warn { color: #ffb37a; }
+  .hint { font-size: 12px; color: #9a94a8; line-height: 1.4; }
+  .stage { flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  #preview { width: 460px; max-width: 100%; height: auto; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.45); background: #bdbdba; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="toolbar-title">Dr Liz Cover Series</div>
+    <div class="actions">
+      <button id="dl-feed">Download feed 1080x1350</button>
+      <button id="dl-reel">Download reel 1080x1920</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <label>Photo (stays on your device; used exactly as you give it)
+        <input type="file" id="photo-input" accept="image/*">
+      </label>
+      <div class="row">
+        <label>Zoom <input type="range" id="zoom" min="1" max="2.5" step="0.01" value="1"></label>
+        <label>Left / right <input type="range" id="px" min="0" max="1" step="0.01" value="0.78"></label>
+        <label>Up / down <input type="range" id="py" min="0" max="1" step="0.01" value="0.5"></label>
+      </div>
+      <div class="row">
+        <label>Series number
+          <input type="number" id="num" min="1" max="999" step="1" value="1">
+        </label>
+        <button class="ghost" id="next-btn" type="button">Next number</button>
+      </div>
+      <div class="status" id="num-status"></div>
+      <label>Kicker <input type="text" id="kicker" value="Dr Liz London"></label>
+      <label>Headline lines
+        <input type="text" id="h1" value="Using">
+        <input type="text" id="h2" value="AI">
+        <input type="text" id="h3" value="to Earn More">
+        <input type="text" id="h4" value="and">
+        <input type="text" id="h5" value="Work Less">
+      </label>
+      <label>Strapline
+        <textarea id="strap">Learn how to use AI to save time, make money, build things and create more opportunities.</textarea>
+      </label>
+      <div class="hint">The number is the next episode after the last one you downloaded. Type any number to override; whatever you download last becomes the stored one. Stored in this browser only.</div>
+    </div>
+
+    <div class="stage">
+      <div class="actions">
+        <button id="v-feed" class="on" type="button">Feed 4:5</button>
+        <button id="v-reel" class="ghost" type="button">Reel 9:16</button>
+      </div>
+      <canvas id="preview" width="1080" height="1350"></canvas>
+    </div>
+  </div>
+
+<script>
+const KEY = 'orb_cover_series_last';
+const W = 1080, H = { feed: 1350, reel: 1920 };
+const C = { pink:'#f29bd0', hot:'#ee3f9a', purple:'#3a1150', cream:'#faf1e2', yellow:'#ffd21e', lilac:'#f1e0f7', soft:'#f9c9e6' };
+const BALOO = "'Baloo 2', 'Arial Rounded MT Bold', 'Helvetica Neue', Arial, sans-serif";
+const CAVEAT = "Caveat, 'Bradley Hand', 'Segoe Script', cursive";
+const $ = id => document.getElementById(id);
+let photo = null, view = 'feed';
+
+// ---------- series counter ----------
+function lastUsed() { try { const v = parseInt(localStorage.getItem(KEY), 10); return v >= 0 ? v : 0; } catch (e) { return 0; } }
+function saveLast(n) { try { localStorage.setItem(KEY, String(n)); return true; } catch (e) { return false; } }
+const pad3 = n => '#' + String(Math.max(0, Math.min(999, n | 0))).padStart(3, '0');
+function currentNum() { const n = parseInt($('num').value, 10); return n >= 0 ? n : lastUsed() + 1; }
+
+// ---------- rough shapes ----------
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function noise1(r, n) { const a = Array.from({ length: n + 2 }, () => r() * 2 - 1); return t => { const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f); return a[i] * (1 - u) + a[i + 1] * u; }; }
+// Rounded rect outline sampled finely, each point pushed along its normal by noise.
+// brush = torn paint ends (left/right) with bristle spikes; otherwise a gentle hand-cut edge.
+function roughRect(ctx, x, y, w, h, rad, amp, seed, brush) {
+  const r = rng(seed), pts = [], step = brush ? 4 : 7;
+  rad = Math.min(rad, w / 2, h / 2);
+  const add = (px, py, nx, ny, side) => pts.push([px, py, nx, ny, side]);
+  const line = (x0, y0, x1, y1, nx, ny, side) => { const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(L / step)); for (let i = 0; i < n; i++) add(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, nx, ny, side); };
+  const arc = (cx, cy, a0, a1, side) => { const n = Math.max(3, Math.round(rad * Math.abs(a1 - a0) / step)); for (let i = 0; i < n; i++) { const a = a0 + (a1 - a0) * i / n; add(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, Math.cos(a), Math.sin(a), side); } };
+  line(x + rad, y, x + w - rad, y, 0, -1, 'h'); arc(x + w - rad, y + rad, -Math.PI / 2, 0, 'e');
+  line(x + w, y + rad, x + w, y + h - rad, 1, 0, 'e'); arc(x + w - rad, y + h - rad, 0, Math.PI / 2, 'e');
+  line(x + w - rad, y + h, x + rad, y + h, 0, 1, 'h'); arc(x + rad, y + h - rad, Math.PI / 2, Math.PI, 'e');
+  line(x, y + h - rad, x, y + rad, -1, 0, 'e'); arc(x + rad, y + rad, Math.PI, Math.PI * 1.5, 'e');
+  const n = pts.length, lo = noise1(r, Math.max(4, n / 14)), mid = noise1(r, Math.max(8, n / 5));
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    let d = amp * (0.7 * lo(i / 14) + 0.3 * mid(i / 5));
+    if (brush) {
+      const spike = r();
+      d = (p[4] === 'e' ? amp * 1.5 * (spike * 2 - 0.8) : amp * 0.35 * (spike * 2 - 1)) + d * 0.5;
+    }
+    const X = p[0] + p[2] * d, Y = p[1] + p[3] * d;
+    i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+  });
+  ctx.closePath();
+}
+function fillRough(ctx, x, y, w, h, rad, amp, seed, brush, color) { roughRect(ctx, x, y, w, h, rad, amp, seed, brush); ctx.fillStyle = color; ctx.fill(); }
+
+// block with text; returns {x,y,w,h}
+function block(ctx, o) {
+  ctx.font = o.font; ctx.textBaseline = 'alphabetic';
+  const tw = ctx.measureText(o.text).width;
+  const w = tw + o.padL + o.padR, h = o.size * (o.lh || 1) + o.padT + o.padB;
+  const ins = o.ins || [0, 0, 0, 0];
+  fillRough(ctx, o.x - ins[3], o.y - ins[0], w + ins[1] + ins[3], h + ins[0] + ins[2], o.rad, o.amp, o.seed, o.brush, o.color);
+  ctx.fillStyle = C.purple;
+  ctx.fillText(o.text, o.x + o.padL, o.y + o.padT + o.size * (o.base || 0.78));
+  return { x: o.x, y: o.y, w, h };
+}
+function underline(ctx, x1, x2, y, color, tilt) {
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y + tilt); ctx.stroke(); ctx.restore();
+}
+function spark(ctx, x, y, rot, scale) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(scale, scale);
+  ctx.strokeStyle = C.yellow; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  [[0, 26, 46, 14], [12, -18, 52, -2], [12, 62, 48, 42]].forEach(l => { ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(l[2], l[3]); ctx.stroke(); });
+  ctx.restore();
+}
+const ICONS = [
+  ['M7 32a25 25 0 1 0 50 0a25 25 0 1 0 -50 0M32 16v17l-10 7', 'Save', 'Time', C.lilac],
+  ['M18 14a14 5 0 1 0 28 0a14 5 0 1 0 -28 0M18 14v8c0 3 6 5 14 5s14-2 14-5v-8M18 22v8c0 3 6 5 14 5s14-2 14-5v-8M18 30v8c0 3 6 5 14 5s14-2 14-5v-8M8 46c0 3 6 5 12 5M44 46c0 3 6 5 12 5M18 54c4 3 24 3 28 0', 'Make', 'Money', C.lilac],
+  ['M12 14h40v28h-40zM5 48h54l-3 5H8z', 'Build', 'Things', '#e6d6f8'],
+  ['M32 54C10 38 6 26 10 18c4-8 16-8 22 2 6-10 18-10 22-2 4 8 0 20-22 36z', 'Live', 'Better', C.lilac]
+];
+function pills(ctx, x, y) {
+  ICONS.forEach((ic, i) => {
+    const px = x + i * (134 + 14), cx = px + 67, cy = y + 77;
+    ctx.save(); ctx.shadowColor = 'rgba(58,17,80,.22)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+    ctx.beginPath(); ctx.ellipse(cx, cy, 67, 77, 0, 0, Math.PI * 2); ctx.fillStyle = ic[3]; ctx.fill(); ctx.restore();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
+    ctx.save(); ctx.translate(cx - 31, y + 14); ctx.scale(62 / 64, 62 / 64);
+    ctx.strokeStyle = C.purple; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke(new Path2D(ic[0])); ctx.restore();
+    ctx.fillStyle = C.purple; ctx.textAlign = 'center'; ctx.font = '700 25px ' + BALOO;
+    ctx.fillText(ic[1], cx, y + 104); ctx.fillText(ic[2], cx, y + 130); ctx.textAlign = 'left';
+  });
+}
+function wrapLines(ctx, text, maxW) {
+  const out = []; let line = '';
+  text.split(/\s+/).filter(Boolean).forEach(wd => { const t = line ? line + ' ' + wd : wd; if (line && ctx.measureText(t).width > maxW) { out.push(line); line = wd; } else line = t; });
+  if (line) out.push(line); return out;
+}
+
+// ---------- photo ----------
+function drawPhoto(ctx, h) {
+  ctx.fillStyle = '#bdbdba'; ctx.fillRect(0, 0, W, h);
+  if (!photo) { ctx.fillStyle = '#6b6577'; ctx.font = '700 40px ' + BALOO; ctx.textAlign = 'center'; ctx.fillText('Choose a photo', W * 0.7, h * 0.5); ctx.textAlign = 'left'; return; }
+  const z = parseFloat($('zoom').value), fx = parseFloat($('px').value), fy = parseFloat($('py').value);
+  const s = Math.max(W / photo.naturalWidth, h / photo.naturalHeight) * z;
+  const dw = photo.naturalWidth * s, dh = photo.naturalHeight * s;
+  ctx.drawImage(photo, -(dw - W) * fx, -(dh - h) * fy, dw, dh); // photo as supplied, no alteration
+  const g = ctx.createLinearGradient(0, 0, W * 0.55, h * 0.1);
+  g.addColorStop(0, 'rgba(58,17,80,.22)'); g.addColorStop(1, 'rgba(58,17,80,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, h);
+}
+
+// ---------- the cover ----------
+function renderCover(cv, fmt) {
+  const h = H[fmt], reel = fmt === 'reel';
+  cv.width = W; cv.height = h;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, h);
+  drawPhoto(ctx, h);
+  const L1 = $('h1').value, L2 = $('h2').value, L3 = $('h3').value, L4 = $('h4').value, L5 = $('h5').value;
+  let y = reel ? 200 : 48;
+
+  const tag = block(ctx, { x: 48, y, text: $('kicker').value, font: '700 italic 78px ' + CAVEAT, size: 78, padL: 42, padR: 40, padT: 14, padB: 30, rad: 10, amp: 13, seed: 21, brush: true, color: C.soft, base: 0.82 });
+  underline(ctx, 48 + 92, 48 + tag.w - 92, tag.y + tag.h - 14, C.hot, -3);
+  y += tag.h + 20;
+  const u = block(ctx, { x: 76, y, text: L1, font: '800 112px ' + BALOO, size: 112, padL: 30, padR: 30, padT: 6, padB: 12, rad: 26, amp: 3.5, seed: 4, color: C.cream, base: 0.86 });
+  y += u.h - 4;
+  const ai = block(ctx, { x: 102, y, text: L2, font: '800 228px ' + BALOO, size: 228, lh: 0.95, padL: 62, padR: 62, padT: 0, padB: 6, rad: 10, amp: 16, seed: 9, brush: true, color: C.pink, ins: [6, 10, 0, 10], base: 0.86 });
+  y += ai.h + 2;
+  const earn = block(ctx, { x: 50, y, text: L3, font: '800 76px ' + BALOO, size: 76, padL: 26, padR: 26, padT: 6, padB: 8, rad: 22, amp: 3.5, seed: 14, color: C.cream, base: 0.86 });
+  y += earn.h + 8;
+  const and = block(ctx, { x: 50, y: y + 20, text: L4, font: '800 56px ' + BALOO, size: 56, padL: 20, padR: 20, padT: 10, padB: 12, rad: 20, amp: 3, seed: 17, color: C.cream, base: 0.86 });
+  const wk = block(ctx, { x: 50 + and.w - 2, y, text: L5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, base: 0.84 });
+  underline(ctx, wk.x + 46, wk.x + wk.w - 50, wk.y + wk.h - 2, C.hot, -3);
+  spark(ctx, 24, ai.y + 70, 0, 0.9);
+
+  const pillY = reel ? 1250 : y + wk.h + 34;
+  pills(ctx, 48, pillY);
+
+  // strapline banner: in the reel it sits well above Instagram's bottom caption zone
+  const bannerY = pillY + 154 + (reel ? 36 : 26);
+  ctx.font = '600 italic 31px ' + BALOO;
+  const lines = wrapLines(ctx, $('strap').value, 538), lh = 36.6;
+  const bh = 26 + lines.length * lh + 30;
+  fillRough(ctx, 34, bannerY, 700, bh, 70, 8, 5, false, C.purple);
+  ctx.save(); ctx.strokeStyle = C.hot; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.translate(60, bannerY + 34); ctx.stroke(new Path2D('M4 22c14-4 38-4 56 0M46 8l16 14-14 12')); ctx.restore();
+  ctx.fillStyle = C.cream; ctx.textBaseline = 'alphabetic';
+  lines.forEach((t, i) => ctx.fillText(t, 34 + 112, bannerY + 26 + 27 + i * lh));
+  underline(ctx, 34 + 230, 34 + 640, bannerY + bh - 14, C.hot, 2);
+  spark(ctx, 28, bannerY - 62, -0.5, 0.7);
+
+  // episode badge
+  const ep = pad3(currentNum());
+  ctx.font = '700 italic 104px ' + CAVEAT;
+  const ew = ctx.measureText(ep).width + 92, eh = 6 + 104 + 22;
+  const ex = W - 48 - ew, ey = reel ? bannerY + bh - eh + 10 : h - 60 - eh;
+  fillRough(ctx, ex, ey, ew, eh, 12, 14, 41, true, C.pink);
+  ctx.fillStyle = C.purple; ctx.fillText(ep, ex + 46, ey + 6 + 104 * 0.78);
+  underline(ctx, ex + 60, ex + ew - 60, ey + eh - 12, C.yellow, 0);
+  spark(ctx, W - 130, reel ? 300 : 70, 0.6, 1);
+}
+
+function redraw() { renderCover($('preview'), view); }
+function refreshNumStatus(msg, warn) { const s = $('num-status'); s.textContent = msg; s.className = 'status' + (warn ? ' warn' : ''); }
+
+function download(fmt) {
+  const cv = document.createElement('canvas');
+  renderCover(cv, fmt);
+  const n = currentNum();
+  cv.toBlob(b => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cover-' + fmt + '.png';
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }, 'image/png');
+  const ok = saveLast(n);
+  refreshNumStatus(ok ? 'Saved ' + pad3(n) + ' as last used. Next will be ' + pad3(n + 1) + '.' : 'Could not store the counter in this browser; type the number yourself next time.', !ok);
+}
+
+function setView(v) { view = v; $('v-feed').className = v === 'feed' ? 'on' : 'ghost'; $('v-reel').className = v === 'reel' ? 'on' : 'ghost'; redraw(); }
+
+$('photo-input').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image(); img.onload = () => { photo = img; redraw(); }; img.src = URL.createObjectURL(f);
+});
+['zoom', 'px', 'py', 'num', 'kicker', 'h1', 'h2', 'h3', 'h4', 'h5', 'strap'].forEach(id => $(id).addEventListener('input', redraw));
+$('next-btn').onclick = () => { $('num').value = currentNum() + 1; redraw(); };
+$('dl-feed').onclick = () => download('feed');
+$('dl-reel').onclick = () => download('reel');
+$('v-feed').onclick = () => setView('feed');
+$('v-reel').onclick = () => setView('reel');
+
+$('num').value = lastUsed() + 1; // fresh browser / no storage: 0 + 1 = #001
+refreshNumStatus('Next in the series: ' + pad3(lastUsed() + 1));
+redraw();
+const fl = ["800 40px 'Baloo 2'", "600 italic 31px 'Baloo 2'", "700 italic 40px Caveat", "700 25px 'Baloo 2'"];
+if (document.fonts && document.fonts.load) Promise.all(fl.map(f => document.fonts.load(f))).then(redraw, redraw);
+</script>
+</body>
+</html>
