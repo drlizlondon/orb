@@ -92,7 +92,7 @@ await check('AC-10.3.1 concept saved message; drafted concept fills 8 slides + c
   await page.fill('#concept-text', 'Use AI to plan the week');
   await page.click('#concept-send');
   await page.waitForFunction(() => document.getElementById('msg').textContent.includes('Saved.'));
-  assert.equal(await page.textContent('#msg'), 'Saved. Your carousel will be ready after the 7am run.');
+  assert.equal(await page.textContent('#msg'), 'Saved. Your carousel will be ready after the next run (7am, 1pm or 7pm).');
   const post = calls.find(c => c.method === 'POST' && c.path === '/api/concepts');
   assert.ok(post, 'POST /api/concepts issued'); assert.equal(JSON.parse(post.body).lane, 'ambitious-women');
   await page.click('#drafts-refresh');

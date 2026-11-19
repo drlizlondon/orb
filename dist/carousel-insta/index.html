@@ -162,7 +162,7 @@
 
   <div class="panel" id="concept-panel">
     <h2>Your idea</h2>
-    <p class="hint">Write the idea in your own words. Your carousel is written once a day.</p>
+    <p class="hint">Write the idea in your own words. Your carousel is written at 7am, 1pm and 7pm.</p>
     <textarea id="concept-text" maxlength="2000" placeholder="What is the idea? Include any real numbers or stories you want used."></textarea>
     <div class="row">
       <select id="concept-lane" class="grow" aria-label="Audience lane">
@@ -546,7 +546,7 @@ document.getElementById('concept-send').addEventListener('click', async () => {
     const r = await api('/api/concepts', 'POST', { concept, lane: document.getElementById('concept-lane').value });
     if (!r.ok) { say('err', 'Could not save that: ' + failText(r)); return; }
     document.getElementById('concept-text').value = '';
-    say('ok', 'Saved. Your carousel will be ready after the 7am run.');
+    say('ok', 'Saved. Your carousel will be ready after the next run (7am, 1pm or 7pm).');
   } catch (e) { say('err', e.message || 'Could not reach the server.'); }
 });
 
