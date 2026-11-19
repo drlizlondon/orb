@@ -1,5 +1,8 @@
-// SOC-10.3 acceptance: Playwright against a local static server + a stubbed Worker.
-// Run: node tests/carousel-insta.spec.mjs   (Playwright is not an Orb dependency; set PLAYWRIGHT_DIR to a node_modules that has it)
+// SOC-13.2 acceptance (Insta Creator): Playwright against a local static server + a stubbed Worker. No live Worker is ever called.
+// Run: node tests/carousel-insta.spec.mjs   (Playwright is not an Orb dependency; set PLAYWRIGHT_DIR to a node_modules that has it,
+//   and CHROMIUM_PATH to a headless chromium if the default browser is not installed.)
+// PAGE_FILE=<path> runs the same tests against another copy of index.html (used by tests/creator-mutations.spec.mjs: every
+// must-fail below is proved by breaking a copy of the page and watching this suite go red).
 // Named .spec.mjs on purpose so `node --test tests/*.test.mjs` does not pick it up.
 import http from 'node:http';
 import fs from 'node:fs';
@@ -12,13 +15,16 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
-const FILE = path.join(root, 'dist/carousel-insta/index.html');
+const FILE = process.env.PAGE_FILE || path.join(root, 'dist/carousel-insta/index.html');
+const LOOK = path.join(root, 'dist/carousel-insta/look.js');
+const OLD_PAGE = path.join(here, 'fixtures/carousel-insta-66d8942.html'); // the page as it was at orb 66d8942 (106 controls, 43 editable, 7.2 screens)
+const COVER = path.join(root, 'dist/cover-series/index.html');
 const require = createRequire(import.meta.url);
 const pwDir = process.env.PLAYWRIGHT_DIR || '/Users/lizzie/colourpuzzle/node_modules';
 const { chromium } = require(path.join(pwDir, 'playwright'));
 const TOKEN = 'test-token-not-real-0001'; // fake, test only
 
-// ---- a real coloured PNG (gradient) so "not flat" is meaningful ----
+// ---- coloured PNGs (gradients) so "not flat" is meaningful ----
 function crc32(buf) { let c, crc = ~0; for (const b of buf) { c = (crc ^ b) & 0xff; for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1; crc = (crc >>> 8) ^ c; } return ~crc >>> 0; }
 function chunk(type, data) { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td)); return Buffer.concat([len, td, crc]); }
 function gradientPng(w, h) {
@@ -27,50 +33,76 @@ function gradientPng(w, h) {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
-const PNG = gradientPng(240, 300);
+const PNG_34 = gradientPng(240, 320); // 3:4, like a phone photo
+const PNG_45 = gradientPng(240, 300); // 4:5, exactly the slide shape: no room to move
+// the 13.4 fixtures: face-clear (3:4) and face-blocked (4:5, no room)
+const FACE_CLEAR = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 };
+const FACE_BLOCKED = { x: 0.05, y: 0.7, w: 0.3, h: 0.2 };
+const ALBUM = [
+  { guid: 'gc0', width: 240, height: 320, caption: '', face: FACE_CLEAR },
+  { guid: 'gc1', width: 240, height: 320, caption: '', face: FACE_CLEAR },
+  { guid: 'gc2', width: 240, height: 320, caption: '', face: FACE_CLEAR },
+  { guid: 'gb', width: 240, height: 300, caption: '', face: FACE_BLOCKED },
+  { guid: 'gn', width: 240, height: 320, caption: '' } // no face key at all
+];
 
-// ---- stub Worker (cross-origin to the static server, like production) ----
+// ---- stub Worker state (cross-origin to the static server, like production) ----
+let st;
 const calls = [];
-let approveMode = 'ok';
-let listMode = 'plain';
-const QBN = { id: 'c-qbn', concept: 'Build notes: queued topic\nsecond line', lane: 'wide', status: 'queued' };
-const SLIDES = [
-  ['', '', 'I stopped doing this one thing', 'Here is what changed for me.', 'Swipe'],
-  ['Why I can say this', '', 'I tried it myself', 'It saved me real time.', ''],
-  ['The story', '', 'It started on a busy shift', 'I needed a faster way to plan.', ''],
-  ['Idea', '1', 'Start with one question', 'Ask it one clear thing.', ''],
-  ['Idea', '2', 'Give it your context', 'Tell it who you are writing for.', ''],
-  ['Idea', '3', 'Edit in your voice', 'Make it sound like you.', ''],
-  ['Real talk', '', 'It is not magic', 'You still do the thinking.', ''],
-  ['One thing', '', 'Comment IDEAS', 'And I will send you the list.', '']
-].map(([kicker, num, title, sub, swipe]) => ({ kicker, num, title, sub, swipe }));
-const DRAFTED = { id: 'c-20261119-070000-ab12', concept: 'Use AI to plan the week', lane: 'ambitious-women', status: 'drafted', deck: { slides: SLIDES, caption: 'A short caption in my words.', claims: [], evidence: 'Use AI to plan the week' } };
-const BN = { id: 'c-bn', concept: 'Build notes: what shipped today', lane: 'wide', status: 'drafted', deck: { slides: SLIDES, caption: 'Series caption.', claims: [], evidence: 'Build notes: what shipped today' } };
-const DRAFTED_PH = { ...DRAFTED, deck: { ...DRAFTED.deck, slides: SLIDES.map((x, i) => ({ ...x, photo: i % 2 ? 'g1' : 'g2-test_guid' })) } };
-const FAILED = { id: 'c-20261119-070001-cd34', concept: 'A concept that failed', lane: 'wide', status: 'failed', reasons: ['invented figure: 90%'] };
+function mkDeck(n, tag, photoFor) { return Array.from({ length: n }, (_, i) => ({ kicker: i ? 'Fixture kicker' : '', num: '', title: i ? `Fixture ${tag} line ${i + 1}` : `Fixture ${tag}`, sub: `Fixture second line ${i + 1}.`, swipe: i === 0 ? 'Swipe' : '', photo: photoFor ? photoFor(i) : 'gc' + (i % 3) })); }
+function mk(n, kind, tag, o = {}) { return { id: 'c-' + tag, concept: (kind === 'series' ? 'Build notes: ' : 'Idea: ') + tag, lane: 'wide', kind, status: 'drafted', createdAt: o.createdAt || '2026-11-19T07:00:00Z', deck: { slides: mkDeck(n, tag, o.photoFor), caption: 'Fixture caption ' + tag + '.', claims: [], evidence: 'Fixture evidence ' + tag } }; }
+function defaults() {
+  const t = i => `2026-11-19T07:0${i}:00Z`;
+  return {
+    drafted: [mk(3, 'series', 'alpha', { createdAt: t(1) }), mk(4, 'series', 'bravo', { createdAt: t(2) }), mk(5, 'series', 'charlie', { createdAt: t(3) }), mk(3, 'series', 'delta', { createdAt: t(4) }), mk(4, 'idea', 'echo', { createdAt: t(5) }), mk(5, 'idea', 'foxtrot', { createdAt: t(6) })],
+    queued: 1, failed: [], series: { last: 6, next: 7 }, approveMode: 'ok', approved: new Set(), published: [], draftConcept: {}, albumOk: true
+  };
+}
+st = defaults();
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS' };
 const worker = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
-  if (u.pathname === '/img-album/g1') { res.writeHead(200, { ...cors, 'content-type': 'image/png' }); return res.end(PNG); }
-  if (u.pathname === '/nocors.png') { res.writeHead(200, { 'content-type': 'image/png' }); return res.end(PNG); } // no ACAO on purpose
+  const im = /^\/img-album\/(.+)$/.exec(u.pathname);
+  if (im) { res.writeHead(200, { ...cors, 'content-type': 'image/png' }); return res.end(im[1] === 'gb' ? PNG_45 : PNG_34); }
   let body = ''; req.on('data', d => body += d);
   req.on('end', () => {
     calls.push({ method: req.method, path: u.pathname + u.search, auth: req.headers.authorization || '', body });
     const j = (s, o) => { res.writeHead(s, { ...cors, 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.headers.authorization !== 'Bearer ' + TOKEN) return j(401, { ok: false, error: 'access token required' });
-    if (u.pathname === '/api/concepts' && req.method === 'POST') return j(201, { ok: true, concept: { id: 'c-x', status: 'queued' } });
-    if (u.pathname === '/api/concepts' && req.method === 'GET') { const st = u.searchParams.get('status'); if (listMode === 'photos') return j(200, { ok: true, concepts: st === 'drafted' ? [DRAFTED_PH] : [] }); if (listMode === 'series') return j(200, { ok: true, concepts: st === 'drafted' ? [BN, DRAFTED] : st === 'failed' ? [FAILED] : st === 'queued' ? [QBN] : [] }); return j(200, { ok: true, concepts: st === 'drafted' ? [DRAFTED] : st === 'failed' ? [FAILED] : [] }); }
-    if (u.pathname === '/api/run-now' && req.method === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
-    if (u.pathname === '/api/album') return j(200, { ok: true, photos: [{ guid: 'g1', width: 240, height: 300, caption: 'a photo', url: '/img-album/g1' }] });
-    if (u.pathname === '/api/publish' && req.method === 'PUT') return j(200, { ok: true, added: [JSON.parse(body).drafts[0].id], kept: [] });
-    if (/^\/api\/drafts\/[^/]+\/approve$/.test(u.pathname)) return approveMode === 'ok' ? j(200, { ok: true }) : j(422, { ok: false, error: 'copy gate failed', reasons: ['number 90 is not in your evidence'] });
+    const p = u.pathname, m = req.method;
+    if (p === '/api/concepts' && m === 'POST') return j(201, { ok: true, concept: { id: 'c-x', status: 'queued' } });
+    if (p === '/api/concepts' && m === 'GET') {
+      const s = u.searchParams.get('status');
+      if (st.listFail) return j(500, { ok: false, error: 'broken' });
+      if (s === 'drafted') return j(200, { ok: true, concepts: st.drafted.map(c => ({ ...c, postState: st.approved.has(c.id) ? 'approved' : 'none' })) });
+      if (s === 'queued') return j(200, { ok: true, concepts: Array.from({ length: st.queued }, (_, i) => ({ id: 'c-q' + i, concept: 'Idea: queued ' + i, lane: 'wide', kind: 'idea', status: 'queued', postState: 'none' })) });
+      if (s === 'failed') return j(200, { ok: true, concepts: st.failed });
+      return j(200, { ok: true, concepts: [] });
+    }
+    if (p === '/api/run-now' && m === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
+    if (p === '/api/album') return st.albumOk ? j(200, { ok: true, photos: ALBUM.map(a => ({ ...a, url: '/img-album/' + a.guid })) }) : j(502, { ok: false, error: 'album unavailable' });
+    if (p === '/api/series' && m === 'GET') return j(200, { ok: true, last: st.series.last, next: st.series.next, assigned: [] });
+    if (p === '/api/series/floor' && m === 'POST') { const b = JSON.parse(body); st.series = { last: Math.max(st.series.last, b.last), next: Math.max(st.series.last, b.last) + 1 }; return j(200, { ok: true, last: st.series.last, next: st.series.next }); }
+    if (p === '/api/publish' && m === 'PUT') { const b = JSON.parse(body); st.published.push(b); const d = b.drafts[0]; if (d.conceptId) st.draftConcept[d.id] = d.conceptId; return j(200, { ok: true, added: [d.id], kept: [] }); }
+    const ap = /^\/api\/drafts\/([^/]+)\/approve$/.exec(p);
+    if (ap && m === 'POST') {
+      if (st.approveMode === 'taken') { const d = st.published.map(b => b.drafts[0]).find(x => x.id === decodeURIComponent(ap[1])); return j(409, { ok: false, error: 'series number taken', n: d && d.series ? d.series.n : 0, next: 8 }); }
+      if (st.approveMode === 'fail') return j(422, { ok: false, error: 'copy gate failed', reasons: ['number 90 is not in your evidence'] });
+      const cid = st.draftConcept[decodeURIComponent(ap[1])]; if (cid) st.approved.add(cid);
+      return j(200, { ok: true });
+    }
     j(404, { ok: false, error: 'not found' });
   });
 });
 const site = http.createServer((req, res) => {
-  const f = req.url.startsWith('/vendor/') ? path.join(root, 'dist/carousel-insta', req.url.split('?')[0]) : FILE;
-  res.writeHead(200, { 'content-type': f.endsWith('.js') ? 'text/javascript' : 'text/html' }); res.end(fs.readFileSync(f));
+  const p = req.url.split('?')[0];
+  const send = (f, t) => { res.writeHead(200, { 'content-type': t }); res.end(fs.readFileSync(f)); };
+  if (p === '/look.js') return send(LOOK, 'text/javascript');
+  if (p === '/old/') return send(OLD_PAGE, 'text/html');
+  if (p === '/cover/') return send(COVER, 'text/html');
+  if (p === '/') return send(FILE, 'text/html');
+  res.writeHead(404); res.end('no');
 });
 await new Promise(r => worker.listen(0, '127.0.0.1', r));
 await new Promise(r => site.listen(0, '127.0.0.1', r));
@@ -79,211 +111,562 @@ const S = `http://127.0.0.1:${site.address().port}/`;
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const results = [];
-const check = async (name, fn) => { try { await fn(); results.push(['PASS', name]); } catch (e) { results.push(['FAIL', name + ' :: ' + e.message.split('\n')[0]]); } };
-async function open(viewport, withSettings = true) {
-  const ctx = await browser.newContext({ viewport });
+const check = async (name, fn) => { st = defaults(); calls.length = 0; try { await fn(); results.push(['PASS', name]); } catch (e) { results.push(['FAIL', name + ' :: ' + e.message.split('\n')[0] + (process.env.DBG ? e.stack : '')]); } };
+const PH = { w: 390, h: 844 }, DT = { w: 1440, h: 900 };
+async function open(vp, o = {}) {
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h } });
+  // nothing outside the local stubs is ever reached: fonts and everything else get an empty 200
+  await ctx.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.href), r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   const page = await ctx.newPage();
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', e => errors.push(String(e)));
-  if (withSettings) await page.addInitScript(([b, t]) => { localStorage.setItem('orb_worker_base', b); localStorage.setItem('orb_approve_token', t); }, [W, TOKEN]);
-  await page.goto(S);
+  await page.addInitScript(([b, t, legacy, withSettings]) => {
+    if (withSettings) { localStorage.setItem('orb_worker_base', b); localStorage.setItem('orb_approve_token', t); }
+    if (legacy != null) localStorage.setItem('orb_cover_series_last', String(legacy));
+    window.__clicks = 0; document.addEventListener('click', e => { if (e.isTrusted) window.__clicks++; }, true);
+    window.__txt = []; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (t, ...a) { window.__txt.push(String(t)); return ft.call(this, t, ...a); };
+  }, [W, TOKEN, o.legacy == null ? null : o.legacy, o.connected !== false]);
+  await page.goto(S + (o.hash || ''));
+  if (o.connected !== false && !o.hash && !o.noWait) await page.waitForSelector('.ready-item', { timeout: 15000 }).catch(() => {});
   return { page, errors, ctx };
 }
+const openItem = async (page, tag) => { await page.locator('.ready-item', { hasText: 'Fixture ' + tag }).first().click(); };
+const reviewReady = page => page.waitForFunction(() => !document.getElementById('approve-btn').disabled && !document.getElementById('screen-review').hidden, null, { timeout: 15000 });
+const approvedMsg = page => page.waitForFunction(() => /In your Buffer queue/.test(document.getElementById('msg').textContent), null, { timeout: 30000 });
+const inView = (page, sel) => page.evaluate(s => { const e = document.querySelector(s), r = e.getBoundingClientRect(); return r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth; }, sel);
+const publishes = () => st.published.map(b => b.drafts[0]);
+const lastPub = () => st.published[st.published.length - 1];
+const nonGet = () => calls.filter(c => c.method !== 'GET');
 
-await check('AC-10.3.1 concept saved message; drafted concept fills 8 slides + caption, no [brackets]', async () => {
-  calls.length = 0;
-  const { page, ctx } = await open({ width: 1200, height: 900 });
+// "controls" = visible button, input, select, textarea. "furniture words" = visible words minus caption text and draft titles.
+const metrics = page => page.evaluate(() => {
+  const vis = e => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+  const controls = [...document.querySelectorAll('button, input, select, textarea')].filter(vis).length;
+  let words = 0; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let t;
+  while ((t = w.nextNode())) { const el = t.parentElement; if (!el || ['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'TITLE'].includes(el.tagName) || el.closest('.ready-title') || !el.checkVisibility()) continue; words += t.nodeValue.split(/\s+/).filter(Boolean).length; }
+  const ap = document.getElementById('approve-btn'), r = ap ? ap.getBoundingClientRect() : null;
+  return { controls, words, height: document.documentElement.scrollHeight, vh: innerHeight, editable: document.querySelectorAll('[contenteditable]').length, approveInView: !!r && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
+});
+const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 4) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 15) v.push('words ' + m.words); if (m.height > 1.2 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
+
+// ===== Simplicity caps =====
+for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
+  await check(`Ready at ${vpName}: 6 drafts with pictures, controls <= drafts + 2, <= 2 screens, <= 25 furniture words, no "Check for drafts"; an injected button trips the cap`, async () => {
+    const { page, errors, ctx } = await open(vp);
+    assert.equal(await page.locator('.ready-item:visible').count(), 6);
+    await page.waitForFunction(() => [...document.querySelectorAll('.ready-item img')].length === 6 && [...document.querySelectorAll('.ready-item img')].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
+    assert.equal(await page.textContent('#ready-heading'), 'Ready to post (6)');
+    const m = await metrics(page);
+    assert.ok(m.controls <= 6 + 2, 'controls ' + m.controls);
+    assert.ok(m.height <= 2 * m.vh, 'height ' + m.height);
+    assert.ok(m.words <= 25, 'furniture words ' + m.words);
+    assert.equal(await page.getByText('Check for drafts').count(), 0);
+    assert.equal(await page.getByText('Refresh').count(), 0);
+    assert.equal(await page.textContent('h1'), 'Insta Creator');
+    const tags = await page.locator('.ready-tag').allTextContents(); assert.equal(tags.filter(x => x === 'Series').length, 4); assert.equal(tags.filter(x => x === 'Words over my photos').length, 2);
+    // newest first
+    assert.match(await page.locator('.ready-title').first().textContent(), /foxtrot/);
+    // must-fail: one more visible button breaks the very assert above
+    await page.evaluate(() => { const b = document.createElement('button'); b.textContent = 'Check for drafts'; document.getElementById('ready-main').appendChild(b); });
+    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 2, 'the cap assert must fire on an extra button, controls ' + m2.controls);
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+}
+
+await check('Two taps to approved: one .ready-item, then #approve-btn, nothing else; one publish with conceptId and one image per slide, one approve', async () => {
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item');
+  await page.click('#approve-btn');
+  await approvedMsg(page);
+  assert.equal(await page.evaluate(() => window.__clicks), 2, 'exactly two taps');
+  const pubs = st.published; assert.equal(pubs.length, 1);
+  const d = pubs[0].drafts[0];
+  assert.equal(d.conceptId, 'c-foxtrot'); assert.equal(d.slides.length, 5); assert.equal(Object.keys(pubs[0].images[d.id]).length, 5);
+  assert.equal(calls.filter(c => c.method === 'POST' && /approve$/.test(c.path)).length, 1);
+  assert.ok(calls.every(c => c.auth === 'Bearer ' + TOKEN));
+  await ctx.close();
+});
+
+for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
+  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 4 controls, no editable text, <= 15 furniture words, <= 1.2 screens`, async () => {
+    const { page, ctx } = await open(vp);
+    await page.click('.ready-item');
+    const v = reviewViolations(await metrics(page));
+    assert.deepEqual(v, []);
+    await reviewReady(page);
+    await ctx.close();
+  });
+}
+
+await check('Approve stays inside the viewport on a short phone (390x600) and the review bar stays fixed while the page scrolls', async () => {
+  const { page, ctx } = await open({ w: 390, h: 600 });
+  await page.click('.ready-item'); await reviewReady(page);
+  assert.ok(await inView(page, '#approve-btn'), 'Approve outside a 600px tall viewport');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  assert.ok(await inView(page, '#approve-btn'), 'Approve scrolled out of view');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('review-bar')).position), 'fixed');
+  await ctx.close();
+});
+
+await check('Must-fail proof: the saved copy of today\'s page (orb 66d8942) trips the same asserts', async () => {
+  st.drafted = [mk(8, 'idea', 'old8')]; // the 8-slide deck the 19 Nov measurement used
+  const { page, ctx } = await open(PH, { hash: '' });
+  await page.goto(S + 'old/');
+  await page.click('#drafts-refresh'); await page.waitForSelector('.draft-item button');
+  await page.locator('.draft-item button', { hasText: 'Open this draft' }).first().click();
+  const m = await metrics(page); const v = reviewViolations(m);
+  console.log('   old page measured', JSON.stringify(m), '->', v.join('; '));
+  assert.ok(m.controls + m.editable > 95, 'controls + editable ' + (m.controls + m.editable)); assert.ok(m.editable >= 40, 'editable ' + m.editable);
+  assert.ok(m.height / m.vh > 6, 'screens ' + (m.height / m.vh).toFixed(1));
+  for (const key of ['approve outside the viewport', 'controls', 'editable', 'words', 'height']) assert.ok(v.some(x => x.startsWith(key)), 'the old page must fail: ' + key);
+  await ctx.close();
+});
+
+await check('Swipe: on a 4-slide draft, one slide width of scrollLeft changes 1 / 4 to 2 / 4; scroll-snap-type starts with x', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'echo'); await reviewReady(page);
+  assert.equal(await page.textContent('#review-count'), '1 / 4');
+  assert.equal(await page.locator('#review-strip canvas').count(), 4);
+  assert.match(await page.evaluate(() => getComputedStyle(document.getElementById('review-strip')).scrollSnapType), /^x/);
+  await page.evaluate(() => { const s = document.getElementById('review-strip'); s.scrollLeft = s.clientWidth; });
+  await page.waitForFunction(() => document.getElementById('review-count').textContent === '2 / 4');
+  const ov = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth); assert.ok(ov <= 0, 'overflow ' + ov);
+  await ctx.close();
+});
+
+await check('Feedback on screen: the success text and a stubbed 422 with its reasons are inside the viewport', async () => {
+  const { page, ctx } = await open(PH);
+  st.approveMode = 'fail';
+  await page.click('.ready-item'); await reviewReady(page);
+  await page.click('#approve-btn');
+  await page.waitForFunction(() => /not in your evidence/.test(document.getElementById('msg').textContent), null, { timeout: 30000 });
+  assert.ok(await inView(page, '#msg'), '422 message outside the viewport');
+  assert.ok(await inView(page, '#msg li'), '422 reason outside the viewport');
+  st.approveMode = 'ok';
+  await page.fill('#caption', 'Fixed caption'); await page.click('#approve-btn');
+  await approvedMsg(page);
+  assert.ok(await inView(page, '#msg'), 'success message outside the viewport');
+  await page.waitForTimeout(900); assert.ok(await page.locator('#screen-review').isVisible(), 'the success text stays on screen for about 1.5 seconds before the screen changes');
+  assert.equal(st.published.length, 1, 'fixable without a second publish');
+  assert.equal(calls.filter(c => c.method === 'POST' && /approve$/.test(c.path)).length, 2);
+  await ctx.close();
+});
+
+await check('Approved posts leave: after approve the stub says postState approved; Ready shows 5 items and Ready to post (5)', async () => {
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await page.click('#approve-btn'); await approvedMsg(page);
+  await page.waitForFunction(() => !document.getElementById('screen-ready').hidden && document.getElementById('ready-heading').textContent === 'Ready to post (5)', null, { timeout: 15000 });
+  assert.equal(await page.locator('.ready-item').count(), 5);
+  assert.equal(await page.locator('.ready-item', { hasText: 'foxtrot' }).count(), 0);
+  await ctx.close();
+});
+
+await check('Edit is a door: Edit shows editable text and per-slide buttons; a changed slide 2 title shows after Done; New idea and More work', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'echo'); await reviewReady(page);
+  assert.equal(await page.locator('#screen-edit:visible').count(), 0);
+  await page.click('#edit-btn');
+  assert.equal(await page.locator('#screen-edit:visible').count(), 1);
+  assert.equal(await page.locator('.slide-edit').count(), 4);
+  assert.equal(await page.locator('.slide-edit').nth(1).locator('textarea[data-f="title"]:visible').count(), 1);
+  for (const b of ['Move up', 'Move down', 'Delete', 'Move photo', 'Add / replace photo']) assert.ok(await page.locator('.slide-edit').nth(1).getByRole('button', { name: b }).count() >= 1, b);
+  assert.equal(await page.locator('.slide-edit canvas').count(), 4);
+  await page.locator('.slide-edit').nth(1).locator('textarea[data-f="title"]').fill('Changed second title');
+  await page.evaluate(() => { window.__txt = []; });
+  await page.click('#edit-done');
+  await reviewReady(page);
+  assert.ok((await page.evaluate(() => window.__txt)).includes('Changed second title'), 'the new title is drawn in the review strip');
+  assert.equal(await page.evaluate(() => cards[1].title), 'Changed second title');
+  await page.click('#review-back');
+  // New idea
+  await page.click('#new-idea-btn');
+  assert.ok(await page.locator('#idea-sheet').isVisible());
   await page.fill('#concept-text', 'Use AI to plan the week');
   await page.click('#concept-send');
-  await page.waitForFunction(() => document.getElementById('msg').textContent.includes('Saved.'));
-  assert.equal(await page.textContent('#msg'), 'Saved. Your carousel will be ready after the next run (7am, 1pm or 7pm).');
-  const post = calls.find(c => c.method === 'POST' && c.path === '/api/concepts');
-  assert.ok(post, 'POST /api/concepts issued'); assert.equal(JSON.parse(post.body).lane, 'ambitious-women');
-  await page.click('#drafts-refresh');
-  await page.waitForSelector('#drafts-list .draft-item button');
-  assert.match(await page.textContent('#drafts-list'), /invented figure: 90%/); // failed reasons shown
-  await page.click('#drafts-list .draft-item button');
-  assert.equal(await page.locator('.ig-card').count(), 8);
-  const all = await page.locator('.ig-card').allInnerTexts();
-  for (const t of all) { assert.ok(t.trim().length > 0); assert.ok(!/[\[\]]/.test(t), 'bracket placeholder: ' + t); }
-  assert.equal(await page.inputValue('#caption'), 'A short caption in my words.');
+  await page.waitForFunction(() => document.getElementById('idea-msg').textContent.includes('Saved.'));
+  assert.equal(await page.textContent('#idea-msg'), 'Saved. Your carousel will be ready after the next run (7am, 1pm or 7pm).');
+  assert.ok(await inView(page, '#idea-msg'));
+  const post = calls.find(c => c.method === 'POST' && c.path === '/api/concepts'); assert.ok(post); assert.equal(JSON.parse(post.body).lane, 'ambitious-women'); assert.equal(JSON.parse(post.body).concept, 'Use AI to plan the week');
+  await page.click('#idea-close'); assert.ok(!(await page.locator('#idea-sheet').isVisible()));
+  // More
+  await page.click('#more-btn');
+  assert.ok(await page.locator('#more-sheet').isVisible());
+  for (const id of ['set-base', 'set-token', 'set-save', 'blank-btn', 'copy-btn', 'paste-btn', 'export-btn', 'reset-btn']) assert.ok(await page.locator('#' + id).isVisible(), id);
   await ctx.close();
 });
 
-await check('AC-10.3.2/3 album photo via crossorigin img exports; PNG is 1080x1350 and not flat', async () => {
-  const { page, ctx } = await open({ width: 1200, height: 900 });
-  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
-  await page.click('#album-load'); await page.waitForSelector('#album-grid button'); await page.click('#album-grid button');
-  await page.click('#album-all');
-  assert.equal(await page.locator('.ig-card img.ig-bg[crossorigin="anonymous"]').count(), 8);
-  await page.waitForFunction(() => [...document.querySelectorAll('.ig-bg')].every(i => i.complete && i.naturalWidth > 0));
-  const r = await page.evaluate(async () => {
-    const url = await window.renderCardPng(0);
-    const im = new Image(); await new Promise((ok, no) => { im.onload = ok; im.onerror = no; im.src = url; });
-    const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
-    const x = c.getContext('2d'); x.drawImage(im, 0, 0);
-    const seen = new Set(); for (let i = 0; i < 400; i++) { const d = x.getImageData((i * 37) % c.width, (i * 91) % c.height, 1, 1).data; seen.add(d.join(',')); }
-    return { w: im.naturalWidth, h: im.naturalHeight, colours: seen.size };
-  });
-  console.log('   PNG', r);
-  assert.equal(r.w, 1080); assert.equal(r.h, 1350); assert.ok(r.colours > 20, 'flat image: ' + r.colours + ' colours');
-  await ctx.close();
-});
-
-await check('AC-10.3.2 must-fail: non-CORS image makes export throw (proxy path is required)', async () => {
-  const { page, ctx } = await open({ width: 1200, height: 900 });
-  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
-  const raw = await page.evaluate(async (u) => { // the browser fact the whole design rests on
-    const im = new Image(); await new Promise((ok, no) => { im.onload = ok; im.onerror = no; im.src = u; });
-    const c = document.createElement('canvas'); c.width = 10; c.height = 10; c.getContext('2d').drawImage(im, 0, 0);
-    try { c.toDataURL(); return 'no throw'; } catch (e) { return e.name; }
-  }, W + '/nocors.png');
-  assert.equal(raw, 'SecurityError');
-  await page.evaluate((u) => { cards[0].photo = u; render(); }, W + '/nocors.png');
-  const threw = await page.evaluate(async () => { try { await window.renderCardPng(0); return false; } catch (e) { return true; } });
-  assert.equal(threw, true, 'export must throw for a non-CORS photo');
-  await ctx.close();
-});
-
-await check('AC-10.3.4/5 exactly one PUT then one POST approve; Bearer comes from localStorage; 8 PNG images', async () => {
-  calls.length = 0; approveMode = 'ok';
-  const { page, errors, ctx } = await open({ width: 1200, height: 900 });
-  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
-  calls.length = 0;
-  await page.click('#approve-btn');
-  await page.waitForFunction(() => /Buffer queue/.test(document.getElementById('msg').textContent), null, { timeout: 60000 });
-  assert.equal(await page.textContent('#msg'), 'In your Buffer queue once your Mac syncs');
-  const w = calls.filter(c => c.method !== 'GET');
-  assert.equal(w.length, 2); assert.equal(w[0].method, 'PUT'); assert.equal(w[0].path, '/api/publish'); assert.equal(w[1].method, 'POST'); assert.match(w[1].path, /^\/api\/drafts\/drliz-\d{8}-\d{6}\/approve$/);
-  assert.ok(calls.every(c => c.auth === 'Bearer ' + TOKEN));
-  const body = JSON.parse(w[0].body); const id = body.drafts[0].id;
-  assert.match(id, /^drliz-\d{8}-\d{6}$/); assert.equal(body.drafts[0].slides.length, 8); assert.equal(body.drafts[0].evidence, 'Use AI to plan the week');
-  const imgs = Object.values(body.images[id]); assert.equal(imgs.length, 8);
-  for (const b of imgs) { const buf = Buffer.from(b, 'base64'); assert.equal(buf.readUInt32BE(16), 1080); assert.equal(buf.readUInt32BE(20), 1350); }
-  assert.ok(w[1].path.includes(id));
-  assert.deepEqual(errors, []);
-  await ctx.close();
-});
-
-await check('AC-10.3.4 422 copy gate reason shown, fixable without a second PUT', async () => {
-  calls.length = 0; approveMode = 'fail';
-  const { page, ctx } = await open({ width: 1200, height: 900 });
-  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
-  await page.click('#approve-btn');
-  await page.waitForFunction(() => /not in your evidence/.test(document.getElementById('msg').textContent), null, { timeout: 60000 });
-  approveMode = 'ok';
-  await page.fill('#caption', 'Fixed caption'); await page.click('#approve-btn');
-  await page.waitForFunction(() => /Buffer queue/.test(document.getElementById('msg').textContent));
-  assert.equal(calls.filter(c => c.method === 'PUT').length, 1);
-  assert.equal(calls.filter(c => c.method === 'POST' && /approve/.test(c.path)).length, 2);
-  await ctx.close();
-});
-
-await check('AC-10.3.5 no token in localStorage means no request is sent', async () => {
-  calls.length = 0;
-  const { page, ctx } = await open({ width: 1200, height: 900 }, false);
-  await page.fill('#concept-text', 'x'); await page.click('#concept-send');
-  await page.waitForFunction(() => /Paste your Worker/.test(document.getElementById('msg').textContent));
-  assert.equal(calls.length, 0);
-  await ctx.close();
-});
-
-await check('AC-10.3.6 phone width 390: no horizontal scroll, whole flow, no console errors', async () => {
-  approveMode = 'ok';
-  const { page, errors, ctx } = await open({ width: 390, height: 844 });
-  const ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  assert.ok(ov <= 0, 'horizontal overflow ' + ov);
-  await page.fill('#concept-text', 'idea'); await page.click('#concept-send');
-  await page.waitForFunction(() => /Saved\./.test(document.getElementById('msg').textContent));
-  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
-  await page.click('#approve-btn');
-  await page.waitForFunction(() => /Buffer queue/.test(document.getElementById('msg').textContent), null, { timeout: 60000 });
-  const ov2 = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  assert.ok(ov2 <= 0, 'horizontal overflow after flow ' + ov2);
-  assert.deepEqual(errors, []);
-  await ctx.close();
-});
-
-await check('AC-12.1 Draft now: with text saves then run-now; without text only run-now; exact message', async () => {
+await check('Draft now: with text saves then run-now; without text only run-now; exact message, on screen', async () => {
   const MSG = 'Asked your Mac to draft now. Check back in about 10 minutes (your Mac needs to be awake).';
-  calls.length = 0;
-  const { page, ctx } = await open({ width: 1200, height: 900 });
-  await page.fill('#concept-text', 'Use AI to plan the week');
+  const { page, ctx } = await open(PH);
+  await page.click('#new-idea-btn');
+  await page.fill('#concept-text', 'Use AI to plan the week'); calls.length = 0;
   await page.click('#draft-now');
-  await page.waitForFunction(() => document.getElementById('msg').textContent.startsWith('Asked your Mac'));
-  assert.equal(await page.textContent('#msg'), MSG);
-  const posts = calls.filter(c => c.method === 'POST');
-  assert.deepEqual(posts.map(c => c.path), ['/api/concepts', '/api/run-now']);
-  for (const c of posts) assert.equal(c.auth, 'Bearer ' + TOKEN);
-  calls.length = 0;
-  await page.click('#draft-now');
-  await page.waitForFunction(() => document.getElementById('msg').textContent.startsWith('Asked your Mac'));
+  await page.waitForFunction(() => document.getElementById('idea-msg').textContent.startsWith('Asked your Mac'));
+  assert.equal(await page.textContent('#idea-msg'), MSG);
+  assert.deepEqual(calls.filter(c => c.method === 'POST').map(c => c.path), ['/api/concepts', '/api/run-now']);
+  calls.length = 0; await page.click('#draft-now');
+  await page.waitForFunction(() => document.getElementById('idea-msg').textContent.startsWith('Asked your Mac'));
   assert.deepEqual(calls.filter(c => c.method === 'POST').map(c => c.path), ['/api/run-now']);
   await ctx.close();
 });
 
-await check('AC-12.2/3 split sections, queued greyed, series draft loads 8 slides', async () => {
-  listMode = 'series';
-  const { page, ctx } = await open({ width: 390, height: 800 });
-  await page.click('#drafts-refresh2');
-  await page.waitForSelector('#drafts-list .draft-section .draft-item');
-  const secs = page.locator('#drafts-list .draft-section');
-  assert.equal(await secs.count(), 2);
-  const s0 = await secs.nth(0).innerText(), s1 = await secs.nth(1).innerText();
-  assert.match(s0, /Build notes series/); assert.match(s0, /Build notes: what shipped today/); assert.match(s0, /Waiting to be drafted/); assert.match(s0, /Build notes: queued topic/); assert.ok(!/second line/.test(s0));
-  assert.match(s1, /Your ideas/); assert.match(s1, /Use AI to plan the week/); assert.match(s1, /invented figure: 90%/); assert.ok(!/Waiting/.test(s1));
-  assert.equal(await secs.nth(0).locator('.draft-item.waiting').count(), 1);
-  await secs.nth(0).locator('button').first().click();
-  assert.equal(await page.locator('.ig-card').count(), 8);
-  for (const x of await page.locator('.ig-card').allInnerTexts()) assert.ok(!/[\[\]]/.test(x));
-  const ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  assert.ok(ov <= 0, 'overflow ' + ov);
-  listMode = 'plain';
+await check('Not connected: only the connection box is visible, and no /api call is made', async () => {
+  const { page, ctx } = await open(PH, { connected: false });
+  await page.waitForTimeout(600);
+  assert.ok(await page.locator('#conn-box').isVisible());
+  assert.equal(await page.locator('.ready-item').count(), 0);
+  assert.ok(!(await page.locator('#new-idea-btn').isVisible())); assert.ok(!(await page.locator('#more-btn').isVisible())); assert.ok(!(await page.locator('#ready-heading').isVisible()));
+  const m = await metrics(page); assert.equal(m.controls, 3, 'two inputs and Save, got ' + m.controls);
+  assert.equal(calls.length, 0);
+  // Save then loads the drafts
+  await page.fill('#set-base', W); await page.fill('#set-token', TOKEN); await page.click('#set-save');
+  await page.waitForSelector('.ready-item');
+  assert.ok(calls.some(c => c.path.startsWith('/api/concepts')));
   await ctx.close();
 });
 
-await check('AC-12.2 empty sections say Nothing here yet.', async () => {
-  const { page, ctx } = await open({ width: 390, height: 800 });
-  await page.evaluate(() => {}); 
-  const txt = await page.evaluate(async ([w, t]) => { const r = await fetch(w + '/api/concepts?status=queued', { headers: { Authorization: 'Bearer ' + t } }); return r.status; }, [W, TOKEN]);
-  assert.equal(txt, 200);
-  await page.click('#drafts-refresh2'); await page.waitForSelector('#drafts-list .draft-section');
-  assert.match(await page.locator('#drafts-list .draft-section').nth(0).innerText(), /Nothing here yet\./);
-  await ctx.close();
+await check('Quiet lines: 1 queued reads "1 more being written"; 3 queued reads "3 more"; nothing queued or failed shows neither (must-stay-silent); failed opens More with the reason', async () => {
+  let o = await open(PH);
+  assert.equal(await o.page.textContent('#ready-waiting'), '1 more being written'); assert.ok(await o.page.locator('#ready-waiting').isVisible());
+  assert.ok(!(await o.page.locator('#ready-failed').isVisible()));
+  await o.ctx.close();
+  st.queued = 3; o = await open(PH); assert.equal(await o.page.textContent('#ready-waiting'), '3 more being written'); await o.ctx.close();
+  st.queued = 0; st.failed = []; o = await open(PH);
+  assert.ok(!(await o.page.locator('#ready-waiting').isVisible())); assert.ok(!(await o.page.locator('#ready-failed').isVisible()));
+  await o.ctx.close();
+  st.queued = 0; st.failed = [{ id: 'c-f', concept: 'A concept that failed', lane: 'wide', kind: 'idea', status: 'failed', reasons: ['invented figure: 90%'] }]; o = await open(PH);
+  assert.equal(await o.page.textContent('#ready-failed'), '1 could not be written');
+  await o.page.click('#ready-failed');
+  assert.match(await o.page.textContent('#more-failed'), /invented figure: 90%/);
+  await o.ctx.close();
 });
 
-await check('AC-14.5 a draft whose slides carry guids shows img.ig-bg /img-album/<guid> on every slide; placeholder never reaches the export', async () => {
-  listMode = 'photos';
-  const { page, ctx } = await open({ width: 1200, height: 900 });
-  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
-  assert.equal(await page.locator('.ig-card').count(), 8);
-  const srcs = await page.locator('.ig-card').evaluateAll(cs => cs.map(c => { const i = c.querySelector('img.ig-bg'); return i ? i.getAttribute('src') : null; }));
-  srcs.forEach((u, i) => { assert.ok(u, 'slide ' + (i + 1) + ' has no img.ig-bg'); assert.ok(u.endsWith('/img-album/' + (i % 2 ? 'g1' : 'g2-test_guid')), u); });
-  assert.equal(await page.locator('.ig-photo-ph').count(), 0, 'no placeholder when every slide has a photo');
-  // a slide with no photo shows the placeholder on screen but the exported clone must not carry it
-  await page.evaluate(() => { cards[0].photo = ''; render(); });
-  assert.equal(await page.locator('.ig-card').first().locator('.ig-photo-ph').count(), 1);
-  const seen = await page.evaluate(async () => {
-    const real = window.html2canvas; let hadPh = null;
-    window.html2canvas = (el, o) => { hadPh = !!el.querySelector('.ig-photo-ph'); return real(el, o); };
-    await window.renderCardPng(0);
-    window.html2canvas = real; return hadPh;
+await check('Nothing ready: "Nothing ready yet."; and a failed list call shows "Could not get your drafts." with a working Try again', async () => {
+  st.drafted = []; let o = await open(PH, { noWait: true });
+  await o.page.waitForFunction(() => document.getElementById('ready-status').textContent === 'Nothing ready yet.');
+  await o.ctx.close();
+  st = defaults(); st.albumOk = true;
+  st.listFail = true; // a broken server
+  o = await open(PH, { noWait: true });
+  await o.page.waitForFunction(() => document.getElementById('ready-status').textContent === 'Could not get your drafts.');
+  assert.ok(await o.page.locator('#ready-retry').isVisible()); assert.equal(await o.page.textContent('#ready-retry'), 'Try again');
+  st.listFail = false; await o.page.click('#ready-retry'); await o.page.waitForSelector('.ready-item');
+  await o.ctx.close();
+});
+
+// ===== Short decks and the one look =====
+for (const n of [2, 3, 5, 7]) {
+  await check(`A deck of ${n} slides opens, reviews and approves: ${n} slides and images numbered 1..${n}, roles hook, point, close`, async () => {
+    st.drafted = [mk(n, 'idea', 'deck' + n)];
+    const { page, ctx } = await open(PH);
+    await page.click('.ready-item'); await reviewReady(page);
+    assert.equal(await page.textContent('#review-count'), '1 / ' + n);
+    await page.click('#approve-btn'); await approvedMsg(page);
+    const d = lastPub().drafts[0];
+    assert.deepEqual(d.slides.map(s => s.n), Array.from({ length: n }, (_, i) => i + 1));
+    assert.deepEqual(d.slides.map(s => s.role), Array.from({ length: n }, (_, i) => i === 0 ? 'hook' : i === n - 1 ? 'close' : 'point'));
+    assert.deepEqual(Object.keys(lastPub().images[d.id]), Array.from({ length: n }, (_, i) => String(i + 1)));
+    assert.ok(d.slides.every(s => s.placeholder === false));
+    await ctx.close();
   });
-  assert.equal(seen, false, 'placeholder present in the element being exported');
-  listMode = 'plain';
+}
+
+await check('A 1-slide deck: approve makes zero network calls and shows the 2-slide message; an 11-slide deck shows the Instagram message', async () => {
+  st.drafted = [mk(1, 'idea', 'one'), mk(11, 'idea', 'eleven', { createdAt: '2026-11-19T06:00:00Z' })];
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'one'); await reviewReady(page);
+  const before = calls.length;
+  await page.click('#approve-btn');
+  await page.waitForFunction(() => document.getElementById('msg').textContent === 'A post needs at least 2 slides.');
+  await page.waitForTimeout(300); assert.equal(calls.length, before);
+  await page.click('#review-back'); await openItem(page, 'eleven'); await reviewReady(page);
+  const b2 = calls.length;
+  await page.click('#approve-btn');
+  await page.waitForFunction(() => document.getElementById('msg').textContent === 'Instagram allows 10 slides. Delete one first.');
+  await page.waitForTimeout(300); assert.equal(calls.length, b2);
   await ctx.close();
 });
 
-await check('AC-10.3.4/5/7 + G2/G5/G7 greps and the stray-tool guard', async () => {
+await check('One look in the source: no #ffd9a0, no html2canvas, no contenteditable; vendor file gone; exactly one placeFaceSafe file under dist/', async () => {
   const src = fs.readFileSync(FILE, 'utf8');
-  assert.ok(!/api\.buffer\.com|buffer-api|find-generic-password/i.test(src), 'buffer/credential path');
-  assert.ok(!src.includes(TOKEN));
-  assert.ok(!/[–—]/.test(src), 'dash');
+  assert.ok(!/ffd9a0/i.test(src), 'old amber'); assert.ok(!/html2canvas/i.test(src), 'html2canvas'); assert.ok(!/contenteditable/i.test(src), 'contenteditable');
+  assert.ok(!fs.existsSync(path.join(root, 'dist/carousel-insta/vendor/html2canvas.min.js')), 'vendor file exists');
+  const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  const hits = walk(path.join(root, 'dist')).filter(f => /\.(html|js|mjs)$/.test(f) && fs.readFileSync(f, 'utf8').includes('function placeFaceSafe'));
+  assert.deepEqual(hits.map(f => path.relative(root, f)), ['dist/carousel-insta/look.js']);
+  assert.ok(/<script src="look\.js"><\/script>/.test(src)); assert.ok(src.includes('family=Baloo+2') && src.includes('family=Baloo+2:wght@600;700;800&family=Caveat:wght@700'));
+  for (const bad of ['8 slides', '/ 8', 'KEYWORD', 'freebie']) assert.ok(!src.includes(bad), 'literal ' + bad);
+  assert.ok(!/#ffd9a0/i.test(fs.readFileSync(COVER, 'utf8')));
+});
+
+await check('Every image sent on approve decodes to 1080x1350 with more than 20 colours', async () => {
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await page.click('#approve-btn'); await approvedMsg(page);
+  const d = lastPub().drafts[0], imgs = Object.values(lastPub().images[d.id]); assert.equal(imgs.length, 5);
+  const r = await page.evaluate(async list => Promise.all(list.map(async b => {
+    const im = new Image(); await new Promise((ok, no) => { im.onload = ok; im.onerror = no; im.src = 'data:image/png;base64,' + b; });
+    const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+    const seen = new Set(); for (let i = 0; i < 400; i++) seen.add(x.getImageData((i * 37) % c.width, (i * 91) % c.height, 1, 1).data.join(','));
+    return { w: im.naturalWidth, h: im.naturalHeight, colours: seen.size };
+  })), imgs);
+  for (const x of r) { assert.equal(x.w, 1080); assert.equal(x.h, 1350); assert.ok(x.colours > 20, 'colours ' + x.colours); }
+  await ctx.close();
+});
+
+// ----- face rule -----
+const faceDeck = (tag, g) => mk(4, 'idea', tag, { createdAt: '2026-11-19T08:00:00Z', photoFor: i => i === 1 ? g : 'gc0' });
+await check('Face rule: words over the face on slide 2 show the message, Approve is disabled, nothing is sent; moving the photo in Edit clears it', async () => {
+  st.drafted = [faceDeck('blocked', 'gb')];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item');
+  await page.waitForFunction(() => /Words are over your face on slide 2/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  assert.equal(await page.textContent('#msg'), 'Words are over your face on slide 2. Tap Edit and move the photo, or use another photo.');
+  assert.ok(await page.locator('#approve-btn').isDisabled()); assert.ok(await inView(page, '#msg'));
+  await page.waitForTimeout(400); assert.equal(st.published.length, 0);
+  await page.click('#edit-btn');
+  const s2 = page.locator('.slide-edit').nth(1);
+  await s2.getByRole('button', { name: 'Move photo' }).click();
+  assert.equal(await s2.locator('input[type=range]:visible').count(), 3);
+  assert.deepEqual(await s2.locator('label:has(input[type=range])').allTextContents(), ['Left / right', 'Up / down', 'Zoom']);
+  await s2.locator('[data-frame=fx]').evaluate(e => { e.value = 0; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await s2.locator('[data-frame=fy]').evaluate(e => { e.value = 0; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await s2.locator('[data-frame=zoom]').evaluate(e => { e.value = 2; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  assert.deepEqual(await page.evaluate(() => cards[1].frame), { fx: 0, fy: 0, zoom: 2 });
+  await page.click('#edit-done'); await reviewReady(page);
+  assert.ok(!/over your face/.test(await page.textContent('#msg')));
+  // Auto puts the photo back to automatic
+  await page.click('#edit-btn'); await page.locator('.slide-edit').nth(1).getByRole('button', { name: 'Move photo' }).click(); await page.locator('.slide-edit').nth(1).getByRole('button', { name: 'Auto' }).click();
+  assert.equal(await page.evaluate(() => cards[1].frame), null);
+  await ctx.close();
+});
+await check('Face rule must-stay-silent: the same deck with the face-clear photo shows no face message and approves in two taps', async () => {
+  st.drafted = [faceDeck('clearface', 'gc1')];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await page.click('#approve-btn'); await approvedMsg(page);
+  assert.equal(await page.evaluate(() => window.__clicks), 2);
+  assert.equal(st.published.length, 1);
+  await ctx.close();
+});
+await check('No face data: a photo with no face key shows "Could not check" and Approve still works', async () => {
+  st.drafted = [faceDeck('noface', 'gn')];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item');
+  await page.waitForFunction(() => document.getElementById('msg').textContent === 'Could not check slide 2 for your face. Have a look before you approve.', null, { timeout: 15000 });
+  assert.ok(!(await page.locator('#approve-btn').isDisabled()));
+  await page.click('#approve-btn'); await approvedMsg(page);
+  assert.equal(st.published.length, 1);
+  await ctx.close();
+});
+
+// ===== Series and merge =====
+await check('Title and header read Insta Creator; Edit has both type buttons; Series shows series-box, Words hides it; flipping keeps 4 canvases in both modes', async () => {
+  const { page, ctx } = await open(PH);
+  assert.equal(await page.title(), 'Insta Creator');
+  await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn');
+  assert.equal(await page.textContent('#type-series'), 'Series'); assert.equal(await page.textContent('#type-words'), 'Words over my photos');
+  assert.equal(await page.textContent('#type-panel h2'), 'What are you making?');
+  assert.ok(await page.locator('#type-words.on').count() === 1); assert.ok(!(await page.locator('#series-box').isVisible()));
+  assert.equal(await page.locator('.slide-edit canvas').count(), 4);
+  await page.click('#type-series');
+  assert.ok(await page.locator('#type-series.on').count() === 1); assert.ok(await page.locator('#series-box').isVisible());
+  assert.equal(await page.locator('.slide-edit canvas').count(), 4);
+  await page.click('#edit-done'); await reviewReady(page); assert.equal(await page.locator('#review-strip canvas').count(), 4); assert.equal(await page.textContent('#review-count'), '1 / 4');
+  assert.equal(await page.textContent('#review-title'), 'Series #007');
+  assert.equal(await page.evaluate(() => localStorage.getItem('ig_post_type_v1')), 'series');
+  await ctx.close();
+});
+
+await check('Series number 7: series-next, series-num, and slide 1 draws #007, Dr Liz London, Using, AI, to Earn More, and, Work Less, the draft title and 1 / 4', async () => {
+  const { page, ctx } = await open(PH);
+  await page.evaluate(() => { window.__txt = []; });
+  await openItem(page, 'bravo'); await reviewReady(page);
+  const txt = await page.evaluate(() => window.__txt);
+  for (const w of ['#007', 'Dr Liz London', 'Using', 'AI', 'to Earn More', 'and', 'Work Less', '1 / 4']) assert.ok(txt.includes(w), w + ' in ' + txt.slice(0, 40).join('|'));
+  assert.ok(txt.join(' ').includes('Fixture bravo'), 'the draft slide 1 title');
+  await page.click('#edit-btn');
+  assert.equal(await page.textContent('#series-next'), 'Next in the series: #007');
+  assert.equal(await page.inputValue('#series-num'), '7');
+  assert.equal(await page.inputValue('#cv-strap'), 'Fixture bravo');
+  // editing either keeps the two in step
+  await page.fill('#cv-strap', 'Fixture arrow text');
+  assert.equal(await page.locator('.slide-edit').first().locator('textarea[data-f="title"]').inputValue(), 'Fixture arrow text');
+  await page.locator('.slide-edit').first().locator('textarea[data-f="title"]').fill('Fixture title again');
+  assert.equal(await page.inputValue('#cv-strap'), 'Fixture title again');
+  // series first slide hides the fields the cover owns
+  for (const f of ['kicker', 'num', 'swipe', 'handle']) assert.ok(!(await page.locator('.slide-edit').first().locator(`[data-f="${f}"]`).isVisible()), f);
+  assert.equal(await page.locator('.slide-edit').first().getByText('Not shown on a series first slide.').count(), 1);
+  assert.ok(await page.locator('.slide-edit').nth(1).locator('[data-f="kicker"]').isVisible());
+  await ctx.close();
+});
+
+await check('Series approve of a 4-slide draft sends one PUT with series.n 7, 4 slides numbered 1 to 4, 4 images; the success text says Approved as #007', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'bravo'); await reviewReady(page); await page.click('#approve-btn');
+  await page.waitForFunction(() => /Approved as #007\. In your Buffer queue once your Mac syncs/.test(document.getElementById('msg').textContent), null, { timeout: 30000 });
+  assert.equal(st.published.length, 1);
+  const d = lastPub().drafts[0];
+  assert.deepEqual(d.series, { n: 7 }); assert.deepEqual(d.slides.map(s => s.n), [1, 2, 3, 4]); assert.equal(Object.keys(lastPub().images[d.id]).length, 4);
+  assert.equal(d.conceptId, 'c-bravo');
+  assert.equal(d.slides[0].text, 'Dr Liz London Using AI to Earn More and Work Less Fixture bravo #007');
+  assert.ok(!d.caption.includes('#007'), 'the number is never added to the caption');
+  await ctx.close();
+});
+
+await check('Words approve of the same draft sends 4 slides, 4 images and no series key; slide 1 draws @drlizlondon and never #007', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'bravo'); await reviewReady(page); await page.click('#edit-btn');
+  await page.click('#type-words'); await page.evaluate(() => { window.__txt = []; });
+  await page.click('#edit-done'); await reviewReady(page);
+  const txt = await page.evaluate(() => window.__txt);
+  assert.ok(txt.includes('@drlizlondon')); assert.ok(!txt.includes('#007'), 'no series number in a words post');
+  await page.click('#approve-btn'); await approvedMsg(page);
+  const d = lastPub().drafts[0];
+  assert.equal(d.slides.length, 4); assert.equal(Object.keys(lastPub().images[d.id]).length, 4); assert.ok(!('series' in d));
+  assert.equal(await page.textContent('#msg'), 'Approved. In your Buffer queue once your Mac syncs');
+  await ctx.close();
+});
+
+await check('A 409 "series number taken": the #007 message, series-num becomes 8, and the next approve publishes under a different id with series.n 8', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'bravo'); await reviewReady(page);
+  st.approveMode = 'taken';
+  await page.click('#approve-btn');
+  await page.waitForFunction(() => document.getElementById('msg').textContent === '#007 was just used. The next free number is #008. Tap approve again.', null, { timeout: 30000 });
+  assert.ok(await inView(page, '#msg'));
+  assert.equal(await page.inputValue('#series-num'), '8'); assert.equal(await page.textContent('#review-title'), 'Series #008');
+  const firstId = lastPub().drafts[0].id;
+  st.approveMode = 'ok';
+  await reviewReady(page); await page.click('#approve-btn'); await approvedMsg(page);
+  assert.equal(st.published.length, 2);
+  const d2 = lastPub().drafts[0]; assert.notEqual(d2.id, firstId, 'a new draft id'); assert.equal(d2.series.n, 8);
+  await ctx.close();
+});
+
+await check('After a 409, putting the old number back publishes the deck again under a NEW id (the taken id is never reused)', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'bravo'); await reviewReady(page);
+  st.approveMode = 'taken';
+  await page.click('#approve-btn');
+  await page.waitForFunction(() => document.getElementById('msg').textContent.includes('was just used'), null, { timeout: 30000 });
+  const firstId = lastPub().drafts[0].id, before = st.published.length;
+  st.approveMode = 'ok';
+  await page.evaluate(() => { const e = document.getElementById('series-num'); e.value = '7'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await reviewReady(page);
+  await page.click('#approve-btn'); await approvedMsg(page);
+  assert.equal(st.published.length, before + 1, 'a second publish happened');
+  assert.notEqual(lastPub().drafts[0].id, firstId, 'a new draft id');
+  await ctx.close();
+});
+
+await check('A Series draft whose slide 1 has no photo: approve makes zero network calls and shows "Choose a photo for the first slide."', async () => {
+  st.drafted = [mk(4, 'series', 'nophoto', { photoFor: i => i === 0 ? '' : 'gc0' })];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await reviewReady(page);
+  const before = calls.length; await page.click('#approve-btn');
+  await page.waitForFunction(() => document.getElementById('msg').textContent === 'Choose a photo for the first slide.');
+  await page.waitForTimeout(300); assert.equal(calls.length, before);
+  await ctx.close();
+});
+
+await check('Opening kind series switches to Series and sets cv-strap to slide 1 title; kind idea switches to Words; a fresh page has an empty caption (G1)', async () => {
+  const { page, ctx } = await open(PH);
+  assert.equal(await page.evaluate(() => document.getElementById('caption').value), '', 'fresh page caption is empty');
+  await openItem(page, 'charlie'); await reviewReady(page);
+  assert.equal(await page.evaluate(() => document.getElementById('caption').value), 'Fixture caption charlie.');
+  await page.click('#edit-btn');
+  assert.ok(await page.locator('#type-series.on').count() === 1); assert.equal(await page.inputValue('#cv-strap'), 'Fixture charlie');
+  await page.click('#edit-done'); await reviewReady(page); await page.click('#review-back');
+  await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn');
+  assert.ok(await page.locator('#type-words.on').count() === 1);
+  await ctx.close();
+});
+
+await check('Start from blank: Edit opens with the 3-slide starter deck, type Words, empty caption; approving without a caption stops; with one the publish has 3 slides and no conceptId', async () => {
+  const { page, ctx } = await open(PH);
+  await page.click('#more-btn'); await page.click('#blank-btn');
+  assert.ok(await page.locator('#screen-edit').isVisible()); assert.equal(await page.locator('.slide-edit').count(), 3);
+  assert.ok(await page.locator('#type-words.on').count() === 1);
+  assert.equal(await page.locator('.slide-edit').first().locator('[data-f="title"]').inputValue(), 'Your bold first line goes here.');
+  assert.equal(await page.locator('.slide-edit').nth(2).locator('[data-f="title"]').inputValue(), 'The honest limit.');
+  await page.click('#edit-done'); await reviewReady(page);
+  assert.equal(await page.inputValue('#caption'), '');
+  const before = calls.length; await page.click('#approve-btn');
+  await page.waitForFunction(() => document.getElementById('msg').textContent === 'Add a caption first.');
+  assert.equal(calls.length, before);
+  await page.fill('#caption', 'Fixture blank caption'); await page.click('#approve-btn'); await approvedMsg(page);
+  const d = lastPub().drafts[0]; assert.equal(d.slides.length, 3); assert.ok(!('conceptId' in d)); assert.deepEqual(d.slides.map(s => s.role), ['hook', 'point', 'close']);
+  await ctx.close();
+});
+
+await check('D5: old key 12 and Worker last 3 show the line and "Carry on from #013"; no floor call before the tap, exactly one {last:12} after, old key gone', async () => {
+  const { page, ctx } = await open(PH, { hash: '#series', legacy: 12 });
+  st.series = { last: 3, next: 4 };
+  await page.reload();
+  await page.waitForFunction(() => !document.getElementById('legacy-count').hidden, null, { timeout: 15000 });
+  assert.equal(await page.textContent('#legacy-text'), 'This phone or computer last used #012. Your shared count is at #003.');
+  assert.equal(await page.textContent('#legacy-carry'), 'Carry on from #013');
+  await page.waitForTimeout(300);
+  assert.equal(calls.filter(c => c.path === '/api/series/floor').length, 0, 'no floor call before the tap');
+  await page.click('#legacy-carry');
+  await page.waitForFunction(() => document.getElementById('legacy-count').hidden);
+  const fl = calls.filter(c => c.path === '/api/series/floor'); assert.equal(fl.length, 1); assert.deepEqual(JSON.parse(fl[0].body), { last: 12 });
+  assert.equal(await page.evaluate(() => localStorage.getItem('orb_cover_series_last')), null);
+  await page.waitForFunction(() => document.getElementById('series-next').textContent === 'Next in the series: #013');
+  await ctx.close();
+});
+await check('D5: old key 2 and Worker last 3 shows nothing, makes no floor call, removes the old key', async () => {
+  const { page, ctx } = await open(PH, { hash: '#series', legacy: 2 });
+  await page.waitForFunction(() => document.getElementById('series-next').textContent.startsWith('Next in the series'), null, { timeout: 15000 });
+  assert.ok(await page.locator('#legacy-count').isHidden());
+  assert.equal(calls.filter(c => c.path === '/api/series/floor').length, 0);
+  assert.equal(await page.evaluate(() => localStorage.getItem('orb_cover_series_last')), null);
+  await ctx.close();
+});
+
+await check('dist/cover-series forwards: refresh to ../carousel-insta/#series, the link, no script; loading the creator with #series selects Series', async () => {
+  const src = fs.readFileSync(COVER, 'utf8');
+  assert.ok(src.includes('<meta http-equiv="refresh" content="0; url=../carousel-insta/#series">')); assert.ok(src.includes('<title>Insta Creator</title>'));
+  assert.ok(src.includes('Cover Series now lives in Insta Creator.')); assert.ok(/<a href="\.\.\/carousel-insta\/#series">Open Insta Creator<\/a>/.test(src)); assert.ok(!/<script/i.test(src));
+  assert.ok(fs.existsSync(path.join(root, 'dist/cover-series/icon.svg')));
+  const { page, ctx } = await open(PH, { hash: '#series' });
+  assert.ok(await page.locator('#screen-edit').isVisible()); assert.ok(await page.locator('#type-series.on').count() === 1); assert.ok(await page.locator('#series-box').isVisible());
+  assert.equal(await page.locator('.slide-edit').count(), 3);
+  await ctx.close();
+});
+
+await check('At 390px wide the page has no sideways overflow on each of the three screens, in both modes, and no console errors', async () => {
+  const { page, errors, ctx } = await open(PH);
+  const ov = () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  for (const mode of ['words', 'series']) {
+    await page.evaluate(m => { localStorage.setItem('ig_post_type_v1', m); }, mode);
+    await page.reload(); await page.waitForSelector('.ready-item');
+    assert.ok((await ov()) <= 0, mode + ' ready ' + await ov());
+    await openItem(page, mode === 'series' ? 'bravo' : 'echo'); await reviewReady(page);
+    assert.ok((await ov()) <= 0, mode + ' review ' + await ov());
+    await page.click('#edit-btn'); await page.waitForTimeout(300);
+    assert.ok((await ov()) <= 0, mode + ' edit ' + await ov());
+  }
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain path, no token in the source, only the spec\'d Worker routes', async () => {
+  const src = fs.readFileSync(FILE, 'utf8');
+  assert.ok(!/api\.buffer\.com|buffer-api|find-generic-password/i.test(src), 'buffer/credential path'); assert.ok(!src.includes(TOKEN));
+  assert.ok(!/[–—]/.test(src), 'dash'); assert.ok(!/calm/i.test(src), 'calm');
   assert.ok(!(/function\s+renderDeck/.test(src) && /carousel_decks_v2/.test(src) && /syncDomToState/.test(src)));
+  const routes = [...new Set([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)/g)].map(m => m[1]).concat([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)\?/g)].map(m => m[1])))].sort();
+  assert.deepEqual(routes, ['/api/album', '/api/concepts', '/api/drafts/', '/api/publish', '/api/run-now', '/api/series', '/api/series/floor']);
+  assert.ok(/'\/api\/drafts\/' \+ encodeURIComponent\(id\) \+ '\/approve'/.test(src));
+  assert.ok(!/localStorage\.setItem\(\s*LS_TOKEN[^)]*\)\s*;?\s*\n[^]*fetch\(\s*['"]http/.test(src));
   execFileSync('node', ['/Users/lizzie/NightMode/scripts/no-stray-orb-tool.mjs'], { stdio: 'pipe' });
 });
 
 await browser.close(); worker.close(); site.close();
 for (const [s, n] of results) console.log(s, n);
-process.exit(results.some(r => r[0] === 'FAIL') ? 1 : 0);
+const failed = results.filter(r => r[0] === 'FAIL').length;
+console.log(`\n${results.length - failed} passed, ${failed} failed`);
+process.exit(failed ? 1 : 0);

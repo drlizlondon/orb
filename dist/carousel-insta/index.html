@@ -3,517 +3,344 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Instagram Carousel Studio</title>
+<title>Insta Creator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Caveat:wght@700&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0;
-      -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
   body {
     font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    background: #15141b; color: #f3f1ee; padding: 24px;
-    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+    background: #3a1150; color: #faf1e2; padding: 16px; line-height: 1.4;
   }
+  body.has-bar { padding-bottom: 150px; }
+  h1 { font-size: 24px; font-weight: 800; margin: 4px 0 14px; }
+  h2 { font-size: 18px; font-weight: 800; margin: 6px 0 10px; }
+  .col { max-width: 520px; margin: 0 auto; }
+  .col-wide { max-width: 1000px; margin: 0 auto; }
+  .hint { font-size: 14px; opacity: 0.85; margin-bottom: 8px; }
 
-  /* Toolbar */
-  .toolbar {
-    max-width: 1100px; margin: 0 auto 26px auto;
-    background: #221f2b; border: 2px solid #3a3647; border-radius: 18px;
-    padding: 16px 24px; display: flex; justify-content: space-between;
-    align-items: center; flex-wrap: wrap; gap: 14px;
-  }
-  .toolbar-title { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 9px; color: #ffd9a0; }
-  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
-  .action-btn {
-    font-size: 15px; font-weight: 700; background: #ffd9a0; color: #1a1724;
-    border: none; border-radius: 12px; padding: 10px 18px; cursor: pointer;
-    display: flex; align-items: center; gap: 7px;
-  }
-  .action-btn.ghost { background: #2d2938; color: #f3f1ee; border: 1.5px solid #4a4559; }
-  .action-btn:hover { filter: brightness(1.06); }
+  /* buttons: main = pink, quiet = outlined */
+  button { font: inherit; cursor: pointer; }
+  .main-btn { background: #f29bd0; color: #3a1150; border: 2px solid #f29bd0; border-radius: 14px; padding: 12px 20px; font-size: 17px; font-weight: 800; }
+  .quiet-btn { background: transparent; color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px 20px; font-size: 17px; font-weight: 700; }
+  .main-btn:disabled { opacity: 0.4; cursor: default; }
+  .small-btn { padding: 8px 12px; font-size: 14px; border-radius: 10px; }
+  .link-btn { background: none; border: none; color: #f9c9e6; text-decoration: underline; font-size: 15px; padding: 6px 0; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
 
-  .banner {
-    max-width: 1100px; margin: 0 auto 26px auto; background: #1d1b26;
-    border: 1.5px dashed #4a4559; border-radius: 14px; padding: 12px 18px;
-    font-size: 14px; color: #c9c4d4; display: flex; justify-content: space-between;
-    align-items: center; gap: 12px; flex-wrap: wrap;
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; background: #faf1e2; color: #3a1150; border: 2px solid #f9c9e6; border-radius: 10px;
+    padding: 10px 12px; font: inherit; font-size: 16px; margin: 4px 0 8px;
   }
-  #save-status { font-size: 13px; color: #8be4a0; font-weight: 700; }
-  #save-status.warn { color: #ffb37a; }
+  input[type=range] { width: 100%; accent-color: #f29bd0; }
+  textarea { min-height: 84px; resize: vertical; }
+  label { display: block; font-size: 14px; font-weight: 700; margin-top: 6px; }
 
-  .gallery { display: flex; flex-direction: column; align-items: center; gap: 40px; }
+  /* messages */
+  .msg { display: none; padding: 10px 14px; border-radius: 12px; font-size: 15px; font-weight: 700; line-height: 1.4; max-height: 34vh; overflow-y: auto; margin-bottom: 8px; }
+  .msg.ok { display: block; background: #faf1e2; color: #3a1150; }
+  .msg.warn { display: block; background: #f9c9e6; color: #3a1150; }
+  .msg.err { display: block; background: #ee3f9a; color: #faf1e2; }
+  .msg ul { margin: 6px 0 0 18px; font-weight: 500; }
 
-  /* On-screen card frame (4:5 ratio, 1080x1350) */
-  .ig-wrap { position: relative; width: 460px; }
-  .ig-card {
-    position: relative; width: 460px; height: 575px; border-radius: 22px;
-    overflow: hidden; background: #2b2a33; background-size: cover; background-position: center;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-  }
-  .ig-scrim {
-    position: absolute; inset: 0; pointer-events: none;
-    background: linear-gradient(to top, rgba(10,10,16,0.92) 0%, rgba(10,10,16,0.78) 38%, rgba(10,10,16,0.30) 72%, rgba(10,10,16,0.05) 100%);
-  }
-  .ig-handle { position: absolute; top: 24px; left: 30px; font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9); z-index: 3; outline: none; }
-  .ig-count { position: absolute; top: 24px; right: 30px; font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.85); z-index: 3; }
-  .ig-content {
-    position: absolute; left: 34px; right: 34px; bottom: 46px; top: 60px;
-    display: flex; flex-direction: column; justify-content: flex-end; z-index: 3;
-  }
-  .ig-kicker { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #ffd9a0; margin-bottom: 12px; outline: none; min-height: 1px; }
-  .ig-num { font-size: 92px; font-weight: 800; line-height: 0.9; color: #ffd9a0; margin-bottom: 8px; outline: none; }
-  .ig-title { font-size: 30px; font-weight: 800; line-height: 1.14; letter-spacing: -0.5px; outline: none; }
-  .ig-sub { margin-top: 15px; font-size: 19px; font-weight: 500; line-height: 1.26; color: #f3f1ee; outline: none; }
-  .ig-swipe { margin-top: 18px; font-size: 15px; font-weight: 700; color: #ffd9a0; outline: none; min-height: 1px; }
-  .ig-photo-ph {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    text-align: center; color: #ffd9a0; font-size: 15px; font-weight: 700; z-index: 2;
-  }
-  .ig-photo-ph span { border: 2px dashed #ffd9a0; border-radius: 16px; padding: 18px 22px; opacity: 0.85; }
+  /* screen 1: ready to post */
+  #ready-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 12px; }
+  .ready-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: rgba(250,241,226,0.1); color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 14px; padding: 8px; }
+  .ready-pic { flex: 0 0 72px; width: 72px; height: 90px; border-radius: 8px; overflow: hidden; background: #5a2578; display: block; }
+  .ready-pic img { width: 72px; height: 90px; object-fit: cover; display: block; }
+  .ready-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .ready-title { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .ready-tag { font-size: 13px; font-weight: 700; color: #3a1150; background: #f9c9e6; border-radius: 8px; padding: 2px 8px; align-self: flex-start; }
+  .ready-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .ready-actions button { flex: 1 1 0; }
+  #ready-waiting { font-size: 15px; opacity: 0.85; margin: 6px 0; }
 
-  [contenteditable="true"]:hover { outline: 1.5px dashed rgba(255,217,160,0.8); border-radius: 5px; }
-  [contenteditable="true"]:focus { outline: 2px solid #ffd9a0; border-radius: 5px; background: rgba(0,0,0,0.25); }
+  /* screen 2: check and approve */
+  .top-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .top-row h2 { margin: 0; }
+  #review-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; width: min(100%, 460px); margin: 0 auto; border-radius: 14px; -webkit-overflow-scrolling: touch; }
+  canvas.review-slide { flex: 0 0 100%; width: 100%; height: auto; aspect-ratio: 4 / 5; scroll-snap-align: start; background: #5a2578; display: block; }
+  #review-count { text-align: center; font-size: 15px; font-weight: 700; margin: 6px 0 10px; }
+  #review-bar, #edit-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #3a1150; border-top: 2px solid #f9c9e6; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); z-index: 50; }
+  .bar-in { max-width: 520px; margin: 0 auto; }
+  #edit-bar .bar-in { max-width: 1000px; }
+  .bar-row { display: flex; gap: 10px; }
+  .bar-row button { flex: 1 1 0; }
+  #approve-btn { flex: 2 1 0; }
 
-  /* Per-card controls */
-  .card-controls { position: absolute; top: -16px; right: -6px; display: flex; gap: 6px; z-index: 20; }
-  .card-controls button {
-    font-size: 15px; font-weight: 800; width: 34px; height: 34px; background: #2d2938;
-    color: #f3f1ee; border: 1.5px solid #4a4559; border-radius: 10px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1;
-  }
-  .card-controls button:hover { background: #ffd9a0; color: #1a1724; }
-  .card-controls button:disabled { opacity: 0.35; cursor: default; }
-
-
-  /* SOC-10.3: Worker panels */
-  .panel { max-width: 1100px; margin: 0 auto 18px auto; background: #221f2b; border: 1.5px solid #3a3647; border-radius: 16px; padding: 14px 18px; }
-  .panel h2 { font-size: 16px; font-weight: 800; color: #ffd9a0; margin-bottom: 8px; }
-  .panel p.hint { font-size: 13px; color: #c9c4d4; margin-bottom: 8px; line-height: 1.45; }
-  .panel input[type=text], .panel input[type=password], .panel textarea, .panel select {
-    width: 100%; background: #15141b; color: #f3f1ee; border: 1.5px solid #4a4559; border-radius: 10px;
-    padding: 10px 12px; font: inherit; font-size: 15px; margin-bottom: 8px; }
-  .panel textarea { min-height: 84px; resize: vertical; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .row > * { flex: 0 0 auto; }
-  .row .grow { flex: 1 1 200px; }
-  #msg { max-width: 1100px; margin: 0 auto 18px auto; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; display: none; line-height: 1.45; }
-  #msg.ok { display: block; background: #1d2b22; color: #8be4a0; border: 1.5px solid #2f5a3d; }
-  #msg.err { display: block; background: #2e1f1f; color: #ffb3a0; border: 1.5px solid #6a3a35; }
-  #msg ul { margin: 6px 0 0 18px; font-weight: 500; }
-  .draft-item { border-top: 1px solid #3a3647; padding: 10px 0; font-size: 14px; }
-  .draft-item:first-child { border-top: none; }
-  .draft-item.waiting { opacity: 0.55; }
-  .draft-section h3 { font-size: 15px; margin: 14px 0 4px; }
-  .draft-item .why { color: #ffb37a; font-size: 13px; margin-top: 4px; }
+  /* screen 3: edit */
+  .panel { background: rgba(250,241,226,0.08); border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+  .type-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .type-row button.on { background: #f29bd0; color: #3a1150; border-color: #f29bd0; }
+  .slide-edit { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 16px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 2px solid rgba(249,201,230,0.3); }
+  .slide-canvas { width: 100%; max-width: 460px; height: auto; aspect-ratio: 4 / 5; background: #5a2578; border-radius: 10px; display: block; }
+  .frame-box { margin-top: 8px; }
   .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 8px 0; }
-  .album-grid button { padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: #15141b; cursor: pointer; aspect-ratio: 4/5; }
-  .album-grid button.sel { border-color: #ffd9a0; }
+  .album-grid button { padding: 0; border: 3px solid transparent; border-radius: 10px; overflow: hidden; background: #5a2578; aspect-ratio: 4 / 5; }
+  .album-grid button.sel { border-color: #f29bd0; }
   .album-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ig-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-  #export-stage { position: fixed; left: -10000px; top: 0; width: 460px; pointer-events: none; }
-  @media (max-width: 520px) {
-    body { padding: 16px; }
-    .ig-wrap { zoom: var(--z, 0.74); }
-    .toolbar-title { font-size: 18px; }
-  }
+  #save-status { font-size: 14px; font-weight: 700; margin: 8px 0; }
+  #save-status.warn { color: #f9c9e6; }
+  #edit-bar .main-btn { width: 100%; }
 
-  /* PRINT: real 1080x1350 Instagram portrait pages */
-  @media print {
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body { padding: 0; background: none; }
-    .toolbar, .banner, .card-controls, .panel, #msg { display: none !important; }
-    .gallery { gap: 0 !important; }
-    .ig-wrap { width: 1080px !important; }
-    .ig-card {
-      width: 1080px !important; height: 1350px !important; border-radius: 0 !important;
-      box-shadow: none !important; page-break-after: always !important; page-break-inside: avoid !important;
-    }
-    .ig-handle { top: 70px !important; left: 80px !important; font-size: 30px !important; }
-    .ig-count { top: 70px !important; right: 80px !important; font-size: 30px !important; }
-    .ig-content { left: 80px !important; right: 80px !important; bottom: 110px !important; top: 140px !important; }
-    .ig-kicker { font-size: 30px !important; letter-spacing: 3px !important; margin-bottom: 28px !important; }
-    .ig-num { font-size: 220px !important; margin-bottom: 20px !important; }
-    .ig-title { font-size: 70px !important; }
-    .ig-sub { font-size: 46px !important; margin-top: 36px !important; }
-    .ig-swipe { font-size: 36px !important; margin-top: 44px !important; }
-    [contenteditable="true"]:hover, [contenteditable="true"]:focus { outline: none !important; background: none !important; }
+  /* sheets */
+  .sheet { position: fixed; inset: 0; background: #3a1150; overflow-y: auto; padding: 16px; z-index: 100; }
+  .failed-item { border-top: 1px solid rgba(249,201,230,0.4); padding: 10px 0; font-size: 14px; }
+  .failed-item .why { color: #f9c9e6; margin-top: 4px; }
+  #paste-overlay { position: fixed; inset: 0; background: rgba(30,6,44,0.9); z-index: 200; align-items: center; justify-content: center; padding: 16px; display: none; }
+  #paste-overlay .box { background: #3a1150; border: 2px solid #f9c9e6; border-radius: 16px; width: min(700px, 100%); max-height: 90vh; display: flex; flex-direction: column; padding: 16px; }
+  #paste-area { min-height: 240px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 14px; }
+
+  @media (max-width: 760px) {
+    .slide-edit { grid-template-columns: minmax(0, 1fr); }
   }
 </style>
 </head>
 <body>
 
-  <div class="toolbar">
-    <div class="toolbar-title">📸 Instagram Carousel Studio</div>
-    <div class="actions">
-      <button class="action-btn" onclick="addCard()">➕ Add Slide</button>
-      <button class="action-btn" id="copy-btn" onclick="copyAllText()">📋 Copy Text</button>
-      <button class="action-btn ghost" onclick="openPasteModal()">📥 Paste Text</button>
-      <button class="action-btn" onclick="window.print()">📄 Save as PDF Carousel</button>
-      <button class="action-btn ghost" onclick="exportJson()">📥 Export JSON</button>
-      <button class="action-btn ghost" onclick="resetDeck()">🔄 Reset</button>
+<section id="screen-ready" class="col">
+  <h1>Insta Creator</h1>
+  <div id="conn-slot-ready"></div>
+  <div id="ready-msg" class="msg" role="status" aria-live="polite"></div>
+  <div id="ready-main">
+    <p id="ready-status" class="hint"></p>
+    <button id="ready-retry" class="quiet-btn" type="button" hidden>Try again</button>
+    <h2 id="ready-heading" hidden>Ready to post (0)</h2>
+    <div id="ready-list"></div>
+    <p id="ready-waiting" hidden></p>
+    <button id="ready-failed" class="link-btn" type="button" hidden></button>
+    <div class="ready-actions">
+      <button id="new-idea-btn" class="main-btn" type="button">New idea</button>
+      <button id="more-btn" class="quiet-btn" type="button">More</button>
+    </div>
+  </div>
+</section>
+
+<section id="screen-review" class="col" hidden>
+  <div class="top-row">
+    <button id="review-back" class="quiet-btn small-btn" type="button">Back</button>
+    <h2 id="review-title"></h2>
+  </div>
+  <div id="review-strip" tabindex="-1"></div>
+  <div id="review-count">1 / 1</div>
+  <label for="caption">Caption</label>
+  <textarea id="caption" rows="3"></textarea>
+  <div id="review-bar">
+    <div class="bar-in">
+      <div id="msg" class="msg" role="status" aria-live="polite"></div>
+      <div class="bar-row">
+        <button id="approve-btn" class="main-btn" type="button">Approve</button>
+        <button id="edit-btn" class="quiet-btn" type="button">Edit</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="screen-edit" class="col-wide" hidden>
+  <div class="panel" id="type-panel">
+    <h2>What are you making?</h2>
+    <div class="type-row">
+      <button id="type-series" class="quiet-btn" type="button">Series</button>
+      <button id="type-words" class="quiet-btn" type="button">Words over my photos</button>
+    </div>
+    <div id="series-box" hidden>
+      <p id="series-next" class="hint" style="margin-top:10px"></p>
+      <div id="legacy-count" hidden>
+        <p id="legacy-text" class="hint"></p>
+        <button id="legacy-carry" class="quiet-btn small-btn" type="button"></button>
+      </div>
+      <label for="series-num">Series number</label>
+      <input type="number" id="series-num" min="1" max="999" step="1">
+      <label for="cv-kicker">Kicker</label>
+      <input type="text" id="cv-kicker">
+      <label>Headline lines</label>
+      <input type="text" id="cv-h1" aria-label="Headline line 1">
+      <input type="text" id="cv-h2" aria-label="Headline line 2">
+      <input type="text" id="cv-h3" aria-label="Headline line 3">
+      <input type="text" id="cv-h4" aria-label="Headline line 4">
+      <input type="text" id="cv-h5" aria-label="Headline line 5">
+      <label for="cv-strap">Arrow box</label>
+      <textarea id="cv-strap"></textarea>
     </div>
   </div>
 
-  <div id="msg" role="status" aria-live="polite"></div>
+  <div id="edit-slides"></div>
 
-  <div class="panel" id="settings-panel">
+  <div class="row"><button id="add-slide" class="quiet-btn" type="button">Add Slide</button></div>
+
+  <div class="panel" id="album-panel">
+    <h2>Use my photos</h2>
+    <div class="row"><button class="quiet-btn small-btn" id="album-load" type="button">Show my album</button></div>
+    <div class="album-grid" id="album-grid"></div>
+    <div class="row" id="album-actions" hidden>
+      <select id="album-slide" aria-label="Slide for this photo" style="width:auto"></select>
+      <button class="main-btn small-btn" id="album-one" type="button">Use on this slide</button>
+      <button class="quiet-btn small-btn" id="album-all" type="button">Use for all slides</button>
+    </div>
+  </div>
+  <div id="save-status">✓ All edits saved</div>
+
+  <div id="edit-bar">
+    <div class="bar-in">
+      <div id="edit-msg" class="msg" role="status" aria-live="polite"></div>
+      <button id="edit-done" class="main-btn" type="button">Done</button>
+    </div>
+  </div>
+</section>
+
+<div id="idea-sheet" class="sheet" hidden>
+  <div class="col">
+    <h2>Your idea</h2>
+    <p class="hint">Write the idea in your own words. Your carousel is written at 7am, 1pm and 7pm.</p>
+    <textarea id="concept-text" maxlength="2000" placeholder="What is the idea? Include any real numbers or stories you want used."></textarea>
+    <select id="concept-lane" aria-label="Audience lane">
+      <option value="ambitious-women" selected>Ambitious women</option>
+      <option value="doctor">Doctors</option>
+      <option value="wide">Everyone</option>
+    </select>
+    <div class="row">
+      <button class="main-btn" id="concept-send" type="button">Save my idea</button>
+      <button class="main-btn" id="draft-now" type="button">Draft now</button>
+      <button class="quiet-btn" id="idea-close" type="button">Close</button>
+    </div>
+    <div id="idea-msg" class="msg" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<div id="more-sheet" class="sheet" hidden>
+  <div class="col">
+    <div id="conn-slot-more"></div>
+    <div id="more-failed"></div>
+    <div class="row">
+      <button class="quiet-btn" id="blank-btn" type="button">Start from blank</button>
+      <button class="quiet-btn" id="copy-btn" type="button">Copy Text</button>
+      <button class="quiet-btn" id="paste-btn" type="button">Paste Text</button>
+      <button class="quiet-btn" id="export-btn" type="button">Export JSON</button>
+      <button class="quiet-btn" id="reset-btn" type="button">Reset</button>
+    </div>
+    <div class="row"><button class="main-btn" id="more-close" type="button">Close</button></div>
+    <div id="more-msg" class="msg" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<div id="conn-pool" hidden>
+  <div id="conn-box" class="panel">
     <h2>Connect to your approval page</h2>
     <p class="hint">Paste these once. They stay in this browser only.</p>
     <input type="text" id="set-base" placeholder="Worker address, e.g. https://your-worker.workers.dev" autocomplete="off">
     <input type="password" id="set-token" placeholder="Access token" autocomplete="off">
-    <div class="row"><button class="action-btn" id="set-save" type="button">Save</button><span id="set-state" class="hint"></span></div>
+    <div class="row"><button class="main-btn" id="set-save" type="button">Save</button><span id="set-state" class="hint"></span></div>
   </div>
+</div>
 
-  <div class="panel" id="concept-panel">
-    <h2>Your idea</h2>
-    <p class="hint">Write the idea in your own words. Your carousel is written at 7am, 1pm and 7pm.</p>
-    <textarea id="concept-text" maxlength="2000" placeholder="What is the idea? Include any real numbers or stories you want used."></textarea>
-    <div class="row">
-      <select id="concept-lane" class="grow" aria-label="Audience lane">
-        <option value="ambitious-women" selected>Ambitious women</option>
-        <option value="doctor">Doctors</option>
-        <option value="wide">Everyone</option>
-      </select>
-      <button class="action-btn" id="concept-send" type="button">Save my idea</button>
-      <button class="action-btn" id="draft-now" type="button">Draft now</button>
+<div id="paste-overlay">
+  <div class="box">
+    <h2>Paste text back in</h2>
+    <p class="hint">Paste the edited text. Keep the === SLIDE n === dividers and the LABEL: lines so each block lands on the right slide. Your photos stay put.</p>
+    <textarea id="paste-area" placeholder="Paste the copied (and edited) carousel text here..."></textarea>
+    <div class="row" style="justify-content:flex-end">
+      <button class="quiet-btn" id="paste-cancel" type="button">Cancel</button>
+      <button class="main-btn" id="paste-apply" type="button">✓ Apply to carousel</button>
     </div>
   </div>
+</div>
+<input type="file" id="photo-input" accept="image/*" style="display:none">
 
-  <div class="panel" id="drafts-panel">
-    <h2>Drafts ready</h2>
-    <div class="row"><button class="action-btn ghost" id="drafts-refresh" type="button">Check for drafts</button><button class="action-btn ghost" id="drafts-refresh2" type="button">Refresh</button></div>
-    <div id="drafts-list"></div>
-  </div>
-
-  <div class="panel" id="album-panel">
-    <h2>Use my photos</h2>
-    <div class="row"><button class="action-btn ghost" id="album-load" type="button">Show my album</button></div>
-    <div class="album-grid" id="album-grid"></div>
-    <div class="row" id="album-actions" style="display:none">
-      <select id="album-slide" aria-label="Slide for this photo"></select>
-      <button class="action-btn" id="album-one" type="button">Use on this slide</button>
-      <button class="action-btn ghost" id="album-all" type="button">Use for all slides</button>
-    </div>
-  </div>
-
-  <div class="banner">
-    <div>💡 Tap any text to edit. Your album photos are already in. Tap 📷 on a slide to swap one. Slides auto-save in this browser.</div>
-    <div id="save-status">✓ All edits saved</div>
-  </div>
-
-  <div class="gallery" id="cards-container"></div>
-
-  <div class="panel" id="send-panel" style="margin-top:30px">
-    <h2>Caption and send</h2>
-    <textarea id="caption" placeholder="Caption"></textarea>
-    <div class="row"><button class="action-btn" id="approve-btn" type="button">Approve &amp; send to Buffer</button></div>
-  </div>
-  <div id="export-stage" aria-hidden="true"></div>
-  <script src="vendor/html2canvas.min.js"></script>
-  <input type="file" id="photo-input" accept="image/*" style="display:none">
-
+<script src="look.js"></script>
 <script>
 const STORE_KEY = 'ig_carousel_v1';
+const TYPE_KEY = 'ig_post_type_v1';
+const COVER_KEY = 'ig_series_cover_v1';
+const LEGACY_KEY = 'orb_cover_series_last';
+const LS_BASE = 'orb_worker_base';
+const LS_TOKEN = 'orb_approve_token';
 const HANDLE = '@drlizlondon';
+const $ = id => document.getElementById(id);
 
-// Default deck = the Dr Liz Instagram framework (hook+double-hook / proof / story /
-// 3 ideas / honest limit / one CTA). Facts she must supply are left as [bracketed]
-// placeholders; nothing is invented in her voice.
+// The starter deck: entries 1, 4 and 7 of the old default deck, text unchanged.
 function defaultDeck() {
   return [
-    { kicker: '', num: '', title: 'Your bold first line goes here.', sub: 'A second line that flips what they expected, so they have to swipe.', swipe: 'Swipe →', photo: '' },
-    { kicker: 'Why I can say this', num: '', title: 'One real result of yours.', sub: '[Your proof: a number, a screenshot, a win. Leave blank until it is true.]', swipe: '', photo: '' },
-    { kicker: 'The story', num: '', title: 'What happened to you first.', sub: '[The mistake or the moment, before any teaching.]', swipe: '', photo: '' },
-    { kicker: 'Idea', num: '1', title: 'First idea, one action.', sub: 'One use, one prompt, one step.', swipe: '', photo: '' },
-    { kicker: 'Idea', num: '2', title: 'Second idea, one action.', sub: 'Short enough to read in three seconds.', swipe: '', photo: '' },
-    { kicker: 'Idea', num: '3', title: 'Third idea, one action.', sub: 'One clear thing they can do today.', swipe: '', photo: '' },
-    { kicker: 'Real talk', num: '', title: 'The honest limit.', sub: "AI didn't do the thinking for me. It gave me the time back.", swipe: '', photo: '' },
-    { kicker: 'One thing', num: '', title: 'Comment KEYWORD.', sub: "And I'll send you [the freebie].", swipe: '', photo: '' }
+    { kicker: '', num: '', title: 'Your bold first line goes here.', sub: 'A second line that flips what they expected, so they have to swipe.', swipe: 'Swipe →', photo: '', frame: null },
+    { kicker: 'Idea', num: '1', title: 'First idea, one action.', sub: 'One use, one prompt, one step.', swipe: '', photo: '', frame: null },
+    { kicker: 'Real talk', num: '', title: 'The honest limit.', sub: "AI didn't do the thinking for me. It gave me the time back.", swipe: '', photo: '', frame: null }
   ];
+}
+function norm(s) {
+  return { handle: s.handle || '', kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: s.photo || '', frame: s.frame || null, face: s.face };
+}
+function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+function loadDeck() {
+  try { const d = JSON.parse(lsGet(STORE_KEY) || 'null'); if (Array.isArray(d) && d.length) return d.map(norm); } catch (e) {}
+  return defaultDeck().map(norm);
+}
+function readType() { return lsGet(TYPE_KEY) === 'series' ? 'series' : 'words'; }
+function readCover() {
+  const d = OneLook.coverDefaults();
+  try { const v = JSON.parse(lsGet(COVER_KEY) || 'null'); if (v && typeof v === 'object') return Object.assign(d, v); } catch (e) {}
+  return d;
 }
 
 let cards = loadDeck();
-
-function loadDeck() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { const d = JSON.parse(raw); if (Array.isArray(d) && d.length) return d; }
-  } catch (e) { /* fall through */ }
-  return defaultDeck();
-}
-
-function persist() {
-  const statusEl = document.getElementById('save-status');
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(cards));
-    if (statusEl) { statusEl.textContent = '✓ All edits saved'; statusEl.classList.remove('warn'); }
-  } catch (e) {
-    // Photos can overflow browser storage. Save text only, keep photos this session.
-    try {
-      const textOnly = cards.map(c => ({ ...c, photo: '' }));
-      localStorage.setItem(STORE_KEY, JSON.stringify(textOnly));
-    } catch (e2) { /* nothing we can do */ }
-    if (statusEl) { statusEl.textContent = '⚠ Text saved; photos kept for this session only'; statusEl.classList.add('warn'); }
-  }
-}
-
-function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
-function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
-
-function render() {
-  fitZoom();
-  const container = document.getElementById('cards-container');
-  container.innerHTML = '';
-  const total = cards.length;
-  cards.forEach((card, i) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'ig-wrap';
-    const hasPhoto = card.photo && card.photo.length > 0;
-    wrap.innerHTML = `
-      <div class="card-controls">
-        <button title="Add / replace photo" onclick="pickPhoto(${i})">📷</button>
-        <button title="Move up" onclick="moveCard(${i}, -1)" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button title="Move down" onclick="moveCard(${i}, 1)" ${i === total - 1 ? 'disabled' : ''}>↓</button>
-        <button title="Duplicate" onclick="duplicateCard(${i})">⧉</button>
-        <button title="Delete" onclick="deleteCard(${i})" ${total <= 1 ? 'disabled' : ''}>✕</button>
-      </div>
-      <div class="ig-card" style="${hasPhoto && !isRemote(card.photo) ? `background-image:url('${card.photo}')` : ''}">
-        ${hasPhoto && isRemote(card.photo) ? `<img class="ig-bg" crossorigin="anonymous" alt="" src="${esc(card.photo)}">` : ''}
-        ${hasPhoto ? '' : '<div class="ig-photo-ph"><span>📷 Tap to add your photo</span></div>'}
-        <div class="ig-scrim"></div>
-        <div class="ig-handle" contenteditable="true" data-f="handle">${esc(card.handle || HANDLE)}</div>
-        <div class="ig-count">${i + 1} / ${total}</div>
-        <div class="ig-content">
-          <div class="ig-kicker" contenteditable="true" data-f="kicker" data-ph="KICKER (optional)">${esc(card.kicker)}</div>
-          ${card.num ? `<div class="ig-num" contenteditable="true" data-f="num">${esc(card.num)}</div>` : ''}
-          <div class="ig-title" contenteditable="true" data-f="title">${esc(card.title)}</div>
-          <div class="ig-sub" contenteditable="true" data-f="sub">${esc(card.sub)}</div>
-          <div class="ig-swipe" contenteditable="true" data-f="swipe" data-ph="swipe cue (optional)">${esc(card.swipe)}</div>
-        </div>
-      </div>
-    `;
-    container.appendChild(wrap);
-  });
-}
-
-function syncDomToState() {
-  const wraps = document.querySelectorAll('.ig-wrap');
-  wraps.forEach((wrap, i) => {
-    if (!cards[i]) return;
-    wrap.querySelectorAll('[contenteditable="true"]').forEach(el => {
-      const f = el.getAttribute('data-f');
-      if (f === 'handle') cards[i].handle = el.innerText.trim();
-      else if (f) cards[i][f] = el.innerText.trim();
-    });
-  });
-  persist();
-}
-
-function moveCard(i, dir) {
-  syncDomToState();
-  const j = i + dir;
-  if (j < 0 || j >= cards.length) return;
-  [cards[i], cards[j]] = [cards[j], cards[i]];
-  persist(); render();
-}
-
-function duplicateCard(i) {
-  syncDomToState();
-  cards.splice(i + 1, 0, JSON.parse(JSON.stringify(cards[i])));
-  persist(); render();
-}
-
-function deleteCard(i) {
-  syncDomToState();
-  if (cards.length <= 1) return;
-  if (!confirm('Delete this slide?')) return;
-  cards.splice(i, 1);
-  persist(); render();
-}
-
-function addCard() {
-  syncDomToState();
-  cards.push({ kicker: '', num: '', title: 'New slide title', sub: 'Write this slide.', swipe: '', photo: '' });
-  persist(); render();
-  const wraps = document.querySelectorAll('.ig-wrap');
-  if (wraps.length) wraps[wraps.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-// ---- Photo upload (downscaled, stays on device) ----
-let photoTarget = -1;
-function pickPhoto(i) { photoTarget = i; document.getElementById('photo-input').click(); }
-
-document.getElementById('photo-input').addEventListener('change', (ev) => {
-  const file = ev.target.files && ev.target.files[0];
-  ev.target.value = '';
-  if (!file || photoTarget < 0) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      // Downscale so the data URL does not overflow browser storage.
-      const maxW = 1200;
-      const scale = Math.min(1, maxW / img.width);
-      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      syncDomToState();
-      cards[photoTarget].photo = canvas.toDataURL('image/jpeg', 0.85);
-      persist(); render();
-      photoTarget = -1;
-    };
-    img.onerror = () => { alert('Could not read that image.'); photoTarget = -1; };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-function exportJson() {
-  syncDomToState();
-  const blob = new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'instagram-carousel.json'; a.click();
-}
-
-function resetDeck() {
-  if (!confirm('Reset to the default framework? Your edits and photos in this browser will be cleared.')) return;
-  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
-  cards = defaultDeck(); render();
-}
-
-document.getElementById('cards-container').addEventListener('input', () => {
-  const statusEl = document.getElementById('save-status');
-  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.classList.remove('warn'); }
-  syncDomToState();
-});
-
-// ---- Copy all text / paste back (added 2026-11-17) ----
-function isDividerLine(line){
-  const s = line.trim();
-  if(!s) return false;
-  return /^[=\-*#_~\s]*slide\b[\s\d=/.:#\-ofOF]*$/i.test(s);
-}
-function buildCopyText(){
-  syncDomToState();
-  let out = 'IG CAROUSEL  ·  ' + cards.length + ' slides\n';
-  out += '(Edit the text below. Keep the "=== SLIDE n ===" dividers and the LABEL: lines so each block goes back on the right slide. Your photos stay on their slides.)\n';
-  cards.forEach((c, i) => {
-    out += '\n=== SLIDE ' + (i+1) + ' ===\n';
-    if(c.handle && c.handle !== HANDLE) out += 'HANDLE: ' + c.handle + '\n';
-    if(c.kicker) out += 'KICKER: ' + c.kicker + '\n';
-    if(c.num)    out += 'NUM: '    + c.num + '\n';
-    if(c.title)  out += 'TITLE: '  + c.title + '\n';
-    if(c.sub)    out += 'SUB: '    + c.sub + '\n';
-    if(c.swipe)  out += 'SWIPE: '  + c.swipe + '\n';
-    if(c.photo)  out += '(photo on this slide, kept)\n';
-  });
-  return out.trim();
-}
-function flashBtn(id, msg){
-  const b = document.getElementById(id);
-  if(!b) return;
-  if(!b.dataset.label) b.dataset.label = b.innerText;
-  b.innerText = msg;
-  setTimeout(() => { b.innerText = b.dataset.label; }, 1600);
-}
-function copyAllText(){
-  const text = buildCopyText();
-  const ok = () => flashBtn('copy-btn', '✓ Copied all text!');
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok));
-  } else { fallbackCopy(text, ok); }
-}
-function fallbackCopy(text, cb){
-  const ta = document.createElement('textarea');
-  ta.value = text; ta.style.position='fixed'; ta.style.top='-9999px';
-  document.body.appendChild(ta); ta.focus(); ta.select();
-  try { document.execCommand('copy'); } catch(e) {}
-  document.body.removeChild(ta); if(cb) cb();
-}
-function openPasteModal(){
-  const ta = document.getElementById('paste-area');
-  if(ta) ta.value = '';
-  const ov = document.getElementById('paste-overlay');
-  if(ov) ov.style.display = 'flex';
-}
-function closePasteModal(){ const ov = document.getElementById('paste-overlay'); if(ov) ov.style.display = 'none'; }
-function applyPastedText(){
-  const area = document.getElementById('paste-area');
-  const text = area ? area.value : '';
-  if(!text.trim()){ alert('Paste the text first.'); return; }
-  const lines = text.split(/\r?\n/);
-  const labelRe = /^(HANDLE|KICKER|NUM|TITLE|SUB|SWIPE)\s*:\s?(.*)$/i;
-  const slides = []; let cur = null; let subMode = false;
-  lines.forEach(line => {
-    if(isDividerLine(line)){ cur = { _sub:null }; slides.push(cur); subMode = false; return; }
-    if(!cur) return;
-    const m = line.match(labelRe);
-    if(m){
-      const k = m[1].toUpperCase(); const v = m[2];
-      if(k==='HANDLE') cur.handle = v.trim();
-      else if(k==='KICKER') cur.kicker = v.trim();
-      else if(k==='NUM') cur.num = v.trim();
-      else if(k==='TITLE') cur.title = v.trim();
-      else if(k==='SWIPE') cur.swipe = v.trim();
-      else if(k==='SUB'){ cur._sub = [v]; }
-      subMode = (k==='SUB');
-      return;
-    }
-    if(/^\(photo on this slide/i.test(line.trim())) return; // ignore the photo note
-    if(subMode){ cur._sub.push(line); return; }
-    if(cur.title===undefined && line.trim()){ cur.title = line.trim(); return; }
-  });
-  slides.forEach(s => { if(s._sub){ s.sub = s._sub.join('\n').replace(/\s+$/,''); } delete s._sub; });
-  const valid = slides.filter(s => s.title || s.sub || s.kicker || s.num || s.swipe || s.handle);
-  if(!valid.length){ alert("Couldn't find any slides. Keep the '=== SLIDE n ===' dividers from the copied text."); return; }
-  const old = cards;
-  cards = valid.map((s, i) => {
-    const base = old[i] ? Object.assign({}, old[i]) : { kicker:'', num:'', title:'', sub:'', swipe:'', photo:'', handle:HANDLE };
-    if(s.handle!==undefined) base.handle = s.handle;
-    if(s.kicker!==undefined) base.kicker = s.kicker;
-    if(s.num!==undefined)    base.num = s.num;
-    if(s.title!==undefined)  base.title = s.title;
-    if(s.sub!==undefined)    base.sub = s.sub;
-    if(s.swipe!==undefined)  base.swipe = s.swipe;
-    return base; // base.photo preserved from the old slide by index
-  });
-  persist(); closePasteModal(); render();
-  const statusEl = document.getElementById('save-status');
-  if(statusEl){ statusEl.textContent = '✓ Pasted ' + cards.length + ' slide(s)'; statusEl.classList.remove('warn'); }
-  alert('Updated ' + cards.length + ' slide(s) from your pasted text. Photos were kept.');
-}
-
-render();
-
-// ---- SOC-10.3: Worker joins (concept inbox, drafts, album, approve & send) ----
-const LS_BASE = 'orb_worker_base';
-const LS_TOKEN = 'orb_approve_token';
-const ROLES = ['cover', 'proof', 'story', 'idea', 'idea', 'idea', 'limit', 'cta'];
-let meta = { evidence: '', pending: null };
+let type = readType();
+let cover = readCover();
+let meta = { evidence: '', pending: null, conceptId: null };
+let current = 'ready';
+let seriesInfo = { last: null, next: null };
+let numTouched = false;
 let albumPhotos = [];
+let albumFaces = {};
 let albumPick = null;
+let albumReady = Promise.resolve();
+let lastRes = [];
+let reviewTok = 0;
+let ready = { drafted: [], failed: [], queued: [] };
+const fontsP = OneLook.fontsReady();
 
-function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function connected() { return !!(workerBase() && workerToken()); }
 function workerBase() { return lsGet(LS_BASE).trim().replace(/\/+$/, ''); }
 function workerToken() { return lsGet(LS_TOKEN).trim(); }
-function fitZoom() {
-  const z = Math.min(1, (window.innerWidth - 32) / 460);
-  document.documentElement.style.setProperty('--z', String(z));
-}
-window.addEventListener('resize', fitZoom);
+function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURIComponent(guid); }
+function guidOf(url) { const m = /\/img-album\/([^/?#]+)$/.exec(url || ''); return m ? decodeURIComponent(m[1]) : null; }
+function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
+function isSeries(c) { return c.kind === 'series'; }
+function previewLine(c) { return ((c.concept || '').split('\n')[0] || '').slice(0, 120); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// ---------- messages: always on the screen she is looking at ----------
+function msgFor(name) {
+  if (!$('idea-sheet').hidden) return $('idea-msg');
+  if (!$('more-sheet').hidden) return $('more-msg');
+  return $({ ready: 'ready-msg', review: 'msg', edit: 'edit-msg' }[name || current]);
+}
 function say(kind, text, list) {
-  const m = document.getElementById('msg');
-  m.className = kind;
-  m.textContent = text;
-  if (list && list.length) {
-    const ul = document.createElement('ul');
-    list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
-    m.appendChild(ul);
+  const m = msgFor(); if (!m) return;
+  m.className = 'msg ' + kind; m.textContent = text;
+  if (list && list.length) { const ul = document.createElement('ul'); list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }); m.appendChild(ul); }
+}
+function clearMsg(m) { if (m) { m.className = 'msg'; m.textContent = ''; } }
+function show(name) {
+  ['ready', 'review', 'edit'].forEach(n => { $('screen-' + n).hidden = n !== name; });
+  current = name; clearMsg(msgFor(name));
+  document.body.classList.toggle('has-bar', name !== 'ready');
+  window.scrollTo(0, 0);
+}
+
+// ---------- saving ----------
+function persist() {
+  const st = $('save-status');
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(cards)); st.textContent = '✓ All edits saved'; st.classList.remove('warn'); }
+  catch (e) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(cards.map(c => Object.assign({}, c, { photo: '' })))); } catch (e2) {}
+    st.textContent = '⚠ Text saved; photos kept for this session only'; st.classList.add('warn');
   }
 }
+function saveCover() { lsSet(COVER_KEY, JSON.stringify(cover)); }
 
+// ---------- api ----------
 async function api(path, method, body) {
   const base = workerBase(), token = workerToken();
   if (!base || !token) { const e = new Error('Paste your Worker address and access token first.'); e.setup = true; throw e; }
@@ -528,48 +355,153 @@ async function api(path, method, body) {
 }
 function failText(r) { return (r.data && (r.data.error || r.data.message)) || ('The server said ' + r.status); }
 
+// ---------- connection box (one box, moved to where it is needed) ----------
+function placeConn(slot) { $(slot).appendChild($('conn-box')); }
 function showSettingsState() {
-  document.getElementById('set-base').value = workerBase();
-  document.getElementById('set-token').value = '';
-  document.getElementById('set-state').textContent = (workerBase() && workerToken()) ? 'Saved in this browser.' : 'Not connected yet.';
+  $('set-base').value = workerBase(); $('set-token').value = '';
+  $('set-state').textContent = connected() ? 'Saved in this browser.' : 'Not connected yet.';
 }
-document.getElementById('set-save').addEventListener('click', () => {
-  const b = document.getElementById('set-base').value.trim();
-  const t = document.getElementById('set-token').value.trim();
+$('set-save').addEventListener('click', () => {
+  const b = $('set-base').value.trim(), t = $('set-token').value.trim();
   if (b) lsSet(LS_BASE, b);
   if (t) lsSet(LS_TOKEN, t);
   showSettingsState();
   say('ok', 'Saved.');
+  if (connected()) { applyConnection(); loadAll(); }
 });
+function applyConnection() {
+  const on = connected();
+  $('ready-main').hidden = !on;
+  if (on) { if (!$('more-sheet').hidden) placeConn('conn-slot-more'); else $('conn-pool').appendChild($('conn-box')); }
+  else placeConn('conn-slot-ready');
+}
 
-document.getElementById('concept-send').addEventListener('click', async () => {
-  const concept = document.getElementById('concept-text').value.trim();
+// ---------- images and faces ----------
+const imgCache = new Map();
+function loadImg(url) {
+  if (!url) return Promise.resolve(null);
+  if (!imgCache.has(url)) imgCache.set(url, new Promise(res => { const im = new Image(); if (isRemote(url)) im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => res(null); im.src = url; }));
+  return imgCache.get(url);
+}
+function faceOf(c) {
+  const g = guidOf(c.photo);
+  if (g) return Object.prototype.hasOwnProperty.call(albumFaces, g) ? albumFaces[g] : null;
+  return c.face || null;
+}
+// OneLook.detectFace returns a padded pixel box; place() wants the plain box as fractions of the image.
+function faceFromBox(b, w, h) {
+  if (!b) return null;
+  const bw = b.w / 1.16, bh = b.h / 1.24;
+  return { x: (b.x + bw * 0.08) / w, y: (b.y + bh * 0.12) / h, w: bw / w, h: bh / h };
+}
+
+// ---------- drawing: every slide picture is OneLook ----------
+function currentN() {
+  const n = parseInt($('series-num').value, 10);
+  return n >= 1 && n <= 999 ? n : (seriesInfo.next || 1);
+}
+function coverFor() { return Object.assign({}, cover, { strap: cards[0] ? cards[0].title : '', num: currentN() }); }
+function slideFor(c) { return { handle: c.handle || HANDLE, kicker: c.kicker, num: c.num, title: c.title, sub: c.sub, swipe: c.swipe }; }
+async function drawInto(cv, i) {
+  const tok = cv._tok = (cv._tok || 0) + 1;
+  await fontsP;
+  const url = cards[i] ? cards[i].photo : '';
+  const im = await loadImg(url);
+  await albumReady;
+  if (cv._tok !== tok || !cards[i]) return null;
+  const c = cards[i];
+  if (c.photo !== url) return drawInto(cv, i);
+  const has = !!(c.photo && im);
+  const opts = { face: has ? faceOf(c) : null, frame: c.frame || null };
+  const r = (type === 'series' && i === 0) ? OneLook.renderSeries(cv, coverFor(), i, cards.length, im, opts) : OneLook.renderSlide(cv, slideFor(c), i, cards.length, im, opts);
+  return Object.assign({ hasPhoto: has }, r);
+}
+const dirty = new Set(); let raf = 0;
+function queueDraw(i) {
+  dirty.add(i);
+  if (raf) return;
+  raf = requestAnimationFrame(async () => {
+    raf = 0; const list = [...dirty]; dirty.clear();
+    for (const j of list) { const cv = document.querySelectorAll('#edit-slides canvas.slide-canvas')[j]; if (cv) { const r = await drawInto(cv, j); if (r) lastRes[j] = r; } }
+  });
+}
+
+// ---------- screen 1: ready to post ----------
+async function refreshReady() {
+  $('ready-heading').hidden = true; $('ready-retry').hidden = true;
+  $('ready-status').textContent = 'Getting your drafts...';
+  try {
+    const [ok, bad, wait] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed'), api('/api/concepts?status=queued')]);
+    if (!ok.ok) throw new Error('list');
+    ready.drafted = ok.data.concepts || [];
+    ready.failed = (bad.ok ? bad.data.concepts : []) || [];
+    ready.queued = (wait.ok ? wait.data.concepts : []) || [];
+    renderReady();
+  } catch (e) {
+    $('ready-list').innerHTML = '';
+    $('ready-status').textContent = 'Could not get your drafts.';
+    $('ready-retry').hidden = false;
+  }
+}
+function renderReady() {
+  const list = $('ready-list'); list.innerHTML = '';
+  const items = ready.drafted.map((c, k) => [c, k]).filter(x => (x[0].postState || 'none') === 'none')
+    .sort((a, b) => { const ka = a[0].draftedAt || a[0].createdAt || '', kb = b[0].draftedAt || b[0].createdAt || ''; return ka < kb ? 1 : ka > kb ? -1 : b[1] - a[1]; }).map(x => x[0]);
+  $('ready-heading').textContent = 'Ready to post (' + items.length + ')'; $('ready-heading').hidden = false;
+  $('ready-status').textContent = items.length ? '' : 'Nothing ready yet.';
+  items.forEach(c => {
+    const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ready-item';
+    const pic = document.createElement('span'); pic.className = 'ready-pic';
+    if (s1.photo) { const im = document.createElement('img'); im.alt = ''; im.src = albumUrl(s1.photo); im.addEventListener('error', () => im.remove()); pic.appendChild(im); }
+    const tx = document.createElement('span'); tx.className = 'ready-text';
+    const t = document.createElement('span'); t.className = 'ready-title'; t.textContent = s1.title || previewLine(c);
+    const g = document.createElement('span'); g.className = 'ready-tag'; g.textContent = isSeries(c) ? 'Series' : 'Words over my photos';
+    tx.append(t, g); b.append(pic, tx);
+    b.addEventListener('click', () => openDraft(c));
+    list.appendChild(b);
+  });
+  const q = ready.queued.length, f = ready.failed.length;
+  $('ready-waiting').hidden = !q; $('ready-waiting').textContent = q + ' more being written';
+  $('ready-failed').hidden = !f; $('ready-failed').textContent = f + ' could not be written';
+}
+$('ready-retry').addEventListener('click', refreshReady);
+$('ready-failed').addEventListener('click', openMore);
+
+function openIdea() { clearMsg($('idea-msg')); $('idea-sheet').hidden = false; }
+function openMore() {
+  const box = $('more-failed'); box.innerHTML = '';
+  ready.failed.forEach(c => {
+    const row = document.createElement('div'); row.className = 'failed-item';
+    const t = document.createElement('div'); t.textContent = previewLine(c);
+    const w = document.createElement('div'); w.className = 'why'; w.textContent = 'Could not be written: ' + (c.reasons || []).join('; ');
+    row.append(t, w); box.appendChild(row);
+  });
+  clearMsg($('more-msg')); $('more-sheet').hidden = false; placeConn('conn-slot-more'); showSettingsState();
+}
+function closeSheets() { $('idea-sheet').hidden = true; $('more-sheet').hidden = true; applyConnection(); }
+$('new-idea-btn').addEventListener('click', openIdea);
+$('more-btn').addEventListener('click', openMore);
+$('idea-close').addEventListener('click', closeSheets);
+$('more-close').addEventListener('click', closeSheets);
+
+$('concept-send').addEventListener('click', async () => {
+  const concept = $('concept-text').value.trim();
   if (!concept) { say('err', 'Write your idea first.'); return; }
   try {
-    const r = await api('/api/concepts', 'POST', { concept, lane: document.getElementById('concept-lane').value });
+    const r = await api('/api/concepts', 'POST', { concept, lane: $('concept-lane').value });
     if (!r.ok) { say('err', 'Could not save that: ' + failText(r)); return; }
-    document.getElementById('concept-text').value = '';
+    $('concept-text').value = '';
     say('ok', 'Saved. Your carousel will be ready after the next run (7am, 1pm or 7pm).');
   } catch (e) { say('err', e.message || 'Could not reach the server.'); }
 });
-
-function loadDraftConcept(c) {
-  const d = c.deck || {};
-  const slides = Array.isArray(d.slides) ? d.slides : [];
-  cards = slides.map(s => ({ kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: (typeof s.photo === 'string' && s.photo) ? albumUrl(s.photo) : '' }));
-  document.getElementById('caption').value = d.caption || '';
-  meta = { evidence: d.evidence || c.concept || '', pending: null };
-  persist(); render(); fillAlbumSlides();
-  say('ok', 'Loaded. Change anything you like, then approve.');
-}
-
-document.getElementById('draft-now').addEventListener('click', async () => {
-  const concept = document.getElementById('concept-text').value.trim();
+$('draft-now').addEventListener('click', async () => {
+  const concept = $('concept-text').value.trim();
   try {
     if (concept) {
-      const r = await api('/api/concepts', 'POST', { concept, lane: document.getElementById('concept-lane').value });
+      const r = await api('/api/concepts', 'POST', { concept, lane: $('concept-lane').value });
       if (!r.ok) { say('err', 'Could not save that: ' + failText(r)); return; }
-      document.getElementById('concept-text').value = '';
+      $('concept-text').value = '';
     }
     const n = await api('/api/run-now', 'POST');
     if (!n.ok) { say('err', 'Could not ask your Mac to draft: ' + failText(n)); return; }
@@ -577,183 +509,383 @@ document.getElementById('draft-now').addEventListener('click', async () => {
   } catch (e) { say('err', e.message || 'Could not reach the server.'); }
 });
 
-function isSeries(c) { return /^\s*Build notes/.test(c.concept || ''); }
-function previewLine(c) { return ((c.concept || '').split('\n')[0] || '').slice(0, 120); }
-
-function addSection(list, title, drafted, failed, queued) {
-  const sec = document.createElement('div'); sec.className = 'draft-section';
-  const h = document.createElement('h3'); h.textContent = title; sec.appendChild(h);
-  if (!drafted.length && !failed.length && !queued.length) {
-    const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'Nothing here yet.'; sec.appendChild(e);
-  }
-  drafted.forEach(c => {
-    const row = document.createElement('div'); row.className = 'draft-item';
-    const t = document.createElement('div'); t.textContent = previewLine(c);
-    const b = document.createElement('button'); b.className = 'action-btn'; b.type = 'button'; b.textContent = 'Open this draft'; b.style.marginTop = '8px';
-    b.addEventListener('click', () => loadDraftConcept(c));
-    row.append(t, b); sec.appendChild(row);
-  });
-  failed.forEach(c => {
-    const row = document.createElement('div'); row.className = 'draft-item';
-    const t = document.createElement('div'); t.textContent = previewLine(c);
-    const w = document.createElement('div'); w.className = 'why'; w.textContent = 'Could not be written: ' + (c.reasons || []).join('; ');
-    row.append(t, w); sec.appendChild(row);
-  });
-  queued.forEach(c => {
-    const row = document.createElement('div'); row.className = 'draft-item waiting';
-    const t = document.createElement('div'); t.textContent = previewLine(c);
-    const w = document.createElement('div'); w.className = 'hint'; w.textContent = 'Waiting to be drafted';
-    row.append(t, w); sec.appendChild(row);
-  });
-  list.appendChild(sec);
+// ---------- series count, album ----------
+function showSeriesNext() {
+  $('series-next').textContent = seriesInfo.next != null ? 'Next in the series: ' + OneLook.pad3(seriesInfo.next) : 'Connect in More to see your series number.';
 }
-
-async function refreshDrafts() {
-  const list = document.getElementById('drafts-list');
+async function refreshSeries() {
   try {
-    const [ok, bad, wait] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed'), api('/api/concepts?status=queued')]);
-    if (!ok.ok) { say('err', failText(ok)); return; }
-    list.innerHTML = '';
-    const drafted = ok.data.concepts || [];
-    const failed = (bad.ok ? bad.data.concepts : []) || [];
-    const queued = (wait.ok ? wait.data.concepts : []) || [];
-    addSection(list, 'Build notes series', drafted.filter(isSeries), failed.filter(isSeries), queued.filter(isSeries));
-    addSection(list, 'Your ideas', drafted.filter(c => !isSeries(c)), failed.filter(c => !isSeries(c)), queued.filter(c => !isSeries(c)));
-  } catch (e) { say('err', e.message || 'Could not reach the server.'); }
+    const r = await api('/api/series');
+    if (!r.ok) throw new Error('series');
+    seriesInfo = { last: r.data.last, next: r.data.next };
+    if (!numTouched) $('series-num').value = String(r.data.next);
+    showSeriesNext(); checkLegacy();
+  } catch (e) { showSeriesNext(); }
 }
-document.getElementById('drafts-refresh2').addEventListener('click', refreshDrafts);
-document.getElementById('drafts-refresh').addEventListener('click', refreshDrafts);
+function legacyLast() { const v = parseInt(lsGet(LEGACY_KEY), 10); return v >= 0 ? v : null; }
+function checkLegacy() {
+  const L = legacyLast();
+  if (L === null) { lsDel(LEGACY_KEY); $('legacy-count').hidden = true; return; }
+  if (seriesInfo.last != null && L > seriesInfo.last) {
+    $('legacy-text').textContent = 'This phone or computer last used ' + OneLook.pad3(L) + '. Your shared count is at ' + OneLook.pad3(seriesInfo.last) + '.';
+    $('legacy-carry').textContent = 'Carry on from ' + OneLook.pad3(L + 1);
+    $('legacy-count').hidden = false;
+  } else if (seriesInfo.last != null) { lsDel(LEGACY_KEY); $('legacy-count').hidden = true; }
+}
+$('legacy-carry').addEventListener('click', async () => {
+  const L = legacyLast(); if (L === null) return;
+  try {
+    const r = await api('/api/series/floor', 'POST', { last: L });
+    if (!r.ok) { say('err', 'Could not carry on: ' + failText(r)); return; }
+    lsDel(LEGACY_KEY); $('legacy-count').hidden = true; numTouched = false; await refreshSeries();
+  } catch (e) { say('err', e.message || 'Could not reach the server.'); }
+});
+$('series-num').addEventListener('input', () => { numTouched = true; queueDraw(0); });
 
-// ---- Album ----
+async function loadAlbumMeta() {
+  try {
+    const r = await api('/api/album');
+    if (!r.ok) return null;
+    albumPhotos = r.data.photos || [];
+    albumFaces = {};
+    albumPhotos.forEach(p => { if (Object.prototype.hasOwnProperty.call(p, 'face')) albumFaces[p.guid] = p.face; });
+    return albumPhotos;
+  } catch (e) { return null; }
+}
+function loadAll() {
+  albumReady = loadAlbumMeta();
+  return Promise.all([refreshReady(), refreshSeries(), albumReady]);
+}
+
+// ---------- screen 2: check and approve ----------
+function applyChecks(results) {
+  let blocked = false, text = null, kind = 'err';
+  const f = results.findIndex(r => r && r.faceClear === false);
+  if (f >= 0) { blocked = true; text = 'Words are over your face on slide ' + (f + 1) + '. Tap Edit and move the photo, or use another photo.'; }
+  else {
+    const t = results.findIndex(r => r && r.fits === false);
+    if (t >= 0) { blocked = true; text = 'Slide ' + (t + 1) + ' has too many words to fit. Tap Edit and shorten it.'; }
+    else {
+      const n = results.findIndex(r => r && r.hasPhoto && r.faceClear === null);
+      if (n >= 0) { kind = 'warn'; text = 'Could not check slide ' + (n + 1) + ' for your face. Have a look before you approve.'; }
+    }
+  }
+  $('approve-btn').disabled = blocked;
+  if (text) say(kind, text); else clearMsg($('msg'));
+}
+function reviewTitle() { return type === 'series' ? 'Series ' + OneLook.pad3(currentN()) : 'Words over my photos'; }
+async function drawReview() {
+  const tok = ++reviewTok, strip = $('review-strip');
+  strip.innerHTML = '';
+  const cvs = cards.map(() => { const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350; cv.className = 'review-slide'; strip.appendChild(cv); return cv; });
+  strip.scrollLeft = 0;
+  $('review-title').textContent = reviewTitle();
+  $('review-count').textContent = cards.length ? '1 / ' + cards.length : '';
+  $('approve-btn').disabled = true;
+  const rs = await Promise.all(cvs.map((cv, i) => drawInto(cv, i)));
+  if (tok !== reviewTok) return;
+  lastRes = rs; applyChecks(rs);
+}
+$('review-strip').addEventListener('scroll', () => {
+  const s = $('review-strip'), n = cards.length; if (!n || !s.clientWidth) return;
+  const k = Math.min(n, Math.max(1, Math.round(s.scrollLeft / s.clientWidth) + 1));
+  $('review-count').textContent = k + ' / ' + n;
+});
+function openReview() { show('review'); return drawReview(); }
+function openDraft(c) {
+  const slides = Array.isArray(c.deck && c.deck.slides) ? c.deck.slides : [];
+  cards = slides.map(s => norm({ kicker: s.kicker, num: s.num, title: s.title, sub: s.sub, swipe: s.swipe, photo: (typeof s.photo === 'string' && s.photo) ? albumUrl(s.photo) : '' }));
+  $('caption').value = (c.deck && c.deck.caption) || '';
+  meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id };
+  setType(isSeries(c) ? 'series' : 'words');
+  syncStrap(); persist(); openReview();
+}
+$('review-back').addEventListener('click', () => show('ready'));
+$('edit-btn').addEventListener('click', () => { renderEdit(); show('edit'); });
+
+// ---------- screen 3: edit ----------
+function setType(t) {
+  type = t; lsSet(TYPE_KEY, t);
+  $('type-series').classList.toggle('on', t === 'series');
+  $('type-words').classList.toggle('on', t === 'words');
+  $('series-box').hidden = t !== 'series';
+  showSeriesNext();
+}
+function syncStrap() { $('cv-strap').value = cards[0] ? cards[0].title : ''; }
+function syncCoverFields() { ['kicker', 'h1', 'h2', 'h3', 'h4', 'h5'].forEach(k => { $('cv-' + k).value = cover[k] || ''; }); syncStrap(); }
+$('type-series').addEventListener('click', () => { setType('series'); renderEdit(); });
+$('type-words').addEventListener('click', () => { setType('words'); renderEdit(); });
+['kicker', 'h1', 'h2', 'h3', 'h4', 'h5'].forEach(k => $('cv-' + k).addEventListener('input', e => { cover[k] = e.target.value; saveCover(); queueDraw(0); }));
+$('cv-strap').addEventListener('input', e => {
+  if (!cards[0]) return;
+  cards[0].title = e.target.value; persist();
+  const t = document.querySelector('#edit-slides .slide-edit [data-f="title"]'); if (t) t.value = e.target.value;
+  queueDraw(0);
+});
+
+function moveCard(i, dir) { const j = i + dir; if (j < 0 || j >= cards.length) return; [cards[i], cards[j]] = [cards[j], cards[i]]; persist(); renderEdit(); }
+function deleteCard(i) { if (cards.length <= 1) return; if (!confirm('Delete this slide?')) return; cards.splice(i, 1); persist(); renderEdit(); }
+$('add-slide').addEventListener('click', () => {
+  if (cards.length >= 10) return;
+  cards.push(norm({ title: 'New slide title', sub: 'Write this slide.' })); persist(); renderEdit();
+});
+const FIELD_LABELS = [['kicker', 'Kicker', 'input'], ['num', 'Number', 'input'], ['title', 'Title', 'textarea'], ['sub', 'Second line', 'textarea'], ['swipe', 'Swipe cue', 'input'], ['handle', 'Handle', 'input']];
+function renderEdit() {
+  const box = $('edit-slides'); box.innerHTML = '';
+  setType(type); syncCoverFields();
+  cards.forEach((c, i) => {
+    const el = document.createElement('div'); el.className = 'slide-edit';
+    const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350; cv.className = 'slide-canvas';
+    const fields = document.createElement('div'); fields.className = 'fields';
+    const seriesFirst = type === 'series' && i === 0;
+    FIELD_LABELS.forEach(([f, label, tag]) => {
+      const lab = document.createElement('label'); lab.textContent = label;
+      const inp = document.createElement(tag); if (tag === 'input') inp.type = 'text'; else inp.rows = 2;
+      inp.setAttribute('data-f', f); inp.value = f === 'handle' ? (c.handle || HANDLE) : (c[f] || '');
+      inp.addEventListener('input', () => {
+        c[f] = inp.value; persist();
+        if (f === 'title' && i === 0) $('cv-strap').value = inp.value;
+        queueDraw(i);
+      });
+      lab.appendChild(inp);
+      if (seriesFirst && (f === 'kicker' || f === 'num' || f === 'swipe' || f === 'handle')) lab.hidden = true;
+      fields.appendChild(lab);
+      if (f === 'sub' && seriesFirst) { const n = document.createElement('p'); n.className = 'hint'; n.textContent = 'Not shown on a series first slide.'; fields.appendChild(n); }
+    });
+    const row = document.createElement('div'); row.className = 'row';
+    const mk = (text, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'quiet-btn small-btn'; b.textContent = text; b.disabled = !!dis; b.addEventListener('click', fn); row.appendChild(b); return b; };
+    mk('Move up', () => moveCard(i, -1), i === 0); mk('Move down', () => moveCard(i, 1), i === cards.length - 1); mk('Delete', () => deleteCard(i), cards.length <= 1);
+    mk('Add / replace photo', () => pickPhoto(i));
+    const fr = document.createElement('div'); fr.className = 'frame-box'; fr.hidden = true;
+    const sl = [['fx', 'Left / right', 0, 1, 0.01], ['fy', 'Up / down', 0, 1, 0.01], ['zoom', 'Zoom', 1, 2, 0.01]];
+    const ranges = {};
+    sl.forEach(([k, label, mn, mx, st]) => {
+      const lab = document.createElement('label'); lab.textContent = label;
+      const r = document.createElement('input'); r.type = 'range'; r.min = mn; r.max = mx; r.step = st; r.value = k === 'zoom' ? 1 : 0.5; r.setAttribute('data-frame', k);
+      r.addEventListener('input', () => { c.frame = { fx: +ranges.fx.value, fy: +ranges.fy.value, zoom: +ranges.zoom.value }; persist(); queueDraw(i); });
+      ranges[k] = r; lab.appendChild(r); fr.appendChild(lab);
+    });
+    const auto = document.createElement('button'); auto.type = 'button'; auto.className = 'quiet-btn small-btn'; auto.textContent = 'Auto';
+    auto.addEventListener('click', () => { c.frame = null; persist(); queueDraw(i); });
+    fr.appendChild(auto);
+    mk('Move photo', () => {
+      fr.hidden = !fr.hidden;
+      if (!fr.hidden) { const f = c.frame || lastRes[i]; if (f) { ranges.fx.value = f.fx; ranges.fy.value = f.fy; ranges.zoom.value = f.zoom; } }
+    });
+    fields.append(row, fr);
+    el.append(cv, fields); box.appendChild(el);
+  });
+  $('add-slide').hidden = cards.length >= 10;
+  fillAlbumSlides();
+  cards.forEach((_, i) => queueDraw(i));
+}
+$('edit-done').addEventListener('click', () => openReview());
+
+// ---------- photos ----------
+let photoTarget = -1;
+function pickPhoto(i) { photoTarget = i; $('photo-input').click(); }
+$('photo-input').addEventListener('change', ev => {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!file || photoTarget < 0) return;
+  const target = photoTarget;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = async () => {
+      const scale = Math.min(1, 1200 / img.width);
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const box = await OneLook.detectFace(canvas);
+      if (!cards[target]) return;
+      cards[target].photo = canvas.toDataURL('image/jpeg', 0.85); cards[target].frame = null; cards[target].face = faceFromBox(box, w, h);
+      persist(); queueDraw(target); photoTarget = -1;
+    };
+    img.onerror = () => { alert('Could not read that image.'); photoTarget = -1; };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 function fillAlbumSlides() {
-  const sel = document.getElementById('album-slide');
-  sel.innerHTML = '';
+  const sel = $('album-slide'); sel.innerHTML = '';
   cards.forEach((c, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = 'Slide ' + (i + 1); sel.appendChild(o); });
 }
-document.getElementById('album-load').addEventListener('click', async () => {
+$('album-load').addEventListener('click', async () => {
   try {
     const r = await api('/api/album');
     if (!r.ok) { say('err', 'Could not load your album: ' + failText(r)); return; }
-    albumPhotos = r.data.photos || [];
-    const grid = document.getElementById('album-grid'); grid.innerHTML = '';
+    albumPhotos = r.data.photos || []; albumFaces = {};
+    albumPhotos.forEach(p => { if (Object.prototype.hasOwnProperty.call(p, 'face')) albumFaces[p.guid] = p.face; });
+    const grid = $('album-grid'); grid.innerHTML = '';
     albumPhotos.forEach(p => {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.guid = p.guid; b.setAttribute('aria-label', p.caption || 'Album photo');
-      const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.crossOrigin = 'anonymous'; im.src = albumUrl(p.guid);
+      const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = albumUrl(p.guid);
       b.appendChild(im);
-      b.addEventListener('click', () => {
-        albumPick = p.guid;
-        grid.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
-        document.getElementById('album-actions').style.display = 'flex';
-        fillAlbumSlides();
-      });
+      b.addEventListener('click', () => { albumPick = p.guid; grid.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); $('album-actions').hidden = false; fillAlbumSlides(); });
       grid.appendChild(b);
     });
     if (!albumPhotos.length) grid.textContent = 'No photos in the album yet.';
   } catch (e) { say('err', e.message || 'Could not reach the server.'); }
 });
-function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURIComponent(guid); }
-document.getElementById('album-one').addEventListener('click', () => {
-  if (!albumPick) return;
-  syncDomToState();
-  const i = Number(document.getElementById('album-slide').value) || 0;
-  if (cards[i]) cards[i].photo = albumUrl(albumPick);
-  persist(); render();
+function usePhoto(i) { if (cards[i]) { cards[i].photo = albumUrl(albumPick); cards[i].frame = null; } }
+$('album-one').addEventListener('click', () => { if (!albumPick) return; usePhoto(Number($('album-slide').value) || 0); persist(); renderEdit(); });
+$('album-all').addEventListener('click', () => { if (!albumPick) return; cards.forEach((c, i) => usePhoto(i)); persist(); renderEdit(); });
+
+// ---------- More: blank, copy, paste, export, reset ----------
+function startBlank(t) {
+  cards = defaultDeck().map(norm); $('caption').value = '';
+  meta = { evidence: '', pending: null, conceptId: null };
+  setType(t); persist(); closeSheets(); renderEdit(); show('edit');
+}
+$('blank-btn').addEventListener('click', () => startBlank('words'));
+function exportJson() {
+  const blob = new Blob([JSON.stringify(cards, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'instagram-carousel.json'; a.click();
+}
+$('export-btn').addEventListener('click', exportJson);
+$('reset-btn').addEventListener('click', () => {
+  if (!confirm('Reset to the default framework? Your edits and photos in this browser will be cleared.')) return;
+  lsDel(STORE_KEY); cards = defaultDeck().map(norm); persist(); say('ok', 'Reset.');
 });
-document.getElementById('album-all').addEventListener('click', () => {
-  if (!albumPick) return;
-  syncDomToState();
-  cards.forEach(c => { c.photo = albumUrl(albumPick); });
-  persist(); render();
+function isDividerLine(line) { const s = line.trim(); if (!s) return false; return /^[=\-*#_~\s]*slide\b[\s\d=/.:#\-ofOF]*$/i.test(s); }
+function buildCopyText() {
+  let out = 'IG CAROUSEL  ·  ' + cards.length + ' slides\n';
+  out += '(Edit the text below. Keep the "=== SLIDE n ===" dividers and the LABEL: lines so each block goes back on the right slide. Your photos stay on their slides.)\n';
+  cards.forEach((c, i) => {
+    out += '\n=== SLIDE ' + (i + 1) + ' ===\n';
+    if (c.handle && c.handle !== HANDLE) out += 'HANDLE: ' + c.handle + '\n';
+    if (c.kicker) out += 'KICKER: ' + c.kicker + '\n';
+    if (c.num) out += 'NUM: ' + c.num + '\n';
+    if (c.title) out += 'TITLE: ' + c.title + '\n';
+    if (c.sub) out += 'SUB: ' + c.sub + '\n';
+    if (c.swipe) out += 'SWIPE: ' + c.swipe + '\n';
+    if (c.photo) out += '(photo on this slide, kept)\n';
+  });
+  return out.trim();
+}
+function flashBtn(id, msg) { const b = $(id); if (!b) return; if (!b.dataset.label) b.dataset.label = b.innerText; b.innerText = msg; setTimeout(() => { b.innerText = b.dataset.label; }, 1600); }
+function fallbackCopy(text, cb) {
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-9999px';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta); if (cb) cb();
+}
+$('copy-btn').addEventListener('click', () => {
+  const text = buildCopyText(), ok = () => flashBtn('copy-btn', '✓ Copied all text!');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok)); else fallbackCopy(text, ok);
+});
+$('paste-btn').addEventListener('click', () => { $('paste-area').value = ''; $('paste-overlay').style.display = 'flex'; });
+$('paste-cancel').addEventListener('click', () => { $('paste-overlay').style.display = 'none'; });
+$('paste-apply').addEventListener('click', () => {
+  const text = $('paste-area').value;
+  if (!text.trim()) { alert('Paste the text first.'); return; }
+  const labelRe = /^(HANDLE|KICKER|NUM|TITLE|SUB|SWIPE)\s*:\s?(.*)$/i;
+  const slides = []; let cur = null, subMode = false;
+  text.split(/\r?\n/).forEach(line => {
+    if (isDividerLine(line)) { cur = { _sub: null }; slides.push(cur); subMode = false; return; }
+    if (!cur) return;
+    const m = line.match(labelRe);
+    if (m) {
+      const k = m[1].toUpperCase(), v = m[2];
+      if (k === 'HANDLE') cur.handle = v.trim(); else if (k === 'KICKER') cur.kicker = v.trim(); else if (k === 'NUM') cur.num = v.trim();
+      else if (k === 'TITLE') cur.title = v.trim(); else if (k === 'SWIPE') cur.swipe = v.trim(); else if (k === 'SUB') cur._sub = [v];
+      subMode = (k === 'SUB'); return;
+    }
+    if (/^\(photo on this slide/i.test(line.trim())) return;
+    if (subMode) { cur._sub.push(line); return; }
+    if (cur.title === undefined && line.trim()) { cur.title = line.trim(); return; }
+  });
+  slides.forEach(s => { if (s._sub) s.sub = s._sub.join('\n').replace(/\s+$/, ''); delete s._sub; });
+  const valid = slides.filter(s => s.title || s.sub || s.kicker || s.num || s.swipe || s.handle);
+  if (!valid.length) { alert("Couldn't find any slides. Keep the '=== SLIDE n ===' dividers from the copied text."); return; }
+  const old = cards;
+  cards = valid.map((s, i) => Object.assign(old[i] ? Object.assign({}, old[i]) : norm({}), s));
+  persist(); $('paste-overlay').style.display = 'none'; closeSheets(); renderEdit(); show('edit');
+  say('ok', 'Pasted ' + cards.length + ' slide(s). Photos were kept.');
 });
 
-// ---- Client render: each card to a 1080x1350 PNG ----
-function loadCorsClean(url) {
-  return new Promise((resolve, reject) => {
-    const im = new Image();
-    im.crossOrigin = 'anonymous';
-    im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error('A photo on this deck cannot be read for export (the server did not allow it). Pick it again from "Use my photos".'));
-    im.src = url;
-  });
+// ---------- approve ----------
+function stamp(d) { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
+let lastId = '';
+function newId() {
+  const d = new Date(); let id = 'drliz-' + stamp(d);
+  while (id === lastId) { d.setSeconds(d.getSeconds() + 1); id = 'drliz-' + stamp(d); }
+  lastId = id; return id;
 }
-async function renderCardPng(i) {
-  const src = document.querySelectorAll('.ig-card')[i];
-  if (cards[i] && isRemote(cards[i].photo)) await loadCorsClean(cards[i].photo);
-  const stage = document.getElementById('export-stage');
-  const clone = src.cloneNode(true);
-  clone.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
-  clone.querySelectorAll('.ig-photo-ph').forEach(e => e.remove());
-  clone.style.width = '460px'; clone.style.height = '575px'; clone.style.borderRadius = '0';
-  stage.innerHTML = ''; stage.appendChild(clone);
-  try {
-    const shot = await html2canvas(clone, { scale: 1080 / 460, useCORS: true, backgroundColor: '#2b2a33', logging: false });
-    const out = document.createElement('canvas'); out.width = 1080; out.height = 1350;
-    out.getContext('2d').drawImage(shot, 0, 0, 1080, 1350);
-    return out.toDataURL('image/png'); // throws SecurityError if any image tainted the canvas
-  } finally { stage.innerHTML = ''; }
+function roleOf(i, n) { return i === 0 ? 'hook' : i === n - 1 ? 'close' : 'point'; }
+function slideText(c, i, n) {
+  if (type === 'series' && i === 0) return [cover.kicker, cover.h1, cover.h2, cover.h3, cover.h4, cover.h5, c.title, OneLook.pad3(n)].filter(x => x && String(x).trim()).join(' ');
+  return [c.kicker, c.num, c.title, c.sub, c.swipe].filter(x => x && x.trim()).join(' ');
 }
+function deckSig(n) { return JSON.stringify([type, n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame])]); }
 async function renderAllPngs() {
+  await OneLook.fontsReady();
+  for (const c of cards) if (c.photo && isRemote(c.photo) && !(await loadImg(c.photo))) throw new Error('A photo on this deck cannot be read for export (the server did not allow it). Pick it again from "Use my photos".');
   const out = {};
-  for (let i = 0; i < cards.length; i++) out[String(i + 1)] = (await renderCardPng(i)).split(',')[1];
+  for (let i = 0; i < cards.length; i++) {
+    const cv = document.createElement('canvas'); await drawInto(cv, i);
+    out[String(i + 1)] = cv.toDataURL('image/png').split(',')[1]; // throws SecurityError if any image tainted the canvas
+  }
   return out;
 }
-window.renderCardPng = renderCardPng;
-
-function stamp() {
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
-}
-function deckSig() { return JSON.stringify(cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo])); }
-
-document.getElementById('approve-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('approve-btn');
-  const caption = document.getElementById('caption').value.trim();
+$('approve-btn').addEventListener('click', async () => {
+  const btn = $('approve-btn');
+  if (cards.length < 2) { say('err', 'A post needs at least 2 slides.'); return; }
+  if (cards.length > 10) { say('err', 'Instagram allows 10 slides. Delete one first.'); return; }
+  if (type === 'series' && !cards[0].photo) { say('err', 'Choose a photo for the first slide.'); return; }
+  const caption = $('caption').value.trim();
   if (!caption) { say('err', 'Add a caption first.'); return; }
-  syncDomToState();
   btn.disabled = true;
+  let done = false;
   try {
-    const sig = deckSig();
+    const n = type === 'series' ? currentN() : null;
+    const sig = deckSig(n);
     let id;
     if (meta.pending && meta.pending.sig === sig) {
-      id = meta.pending.id; // slides unchanged since the last try: only the caption can have changed
+      id = meta.pending.id; // nothing but the caption can have changed since the last try
     } else {
       say('ok', 'Getting your slides ready...');
       const images = await renderAllPngs();
-      id = 'drliz-' + stamp();
-      const slides = cards.map((c, i) => ({ n: i + 1, role: ROLES[i] || 'slide', text: [c.kicker, c.num, c.title, c.sub, c.swipe].filter(x => x && x.trim()).join(' '), placeholder: false }));
-      const evidence = meta.evidence || slides.map(s => s.text).join('\n');
-      const pub = await api('/api/publish', 'PUT', { drafts: [{ id, caption, evidence, slides }], images: { [id]: images } });
+      id = newId();
+      const slides = cards.map((c, i) => ({ n: i + 1, role: roleOf(i, cards.length), text: slideText(c, i, n), placeholder: false }));
+      const draft = { id, caption, evidence: meta.evidence || slides.map(s => s.text).join('\n'), slides };
+      if (type === 'series') draft.series = { n };
+      if (meta.conceptId) draft.conceptId = meta.conceptId;
+      const pub = await api('/api/publish', 'PUT', { drafts: [draft], images: { [id]: images } });
       if (!pub.ok) { say('err', 'Could not send your slides: ' + failText(pub)); return; }
       meta.pending = { id, sig };
     }
     const ap = await api('/api/drafts/' + encodeURIComponent(id) + '/approve', 'POST', { caption });
-    if (ap.status === 422) {
-      const reasons = (ap.data.reasons && ap.data.reasons.length) ? ap.data.reasons : [failText(ap)];
-      say('err', 'Not approved yet. Fix this and tap approve again:', reasons);
+    if (ap.status === 409 && ap.data.error === 'series number taken') {
+      meta.pending = null;
+      const nx = ap.data.next; $('series-num').value = String(nx); numTouched = true;
+      await drawReview();
+      say('err', OneLook.pad3(n) + ' was just used. The next free number is ' + OneLook.pad3(nx) + '. Tap approve again.');
       return;
     }
+    if (ap.status === 422) { say('err', 'Not approved yet. Fix this and tap approve again:', (ap.data.reasons && ap.data.reasons.length) ? ap.data.reasons : [failText(ap)]); return; }
     if (!ap.ok) { say('err', 'Could not approve: ' + failText(ap)); return; }
-    meta.pending = null;
-    say('ok', 'In your Buffer queue once your Mac syncs');
+    meta.pending = null; done = true;
+    say('ok', type === 'series' ? 'Approved as ' + OneLook.pad3(n) + '. In your Buffer queue once your Mac syncs' : 'Approved. In your Buffer queue once your Mac syncs');
+    numTouched = false;
+    await sleep(1500);
+    albumReady = loadAlbumMeta();
+    await Promise.all([refreshReady(), refreshSeries(), albumReady]);
+    show('ready');
   } catch (e) {
     say('err', e.message || 'Something went wrong.');
-  } finally { btn.disabled = false; }
+  } finally { if (!done) btn.disabled = reviewBlockedNow(); }
 });
+function reviewBlockedNow() { return lastRes.some(r => r && (r.faceClear === false || r.fits === false)); }
 
+// ---------- start ----------
 showSettingsState();
-fillAlbumSlides();
+setType(type);
+syncCoverFields();
+if (location.hash === '#series') { cards = defaultDeck().map(norm); setType('series'); renderEdit(); show('edit'); }
+applyConnection();
+if (connected()) loadAll();
 </script>
-
-  <div id="paste-overlay" style="display:none; position:fixed; inset:0; background:rgba(10,10,16,0.72); z-index:200; align-items:center; justify-content:center; padding:20px;">
-    <div style="background:#221f2b; border:2px solid #4a4559; border-radius:18px; box-shadow:0 18px 50px rgba(0,0,0,0.6); width:min(700px, 94vw); max-height:90vh; display:flex; flex-direction:column; padding:22px; color:#f3f1ee;">
-      <div style="font-size:21px; font-weight:800; color:#ffd9a0; margin-bottom:6px;">📥 Paste text back in</div>
-      <div style="font-size:14px; color:#c9c4d4; margin-bottom:12px; line-height:1.5;">Paste the edited text. Keep the <b>=== SLIDE n ===</b> dividers and the <b>LABEL:</b> lines so each block lands on the right slide. Your photos stay put.</div>
-      <textarea id="paste-area" style="flex:1; min-height:340px; width:100%; border:1.5px solid #4a4559; border-radius:12px; padding:14px; background:#15141b; color:#f3f1ee; font-family:ui-monospace, 'SF Mono', Menlo, monospace; font-size:13px; line-height:1.5; resize:vertical;" placeholder="Paste the copied (and edited) carousel text here..."></textarea>
-      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:16px;">
-        <button class="action-btn ghost" onclick="closePasteModal()">Cancel</button>
-        <button class="action-btn" onclick="applyPastedText()">✓ Apply to carousel</button>
-      </div>
-    </div>
-  </div>
 </body>
 </html>
