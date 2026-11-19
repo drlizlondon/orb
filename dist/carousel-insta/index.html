@@ -82,11 +82,42 @@
   .card-controls button:hover { background: #ffd9a0; color: #1a1724; }
   .card-controls button:disabled { opacity: 0.35; cursor: default; }
 
+
+  /* SOC-10.3: Worker panels */
+  .panel { max-width: 1100px; margin: 0 auto 18px auto; background: #221f2b; border: 1.5px solid #3a3647; border-radius: 16px; padding: 14px 18px; }
+  .panel h2 { font-size: 16px; font-weight: 800; color: #ffd9a0; margin-bottom: 8px; }
+  .panel p.hint { font-size: 13px; color: #c9c4d4; margin-bottom: 8px; line-height: 1.45; }
+  .panel input[type=text], .panel input[type=password], .panel textarea, .panel select {
+    width: 100%; background: #15141b; color: #f3f1ee; border: 1.5px solid #4a4559; border-radius: 10px;
+    padding: 10px 12px; font: inherit; font-size: 15px; margin-bottom: 8px; }
+  .panel textarea { min-height: 84px; resize: vertical; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 0 0 auto; }
+  .row .grow { flex: 1 1 200px; }
+  #msg { max-width: 1100px; margin: 0 auto 18px auto; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; display: none; line-height: 1.45; }
+  #msg.ok { display: block; background: #1d2b22; color: #8be4a0; border: 1.5px solid #2f5a3d; }
+  #msg.err { display: block; background: #2e1f1f; color: #ffb3a0; border: 1.5px solid #6a3a35; }
+  #msg ul { margin: 6px 0 0 18px; font-weight: 500; }
+  .draft-item { border-top: 1px solid #3a3647; padding: 10px 0; font-size: 14px; }
+  .draft-item:first-child { border-top: none; }
+  .draft-item .why { color: #ffb37a; font-size: 13px; margin-top: 4px; }
+  .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 8px 0; }
+  .album-grid button { padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: #15141b; cursor: pointer; aspect-ratio: 4/5; }
+  .album-grid button.sel { border-color: #ffd9a0; }
+  .album-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ig-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+  #export-stage { position: fixed; left: -10000px; top: 0; width: 460px; pointer-events: none; }
+  @media (max-width: 520px) {
+    body { padding: 16px; }
+    .ig-wrap { zoom: var(--z, 0.74); }
+    .toolbar-title { font-size: 18px; }
+  }
+
   /* PRINT: real 1080x1350 Instagram portrait pages */
   @media print {
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body { padding: 0; background: none; }
-    .toolbar, .banner, .card-controls { display: none !important; }
+    .toolbar, .banner, .card-controls, .panel, #msg { display: none !important; }
     .gallery { gap: 0 !important; }
     .ig-wrap { width: 1080px !important; }
     .ig-card {
@@ -119,6 +150,47 @@
     </div>
   </div>
 
+  <div id="msg" role="status" aria-live="polite"></div>
+
+  <div class="panel" id="settings-panel">
+    <h2>Connect to your approval page</h2>
+    <p class="hint">Paste these once. They stay in this browser only.</p>
+    <input type="text" id="set-base" placeholder="Worker address, e.g. https://your-worker.workers.dev" autocomplete="off">
+    <input type="password" id="set-token" placeholder="Access token" autocomplete="off">
+    <div class="row"><button class="action-btn" id="set-save" type="button">Save</button><span id="set-state" class="hint"></span></div>
+  </div>
+
+  <div class="panel" id="concept-panel">
+    <h2>Your idea</h2>
+    <p class="hint">Write the idea in your own words. Your carousel is written once a day.</p>
+    <textarea id="concept-text" maxlength="2000" placeholder="What is the idea? Include any real numbers or stories you want used."></textarea>
+    <div class="row">
+      <select id="concept-lane" class="grow" aria-label="Audience lane">
+        <option value="ambitious-women" selected>Ambitious women</option>
+        <option value="doctor">Doctors</option>
+        <option value="wide">Everyone</option>
+      </select>
+      <button class="action-btn" id="concept-send" type="button">Save my idea</button>
+    </div>
+  </div>
+
+  <div class="panel" id="drafts-panel">
+    <h2>Drafts ready</h2>
+    <div class="row"><button class="action-btn ghost" id="drafts-refresh" type="button">Check for drafts</button></div>
+    <div id="drafts-list"></div>
+  </div>
+
+  <div class="panel" id="album-panel">
+    <h2>Use my photos</h2>
+    <div class="row"><button class="action-btn ghost" id="album-load" type="button">Show my album</button></div>
+    <div class="album-grid" id="album-grid"></div>
+    <div class="row" id="album-actions" style="display:none">
+      <select id="album-slide" aria-label="Slide for this photo"></select>
+      <button class="action-btn" id="album-one" type="button">Use on this slide</button>
+      <button class="action-btn ghost" id="album-all" type="button">Use for all slides</button>
+    </div>
+  </div>
+
   <div class="banner">
     <div>💡 Tap any text to edit. Tap 📷 on a slide to drop your own photo behind the words (it stays on your device). Slides auto-save in this browser.</div>
     <div id="save-status">✓ All edits saved</div>
@@ -126,6 +198,13 @@
 
   <div class="gallery" id="cards-container"></div>
 
+  <div class="panel" id="send-panel" style="margin-top:30px">
+    <h2>Caption and send</h2>
+    <textarea id="caption" placeholder="Caption"></textarea>
+    <div class="row"><button class="action-btn" id="approve-btn" type="button">Approve &amp; send to Buffer</button></div>
+  </div>
+  <div id="export-stage" aria-hidden="true"></div>
+  <script src="vendor/html2canvas.min.js"></script>
   <input type="file" id="photo-input" accept="image/*" style="display:none">
 
 <script>
@@ -175,7 +254,10 @@ function persist() {
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
+
 function render() {
+  fitZoom();
   const container = document.getElementById('cards-container');
   container.innerHTML = '';
   const total = cards.length;
@@ -191,7 +273,8 @@ function render() {
         <button title="Duplicate" onclick="duplicateCard(${i})">⧉</button>
         <button title="Delete" onclick="deleteCard(${i})" ${total <= 1 ? 'disabled' : ''}>✕</button>
       </div>
-      <div class="ig-card" style="${hasPhoto ? `background-image:url('${card.photo}')` : ''}">
+      <div class="ig-card" style="${hasPhoto && !isRemote(card.photo) ? `background-image:url('${card.photo}')` : ''}">
+        ${hasPhoto && isRemote(card.photo) ? `<img class="ig-bg" crossorigin="anonymous" alt="" src="${esc(card.photo)}">` : ''}
         ${hasPhoto ? '' : '<div class="ig-photo-ph"><span>📷 Tap to add your photo</span></div>'}
         <div class="ig-scrim"></div>
         <div class="ig-handle" contenteditable="true" data-f="handle">${esc(card.handle || HANDLE)}</div>
@@ -319,7 +402,7 @@ function buildCopyText(){
     if(c.title)  out += 'TITLE: '  + c.title + '\n';
     if(c.sub)    out += 'SUB: '    + c.sub + '\n';
     if(c.swipe)  out += 'SWIPE: '  + c.swipe + '\n';
-    if(c.photo)  out += '(photo on this slide — kept)\n';
+    if(c.photo)  out += '(photo on this slide, kept)\n';
   });
   return out.trim();
 }
@@ -398,6 +481,229 @@ function applyPastedText(){
 }
 
 render();
+
+// ---- SOC-10.3: Worker joins (concept inbox, drafts, album, approve & send) ----
+const LS_BASE = 'orb_worker_base';
+const LS_TOKEN = 'orb_approve_token';
+const ROLES = ['cover', 'proof', 'story', 'idea', 'idea', 'idea', 'limit', 'cta'];
+let meta = { evidence: '', pending: null };
+let albumPhotos = [];
+let albumPick = null;
+
+function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function workerBase() { return lsGet(LS_BASE).trim().replace(/\/+$/, ''); }
+function workerToken() { return lsGet(LS_TOKEN).trim(); }
+function fitZoom() {
+  const z = Math.min(1, (window.innerWidth - 32) / 460);
+  document.documentElement.style.setProperty('--z', String(z));
+}
+window.addEventListener('resize', fitZoom);
+
+function say(kind, text, list) {
+  const m = document.getElementById('msg');
+  m.className = kind;
+  m.textContent = text;
+  if (list && list.length) {
+    const ul = document.createElement('ul');
+    list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
+    m.appendChild(ul);
+  }
+}
+
+async function api(path, method, body) {
+  const base = workerBase(), token = workerToken();
+  if (!base || !token) { const e = new Error('Paste your Worker address and access token first.'); e.setup = true; throw e; }
+  const res = await fetch(base + path, {
+    method: method || 'GET',
+    headers: Object.assign({ 'Authorization': 'Bearer ' + token }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  return { status: res.status, ok: res.ok, data: data || {} };
+}
+function failText(r) { return (r.data && (r.data.error || r.data.message)) || ('The server said ' + r.status); }
+
+function showSettingsState() {
+  document.getElementById('set-base').value = workerBase();
+  document.getElementById('set-token').value = '';
+  document.getElementById('set-state').textContent = (workerBase() && workerToken()) ? 'Saved in this browser.' : 'Not connected yet.';
+}
+document.getElementById('set-save').addEventListener('click', () => {
+  const b = document.getElementById('set-base').value.trim();
+  const t = document.getElementById('set-token').value.trim();
+  if (b) lsSet(LS_BASE, b);
+  if (t) lsSet(LS_TOKEN, t);
+  showSettingsState();
+  say('ok', 'Saved.');
+});
+
+document.getElementById('concept-send').addEventListener('click', async () => {
+  const concept = document.getElementById('concept-text').value.trim();
+  if (!concept) { say('err', 'Write your idea first.'); return; }
+  try {
+    const r = await api('/api/concepts', 'POST', { concept, lane: document.getElementById('concept-lane').value });
+    if (!r.ok) { say('err', 'Could not save that: ' + failText(r)); return; }
+    document.getElementById('concept-text').value = '';
+    say('ok', 'Saved. Your carousel will be ready after the 7am run.');
+  } catch (e) { say('err', e.message || 'Could not reach the server.'); }
+});
+
+function loadDraftConcept(c) {
+  const d = c.deck || {};
+  const slides = Array.isArray(d.slides) ? d.slides : [];
+  cards = slides.map(s => ({ kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: '' }));
+  document.getElementById('caption').value = d.caption || '';
+  meta = { evidence: d.evidence || c.concept || '', pending: null };
+  persist(); render(); fillAlbumSlides();
+  say('ok', 'Loaded. Change anything you like, then approve.');
+}
+
+async function refreshDrafts() {
+  const list = document.getElementById('drafts-list');
+  try {
+    const [ok, bad] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed')]);
+    if (!ok.ok) { say('err', failText(ok)); return; }
+    list.innerHTML = '';
+    const drafted = ok.data.concepts || [];
+    const failed = (bad.ok ? bad.data.concepts : []) || [];
+    if (!drafted.length && !failed.length) list.textContent = 'Nothing yet.';
+    drafted.forEach(c => {
+      const row = document.createElement('div'); row.className = 'draft-item';
+      const t = document.createElement('div'); t.textContent = (c.concept || '').slice(0, 120);
+      const b = document.createElement('button'); b.className = 'action-btn'; b.type = 'button'; b.textContent = 'Open this draft'; b.style.marginTop = '8px';
+      b.addEventListener('click', () => loadDraftConcept(c));
+      row.append(t, b); list.appendChild(row);
+    });
+    failed.forEach(c => {
+      const row = document.createElement('div'); row.className = 'draft-item';
+      const t = document.createElement('div'); t.textContent = (c.concept || '').slice(0, 120);
+      const w = document.createElement('div'); w.className = 'why'; w.textContent = 'Could not be written: ' + (c.reasons || []).join('; ');
+      row.append(t, w); list.appendChild(row);
+    });
+  } catch (e) { say('err', e.message || 'Could not reach the server.'); }
+}
+document.getElementById('drafts-refresh').addEventListener('click', refreshDrafts);
+
+// ---- Album ----
+function fillAlbumSlides() {
+  const sel = document.getElementById('album-slide');
+  sel.innerHTML = '';
+  cards.forEach((c, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = 'Slide ' + (i + 1); sel.appendChild(o); });
+}
+document.getElementById('album-load').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/album');
+    if (!r.ok) { say('err', 'Could not load your album: ' + failText(r)); return; }
+    albumPhotos = r.data.photos || [];
+    const grid = document.getElementById('album-grid'); grid.innerHTML = '';
+    albumPhotos.forEach(p => {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.guid = p.guid; b.setAttribute('aria-label', p.caption || 'Album photo');
+      const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.crossOrigin = 'anonymous'; im.src = albumUrl(p.guid);
+      b.appendChild(im);
+      b.addEventListener('click', () => {
+        albumPick = p.guid;
+        grid.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
+        document.getElementById('album-actions').style.display = 'flex';
+        fillAlbumSlides();
+      });
+      grid.appendChild(b);
+    });
+    if (!albumPhotos.length) grid.textContent = 'No photos in the album yet.';
+  } catch (e) { say('err', e.message || 'Could not reach the server.'); }
+});
+function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURIComponent(guid); }
+document.getElementById('album-one').addEventListener('click', () => {
+  if (!albumPick) return;
+  syncDomToState();
+  const i = Number(document.getElementById('album-slide').value) || 0;
+  if (cards[i]) cards[i].photo = albumUrl(albumPick);
+  persist(); render();
+});
+document.getElementById('album-all').addEventListener('click', () => {
+  if (!albumPick) return;
+  syncDomToState();
+  cards.forEach(c => { c.photo = albumUrl(albumPick); });
+  persist(); render();
+});
+
+// ---- Client render: each card to a 1080x1350 PNG ----
+function loadCorsClean(url) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('A photo on this deck cannot be read for export (the server did not allow it). Pick it again from "Use my photos".'));
+    im.src = url;
+  });
+}
+async function renderCardPng(i) {
+  const src = document.querySelectorAll('.ig-card')[i];
+  if (cards[i] && isRemote(cards[i].photo)) await loadCorsClean(cards[i].photo);
+  const stage = document.getElementById('export-stage');
+  const clone = src.cloneNode(true);
+  clone.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+  clone.querySelectorAll('.ig-photo-ph').forEach(e => e.remove());
+  clone.style.width = '460px'; clone.style.height = '575px'; clone.style.borderRadius = '0';
+  stage.innerHTML = ''; stage.appendChild(clone);
+  try {
+    const shot = await html2canvas(clone, { scale: 1080 / 460, useCORS: true, backgroundColor: '#2b2a33', logging: false });
+    const out = document.createElement('canvas'); out.width = 1080; out.height = 1350;
+    out.getContext('2d').drawImage(shot, 0, 0, 1080, 1350);
+    return out.toDataURL('image/png'); // throws SecurityError if any image tainted the canvas
+  } finally { stage.innerHTML = ''; }
+}
+async function renderAllPngs() {
+  const out = {};
+  for (let i = 0; i < cards.length; i++) out[String(i + 1)] = (await renderCardPng(i)).split(',')[1];
+  return out;
+}
+window.renderCardPng = renderCardPng;
+
+function stamp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+function deckSig() { return JSON.stringify(cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo])); }
+
+document.getElementById('approve-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('approve-btn');
+  const caption = document.getElementById('caption').value.trim();
+  if (!caption) { say('err', 'Add a caption first.'); return; }
+  syncDomToState();
+  btn.disabled = true;
+  try {
+    const sig = deckSig();
+    let id;
+    if (meta.pending && meta.pending.sig === sig) {
+      id = meta.pending.id; // slides unchanged since the last try: only the caption can have changed
+    } else {
+      say('ok', 'Getting your slides ready...');
+      const images = await renderAllPngs();
+      id = 'drliz-' + stamp();
+      const slides = cards.map((c, i) => ({ n: i + 1, role: ROLES[i] || 'slide', text: [c.kicker, c.num, c.title, c.sub, c.swipe].filter(x => x && x.trim()).join(' '), placeholder: false }));
+      const evidence = meta.evidence || slides.map(s => s.text).join('\n');
+      const pub = await api('/api/publish', 'PUT', { drafts: [{ id, caption, evidence, slides }], images: { [id]: images } });
+      if (!pub.ok) { say('err', 'Could not send your slides: ' + failText(pub)); return; }
+      meta.pending = { id, sig };
+    }
+    const ap = await api('/api/drafts/' + encodeURIComponent(id) + '/approve', 'POST', { caption });
+    if (ap.status === 422) {
+      const reasons = (ap.data.reasons && ap.data.reasons.length) ? ap.data.reasons : [failText(ap)];
+      say('err', 'Not approved yet. Fix this and tap approve again:', reasons);
+      return;
+    }
+    if (!ap.ok) { say('err', 'Could not approve: ' + failText(ap)); return; }
+    meta.pending = null;
+    say('ok', 'In your Buffer queue once your Mac syncs');
+  } catch (e) {
+    say('err', e.message || 'Something went wrong.');
+  } finally { btn.disabled = false; }
+});
+
+showSettingsState();
+fillAlbumSlides();
 </script>
 
   <div id="paste-overlay" style="display:none; position:fixed; inset:0; background:rgba(10,10,16,0.72); z-index:200; align-items:center; justify-content:center; padding:20px;">
