@@ -299,6 +299,12 @@
   .card-controls button.danger:hover { background: #FECACA; }
   .card-controls button:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
 
+
+  /* PDF export: card box only (no tape, shadow, rounded corners or editing chrome) */
+  body.exporting-pdf .card-controls, body.exporting-pdf .washi-tape { display: none !important; }
+  body.exporting-pdf .card-container { box-shadow: none !important; border-radius: 0 !important; }
+  body.exporting-pdf [contenteditable] { outline: none !important; background: none !important; caret-color: transparent; }
+
   /* PRINT STYLES FOR NATIVE PDF CAROUSEL EXPORT */
   @media print {
     * {
@@ -353,7 +359,7 @@
       <button class="action-btn" id="save-btn" style="background: #FEF08A;" onclick="manualSave()">💾 Save Changes</button>
       <button class="action-btn" id="copy-btn" style="background: #CFFAFE;" onclick="copyAllText()">📋 Copy Text</button>
       <button class="action-btn" style="background: #E0E7FF;" onclick="openPasteModal()">📥 Paste Text</button>
-      <button class="action-btn" onclick="window.print()">📄 Save as PDF Carousel</button>
+      <button class="action-btn" id="pdf-btn" onclick="downloadPdf()">Download PDF</button>
       <button class="action-btn secondary" onclick="exportJson()">📥 Export JSON</button>
       <button class="action-btn" style="background: #DBEAFE;" onclick="addCard()">➕ Add Slide</button>
       <button class="action-btn secondary" style="background: #F1F5F9;" onclick="resetCurrentDeck()">🔄 Reset Deck</button>
@@ -369,6 +375,11 @@
     <!-- Populated by JavaScript -->
   </div>
 
+<!-- Vendored, pinned (same-origin, no CDN):
+     html2canvas 1.4.1 - https://registry.npmjs.org/html2canvas/1.4.1 (dist/html2canvas.min.js)
+     jsPDF 2.5.2       - https://registry.npmjs.org/jspdf/2.5.2 (dist/jspdf.umd.min.js) -->
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
 <script>
 let currentDeck = 'antislop';
 
@@ -704,6 +715,41 @@ function nudgeFit(i, dir){
 }
 window.addEventListener('resize', queueFit);
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(queueFit);
+
+// ---- Direct PDF export: one page per slide, page = the card's own box, no print dialog ----
+const PDF_SCALE = 3; // raster at 3x (720px card -> 2160px); text stays crisp
+async function downloadPdf() {
+  const btn = document.getElementById('pdf-btn');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Building PDF...';
+  syncDomToState();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  document.body.classList.add('exporting-pdf');
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    fitAll();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const boxes = Array.from(document.querySelectorAll('#cards-container .card-container'));
+    let pdf = null;
+    for (const box of boxes) {
+      const w = box.offsetWidth, h = box.offsetHeight;
+      const canvas = await html2canvas(box, { scale: PDF_SCALE, backgroundColor: null, useCORS: true, logging: false, width: w, height: h });
+      const pw = w * 0.75, ph = h * 0.75; // CSS px -> pt, page equals the card box
+      const orient = pw >= ph ? 'l' : 'p';
+      if (!pdf) pdf = new window.jspdf.jsPDF({ unit: 'pt', format: [pw, ph], orientation: orient, compress: true });
+      else pdf.addPage([pw, ph], orient);
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pw, ph, undefined, 'FAST');
+    }
+    pdf.save(currentDeck + '-carousel.pdf');
+  } catch (e) {
+    console.error(e);
+    alert('Could not build the PDF: ' + (e && e.message ? e.message : e));
+  } finally {
+    document.body.classList.remove('exporting-pdf');
+    fitAll();
+    btn.disabled = false; btn.textContent = label;
+  }
+}
 
 function switchDeck(deckKey) {
   syncDomToState();
