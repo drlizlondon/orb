@@ -46,6 +46,7 @@ const SLIDES = [
 ].map(([kicker, num, title, sub, swipe]) => ({ kicker, num, title, sub, swipe }));
 const DRAFTED = { id: 'c-20261119-070000-ab12', concept: 'Use AI to plan the week', lane: 'ambitious-women', status: 'drafted', deck: { slides: SLIDES, caption: 'A short caption in my words.', claims: [], evidence: 'Use AI to plan the week' } };
 const BN = { id: 'c-bn', concept: 'Build notes: what shipped today', lane: 'wide', status: 'drafted', deck: { slides: SLIDES, caption: 'Series caption.', claims: [], evidence: 'Build notes: what shipped today' } };
+const DRAFTED_PH = { ...DRAFTED, deck: { ...DRAFTED.deck, slides: SLIDES.map((x, i) => ({ ...x, photo: i % 2 ? 'g1' : 'g2-test_guid' })) } };
 const FAILED = { id: 'c-20261119-070001-cd34', concept: 'A concept that failed', lane: 'wide', status: 'failed', reasons: ['invented figure: 90%'] };
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS' };
 const worker = http.createServer((req, res) => {
@@ -59,7 +60,7 @@ const worker = http.createServer((req, res) => {
     const j = (s, o) => { res.writeHead(s, { ...cors, 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.headers.authorization !== 'Bearer ' + TOKEN) return j(401, { ok: false, error: 'access token required' });
     if (u.pathname === '/api/concepts' && req.method === 'POST') return j(201, { ok: true, concept: { id: 'c-x', status: 'queued' } });
-    if (u.pathname === '/api/concepts' && req.method === 'GET') { const st = u.searchParams.get('status'); if (listMode === 'series') return j(200, { ok: true, concepts: st === 'drafted' ? [BN, DRAFTED] : st === 'failed' ? [FAILED] : st === 'queued' ? [QBN] : [] }); return j(200, { ok: true, concepts: st === 'drafted' ? [DRAFTED] : st === 'failed' ? [FAILED] : [] }); }
+    if (u.pathname === '/api/concepts' && req.method === 'GET') { const st = u.searchParams.get('status'); if (listMode === 'photos') return j(200, { ok: true, concepts: st === 'drafted' ? [DRAFTED_PH] : [] }); if (listMode === 'series') return j(200, { ok: true, concepts: st === 'drafted' ? [BN, DRAFTED] : st === 'failed' ? [FAILED] : st === 'queued' ? [QBN] : [] }); return j(200, { ok: true, concepts: st === 'drafted' ? [DRAFTED] : st === 'failed' ? [FAILED] : [] }); }
     if (u.pathname === '/api/run-now' && req.method === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
     if (u.pathname === '/api/album') return j(200, { ok: true, photos: [{ guid: 'g1', width: 240, height: 300, caption: 'a photo', url: '/img-album/g1' }] });
     if (u.pathname === '/api/publish' && req.method === 'PUT') return j(200, { ok: true, added: [JSON.parse(body).drafts[0].id], kept: [] });
@@ -249,6 +250,28 @@ await check('AC-12.2 empty sections say Nothing here yet.', async () => {
   assert.equal(txt, 200);
   await page.click('#drafts-refresh2'); await page.waitForSelector('#drafts-list .draft-section');
   assert.match(await page.locator('#drafts-list .draft-section').nth(0).innerText(), /Nothing here yet\./);
+  await ctx.close();
+});
+
+await check('AC-14.5 a draft whose slides carry guids shows img.ig-bg /img-album/<guid> on every slide; placeholder never reaches the export', async () => {
+  listMode = 'photos';
+  const { page, ctx } = await open({ width: 1200, height: 900 });
+  await page.click('#drafts-refresh'); await page.waitForSelector('#drafts-list .draft-item button'); await page.click('#drafts-list .draft-item button');
+  assert.equal(await page.locator('.ig-card').count(), 8);
+  const srcs = await page.locator('.ig-card').evaluateAll(cs => cs.map(c => { const i = c.querySelector('img.ig-bg'); return i ? i.getAttribute('src') : null; }));
+  srcs.forEach((u, i) => { assert.ok(u, 'slide ' + (i + 1) + ' has no img.ig-bg'); assert.ok(u.endsWith('/img-album/' + (i % 2 ? 'g1' : 'g2-test_guid')), u); });
+  assert.equal(await page.locator('.ig-photo-ph').count(), 0, 'no placeholder when every slide has a photo');
+  // a slide with no photo shows the placeholder on screen but the exported clone must not carry it
+  await page.evaluate(() => { cards[0].photo = ''; render(); });
+  assert.equal(await page.locator('.ig-card').first().locator('.ig-photo-ph').count(), 1);
+  const seen = await page.evaluate(async () => {
+    const real = window.html2canvas; let hadPh = null;
+    window.html2canvas = (el, o) => { hadPh = !!el.querySelector('.ig-photo-ph'); return real(el, o); };
+    await window.renderCardPng(0);
+    window.html2canvas = real; return hadPh;
+  });
+  assert.equal(seen, false, 'placeholder present in the element being exported');
+  listMode = 'plain';
   await ctx.close();
 });
 

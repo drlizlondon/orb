@@ -195,7 +195,7 @@
   </div>
 
   <div class="banner">
-    <div>💡 Tap any text to edit. Tap 📷 on a slide to drop your own photo behind the words (it stays on your device). Slides auto-save in this browser.</div>
+    <div>💡 Tap any text to edit. Your album photos are already in. Tap 📷 on a slide to swap one. Slides auto-save in this browser.</div>
     <div id="save-status">✓ All edits saved</div>
   </div>
 
@@ -556,7 +556,7 @@ document.getElementById('concept-send').addEventListener('click', async () => {
 function loadDraftConcept(c) {
   const d = c.deck || {};
   const slides = Array.isArray(d.slides) ? d.slides : [];
-  cards = slides.map(s => ({ kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: '' }));
+  cards = slides.map(s => ({ kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: (typeof s.photo === 'string' && s.photo) ? albumUrl(s.photo) : '' }));
   document.getElementById('caption').value = d.caption || '';
   meta = { evidence: d.evidence || c.concept || '', pending: null };
   persist(); render(); fillAlbumSlides();
