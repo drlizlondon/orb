@@ -51,6 +51,8 @@
         <label>Left / right <input type="range" id="px" min="0" max="1" step="0.01" value="0.78"></label>
         <label>Up / down <input type="range" id="py" min="0" max="1" step="0.01" value="0.5"></label>
       </div>
+      <div class="row"><button class="ghost" id="auto-btn" type="button">Auto face-safe</button></div>
+      <div class="status" id="face-status"></div>
       <div class="row">
         <label>Series number
           <input type="number" id="num" min="1" max="999" step="1" value="1">
@@ -172,11 +174,69 @@ function wrapLines(ctx, text, maxW) {
   if (line) out.push(line); return out;
 }
 
+// FACE-SAFE-BEGIN (pure; unit-tested by tests/cover-series-facesafe.test.mjs)
+// Move the PHOTO so the face box clears every element rect. All values are canvas px.
+// faceBox {x,y,w,h} as currently drawn; elementZone = rect or array of rects;
+// slack = how far the photo may still move each way without exposing an edge.
+// Returns deltas to apply to the photo, plus a small leftward elementShift only when
+// panning alone cannot clear the face (cleared:false if even that is not enough).
+function placeFaceSafe(o) {
+  const none = { photoOffsetX: 0, photoOffsetY: 0, scale: 1, elementShift: { x: 0, y: 0 }, cleared: true };
+  const f = o && o.faceBox;
+  if (!f || !(f.w > 0) || !(f.h > 0) || ![f.x, f.y, f.w, f.h].every(Number.isFinite)) return none;
+  const zones = [].concat(o.elementZone || []).filter(z => z && z.w > 0 && z.h > 0);
+  if (!zones.length) return none;
+  const m = o.margin == null ? 12 : o.margin, maxEl = o.maxElementShift == null ? 24 : o.maxElementShift;
+  const sl = Object.assign({ left: Infinity, right: Infinity, up: Infinity, down: Infinity }, o.slack || {});
+  const W = o.canvasW, H = o.canvasH;
+  const ov = (a, b, k) => Math.max(0, Math.min(a.x + a.w, b.x + b.w + k) - Math.max(a.x, b.x - k)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h + k) - Math.max(a.y, b.y - k));
+  const area = (fb, zs, k) => zs.reduce((t, z) => t + ov(fb, z, k), 0);
+  if (!area(f, zones, m)) return none;
+  const inside = (dx, dy) => dx >= -sl.left && dx <= sl.right && dy >= -sl.up && dy <= sl.down && f.x + dx >= 0 && f.x + f.w + dx <= W && f.y + dy >= 0 && f.y + f.h + dy <= H;
+  const at = (dx, dy) => ({ x: f.x + dx, y: f.y + dy, w: f.w, h: f.h });
+  const xs = [], ys = [];
+  zones.forEach(z => {
+    xs.push(z.x + z.w + m - f.x, z.x - m - (f.x + f.w));
+    ys.push(z.y + z.h + m - f.y, z.y - m - (f.y + f.h));
+  });
+  const cands = xs.map(dx => [dx, 0]).concat(ys.map(dy => [0, dy]));
+  const good = cands.filter(c => inside(c[0], c[1]) && !area(at(c[0], c[1]), zones, m));
+  if (good.length) {
+    good.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+    return Object.assign({}, none, { photoOffsetX: good[0][0], photoOffsetY: good[0][1] });
+  }
+  // cannot clear by panning: go as far as allowed toward the least overlap, then nudge elements left
+  const lim = [[Math.min(sl.right, W - f.x - f.w), 0], [-Math.min(sl.left, f.x), 0], [0, Math.min(sl.down, H - f.y - f.h)], [0, -Math.min(sl.up, f.y)]];
+  let best = [0, 0], bestA = area(f, zones, m);
+  lim.forEach(c => { const a = area(at(c[0], c[1]), zones, m); if (a < bestA - 1e-6 || (Math.abs(a - bestA) < 1e-6 && Math.hypot(c[0], c[1]) < Math.hypot(best[0], best[1]))) { best = c; bestA = a; } });
+  const fb = at(best[0], best[1]);
+  let sx = 0;
+  while (sx <= maxEl && area(fb, zones.map(z => ({ x: z.x - sx, y: z.y, w: z.w, h: z.h })), m)) sx++;
+  const cleared = sx <= maxEl;
+  return { photoOffsetX: best[0], photoOffsetY: best[1], scale: 1, elementShift: { x: -(cleared ? sx : maxEl), y: 0 }, cleared };
+}
+// Same method as photobooth covers.js faceBoost(): native FaceDetector, never throws.
+// Pads are lighter than covers.js (it pads for hair+chin to frame a crop; here the box is a keep-clear zone).
+async function detectFace(img) {
+  try {
+    if (typeof window.FaceDetector !== 'function') return null;
+    const faces = await new window.FaceDetector({ fastMode: true, maxDetectedFaces: 8 }).detect(img);
+    if (!faces || !faces.length) return null;
+    const bs = faces.map(f => f.boundingBox || f).filter(b => b && b.width > 0 && b.height > 0);
+    if (!bs.length) return null;
+    const b = bs.sort((a, c) => c.width * c.height - a.width * a.height)[0];
+    return { x: b.x - b.width * 0.08, y: b.y - b.height * 0.12, w: b.width * 1.16, h: b.height * 1.24 };
+  } catch (e) { return null; }
+}
+// FACE-SAFE-END
+
 // ---------- photo ----------
-function drawPhoto(ctx, h) {
+let autoPan = { feed: null, reel: null }, autoShift = { feed: 0, reel: 0 }, manual = false, lastFace = null, lastRects = [];
+function pan(fmt) { return (!manual && autoPan[fmt]) ? autoPan[fmt] : { fx: parseFloat($('px').value), fy: parseFloat($('py').value) }; }
+function drawPhoto(ctx, h, fmt) {
   ctx.fillStyle = '#bdbdba'; ctx.fillRect(0, 0, W, h);
   if (!photo) { ctx.fillStyle = '#6b6577'; ctx.font = '700 40px ' + BALOO; ctx.textAlign = 'center'; ctx.fillText('Choose a photo', W * 0.7, h * 0.5); ctx.textAlign = 'left'; return; }
-  const z = parseFloat($('zoom').value), fx = parseFloat($('px').value), fy = parseFloat($('py').value);
+  const z = parseFloat($('zoom').value), pn = pan(fmt), fx = pn.fx, fy = pn.fy;
   const s = Math.max(W / photo.naturalWidth, h / photo.naturalHeight) * z;
   const dw = photo.naturalWidth * s, dh = photo.naturalHeight * s;
   ctx.drawImage(photo, -(dw - W) * fx, -(dh - h) * fy, dw, dh); // photo as supplied, no alteration
@@ -186,37 +246,41 @@ function drawPhoto(ctx, h) {
 }
 
 // ---------- the cover ----------
-function renderCover(cv, fmt) {
+function renderCover(cv, fmt, noPhoto) {
   const h = H[fmt], reel = fmt === 'reel';
   cv.width = W; cv.height = h;
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, W, h);
-  drawPhoto(ctx, h);
+  if (!noPhoto) drawPhoto(ctx, h, fmt); else { ctx.fillStyle = '#bdbdba'; ctx.fillRect(0, 0, W, h); }
+  const rects = [], R = (r, p) => { p = p || 0; rects.push({ x: r.x - p, y: r.y - p, w: r.w + 2 * p, h: r.h + 2 * p }); };
+  ctx.save(); if (!manual && autoShift[fmt]) ctx.translate(autoShift[fmt], 0);
   const L1 = $('h1').value, L2 = $('h2').value, L3 = $('h3').value, L4 = $('h4').value, L5 = $('h5').value;
   let y = reel ? 200 : 48;
 
   const tag = block(ctx, { x: 48, y, text: $('kicker').value, font: '700 italic 78px ' + CAVEAT, size: 78, padL: 42, padR: 40, padT: 14, padB: 30, rad: 10, amp: 13, seed: 21, brush: true, color: C.soft, base: 0.82 });
   underline(ctx, 48 + 92, 48 + tag.w - 92, tag.y + tag.h - 14, C.hot, -3);
-  y += tag.h + 20;
+  R(tag, 8); y += tag.h + 20;
   const u = block(ctx, { x: 76, y, text: L1, font: '800 112px ' + BALOO, size: 112, padL: 30, padR: 30, padT: 6, padB: 12, rad: 26, amp: 3.5, seed: 4, color: C.cream, base: 0.86 });
-  y += u.h - 4;
+  R(u, 6); y += u.h - 4;
   const ai = block(ctx, { x: 102, y, text: L2, font: '800 228px ' + BALOO, size: 228, lh: 0.95, padL: 62, padR: 62, padT: 0, padB: 6, rad: 10, amp: 16, seed: 9, brush: true, color: C.pink, ins: [6, 10, 0, 10], base: 0.86 });
-  y += ai.h + 2;
+  R(ai, 10); y += ai.h + 2;
   const earn = block(ctx, { x: 50, y, text: L3, font: '800 76px ' + BALOO, size: 76, padL: 26, padR: 26, padT: 6, padB: 8, rad: 22, amp: 3.5, seed: 14, color: C.cream, base: 0.86 });
-  y += earn.h + 8;
+  R(earn, 6); y += earn.h + 8;
   const and = block(ctx, { x: 50, y: y + 20, text: L4, font: '800 56px ' + BALOO, size: 56, padL: 20, padR: 20, padT: 10, padB: 12, rad: 20, amp: 3, seed: 17, color: C.cream, base: 0.86 });
   const wk = block(ctx, { x: 50 + and.w - 2, y, text: L5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, base: 0.84 });
+  R(and, 6); R(wk, 10);
   underline(ctx, wk.x + 46, wk.x + wk.w - 50, wk.y + wk.h - 2, C.hot, -3);
   spark(ctx, 24, ai.y + 70, 0, 0.9);
 
   const pillY = reel ? 1250 : y + wk.h + 34;
-  pills(ctx, 48, pillY);
+  pills(ctx, 48, pillY); R({ x: 48, y: pillY, w: 4 * 134 + 3 * 14, h: 154 }, 6);
 
   // strapline banner: in the reel it sits well above Instagram's bottom caption zone
   const bannerY = pillY + 154 + (reel ? 36 : 26);
   ctx.font = '600 italic 31px ' + BALOO;
   const lines = wrapLines(ctx, $('strap').value, 538), lh = 36.6;
   const bh = 26 + lines.length * lh + 30;
+  R({ x: 34, y: bannerY, w: 700, h: bh }, 6);
   fillRough(ctx, 34, bannerY, 700, bh, 70, 8, 5, false, C.purple);
   ctx.save(); ctx.strokeStyle = C.hot; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.translate(60, bannerY + 34); ctx.stroke(new Path2D('M4 22c14-4 38-4 56 0M46 8l16 14-14 12')); ctx.restore();
@@ -230,12 +294,35 @@ function renderCover(cv, fmt) {
   ctx.font = '700 italic 104px ' + CAVEAT;
   const ew = ctx.measureText(ep).width + 92, eh = 6 + 104 + 22;
   const ex = W - 48 - ew, ey = reel ? bannerY + bh - eh + 10 : h - 60 - eh;
+  R({ x: ex, y: ey, w: ew, h: eh }, 8);
   fillRough(ctx, ex, ey, ew, eh, 12, 14, 41, true, C.pink);
   ctx.fillStyle = C.purple; ctx.fillText(ep, ex + 46, ey + 6 + 104 * 0.78);
   underline(ctx, ex + 60, ex + ew - 60, ey + eh - 12, C.yellow, 0);
   spark(ctx, W - 130, reel ? 300 : 70, 0.6, 1);
+  ctx.restore();
+  lastRects = rects;
 }
 
+// Automatic face-safe placement for both formats (sets autoPan/autoShift; sliders remain a manual override)
+function autoPlace() {
+  autoPan = { feed: null, reel: null }; autoShift = { feed: 0, reel: 0 };
+  const st = $('face-status');
+  if (!photo || !lastFace) { if (st) st.textContent = photo ? 'No face detected here: default framing (use the sliders if needed).' : ''; return; }
+  const z = parseFloat($('zoom').value), iw = photo.naturalWidth, ih = photo.naturalHeight, out = [];
+  ['feed', 'reel'].forEach(fmt => {
+    const h = H[fmt], cv = document.createElement('canvas'), keep = lastRects;
+    const sh = autoShift; autoShift = { feed: 0, reel: 0 }; renderCover(cv, fmt, true); autoShift = sh;
+    const zones = lastRects; lastRects = keep;
+    const s = Math.max(W / iw, h / ih) * z, dw = iw * s, dh = ih * s, fx0 = 0.78, fy0 = 0.5;
+    const x0 = -(dw - W) * fx0, y0 = -(dh - h) * fy0;
+    const face = { x: lastFace.x * s + x0, y: lastFace.y * s + y0, w: lastFace.w * s, h: lastFace.h * s };
+    const r = placeFaceSafe({ faceBox: face, canvasW: W, canvasH: h, elementZone: zones, slack: { right: -x0, left: dw - W + x0, down: -y0, up: dh - h + y0 } });
+    autoPan[fmt] = { fx: dw > W ? Math.min(1, Math.max(0, -(x0 + r.photoOffsetX) / (dw - W))) : fx0, fy: dh > h ? Math.min(1, Math.max(0, -(y0 + r.photoOffsetY) / (dh - h))) : fy0 };
+    autoShift[fmt] = r.elementShift.x;
+    out.push(fmt + (r.cleared ? ' clear' : ' PARTIAL (face wider than the free zone)'));
+  });
+  if (st) st.textContent = 'Face-safe (auto): ' + out.join(', ');
+}
 function redraw() { renderCover($('preview'), view); }
 function refreshNumStatus(msg, warn) { const s = $('num-status'); s.textContent = msg; s.className = 'status' + (warn ? ' warn' : ''); }
 
@@ -251,12 +338,14 @@ function download(fmt) {
   refreshNumStatus(ok ? 'Saved ' + pad3(n) + ' as last used. Next will be ' + pad3(n + 1) + '.' : 'Could not store the counter in this browser; type the number yourself next time.', !ok);
 }
 
-function setView(v) { view = v; $('v-feed').className = v === 'feed' ? 'on' : 'ghost'; $('v-reel').className = v === 'reel' ? 'on' : 'ghost'; redraw(); }
+function setView(v) { view = v; if (!manual && autoPan[v]) { $('px').value = autoPan[v].fx; $('py').value = autoPan[v].fy; } $('v-feed').className = v === 'feed' ? 'on' : 'ghost'; $('v-reel').className = v === 'reel' ? 'on' : 'ghost'; redraw(); }
 
 $('photo-input').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
-  const img = new Image(); img.onload = () => { photo = img; redraw(); }; img.src = URL.createObjectURL(f);
+  const img = new Image(); img.onload = async () => { photo = img; manual = false; lastFace = null; redraw(); lastFace = await detectFace(img); autoPlace(); redraw(); }; img.src = URL.createObjectURL(f);
 });
+['zoom', 'px', 'py'].forEach(id => $(id).addEventListener('input', () => { manual = true; $('face-status').textContent = 'Manual framing (press Auto face-safe to undo).'; }));
+$('auto-btn').onclick = () => { manual = false; autoPlace(); redraw(); };
 ['zoom', 'px', 'py', 'num', 'kicker', 'h1', 'h2', 'h3', 'h4', 'h5', 'strap'].forEach(id => $(id).addEventListener('input', redraw));
 $('next-btn').onclick = () => { $('num').value = currentNum() + 1; redraw(); };
 $('dl-feed').onclick = () => download('feed');
