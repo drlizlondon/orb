@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {addTool,removeTool,exportTools,importTools,loadTools,saveTools,seedTools,domainOf,titleFromDomain,TOOLS_KEY} from '../src/tools.js';
+import {mergeDefaults,SEEN_KEY,LEGACY_SEEN,addTool,removeTool,exportTools,importTools,loadTools,saveTools,seedTools,domainOf,titleFromDomain,TOOLS_KEY} from '../src/tools.js';
 import {iconCandidates} from '../src/icons.js';
 import {publicTools} from '../src/public-tools.js';
 import {projects} from '../dist/projects.js';
@@ -77,4 +77,49 @@ test('T6 public list is bpp, gp, sms and carries no We Build For Good link',()=>
  for(const id of personal.filter(id=>!['bpp','gp','sms'].includes(id)))assert.ok(!src.includes(`'${id}'`)&&!src.includes(`"${id}"`),id);
  assert.deepEqual(publicTools.map(t=>t.id),['bpp','gp','sms']);
  assert.ok(publicTools.every(t=>!/webuildforgood/i.test(JSON.stringify(t))));
+});
+
+const ids=l=>l.map(t=>t.id);
+test('A1 mergeDefaults: a saved list missing a new default gains it',()=>{
+ const defaults=seedTools(9);const saved=defaults.slice(0,6);
+ const m=mergeDefaults(saved,defaults,LEGACY_SEEN);
+ assert.deepEqual(ids(m.tools),['bpp','gp','sms','ppd','da','cards','igc','cover']);
+ assert.equal(m.added,2);
+ assert.ok(['igc','cover'].every(id=>m.seen.includes(id)));
+});
+test('A1 mergeDefaults: a default the user removed is NOT re-added',()=>{
+ const defaults=seedTools(9);
+ const saved=defaults.filter(t=>t.id!=='gp');
+ const m=mergeDefaults(saved,defaults,defaults.map(t=>t.id));
+ assert.ok(!ids(m.tools).includes('gp'));
+ assert.equal(m.added,0);
+ assert.equal(m.tools,saved);
+});
+test('A1 mergeDefaults: user-added tools, order and customisations are preserved',()=>{
+ const defaults=seedTools(9);
+ const custom=addTool([],{url:'https://mine.example',title:'Mine'},7)[0];
+ const edited={...defaults[2],title:'Renamed',desc:'my words'};
+ const saved=[custom,defaults[3],edited,defaults[0]];
+ const m=mergeDefaults(saved,defaults,['bpp','sms','ppd']);
+ assert.deepEqual(m.tools.slice(0,4),saved,'existing entries keep order and edits');
+ assert.equal(m.tools[1].id,defaults[3].id);
+ assert.equal(m.tools[2].title,'Renamed');
+ assert.deepEqual(ids(m.tools).slice(4),['gp','da','cards','igc','cover']);
+ assert.equal(m.tools.filter(t=>t.id===custom.id).length,1);
+});
+test('A1 loadTools: stale 6-tool list upgrades once; a removal survives later loads',()=>{
+ const defaults=seedTools(1);
+ const s=memory({[TOOLS_KEY]:exportTools(defaults.slice(0,6))});
+ assert.deepEqual(ids(loadTools(s,5)),ids(defaults));
+ assert.deepEqual(ids(JSON.parse(s.m.get(TOOLS_KEY)).tools),ids(defaults),'merged list persisted');
+ assert.ok(JSON.parse(s.m.get(SEEN_KEY)).includes('cover'));
+ s.setItem(TOOLS_KEY,exportTools(removeTool(loadTools(s,6),'igc')));
+ assert.ok(!ids(loadTools(s,7)).includes('igc'),'removed default stays removed');
+ assert.equal(ids(loadTools(s,8)).length,7);
+});
+test('A1 loadTools: fresh seed records every default as seen; corrupt seen key falls back safely',()=>{
+ const s=memory();loadTools(s,1);
+ assert.deepEqual(JSON.parse(s.m.get(SEEN_KEY)).sort(),ids(projects).sort());
+ const bad=memory({[TOOLS_KEY]:exportTools(seedTools(0).slice(0,6)),[SEEN_KEY]:'{oops'});
+ assert.equal(loadTools(bad,2).length,8);
 });

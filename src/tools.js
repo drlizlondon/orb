@@ -62,13 +62,51 @@ function parseList(json) {
   return data.tools.map(t => ({id: t.id, title: t.title, url: t.url, desc: t.desc, icon: t.icon, addedAt: t.addedAt}));
 }
 
+// Ids of defaults the user has already been offered. A default is added to the saved list once,
+// the first time its id is not in this set; after that the user owns it (a removal stays removed).
+export const SEEN_KEY = 'orbit.defaults.seen';
+// Lists saved before SEEN_KEY existed were seeded from these six defaults (git 3a231b3: the
+// projects.js in force when the stale lists were written). Later defaults count as new.
+export const LEGACY_SEEN = ['bpp', 'gp', 'sms', 'ppd', 'da', 'cards'];
+
+// Pure. Returns the saved list plus any default whose id was never seen, and the updated seen set.
+// Never reorders, edits or drops anything already in `saved`; never re-adds a seen (removed) default.
+export function mergeDefaults(saved, defaults, seen) {
+  const seenSet = new Set(seen);
+  const have = new Set(saved.map(t => t.id));
+  const added = defaults.filter(d => !seenSet.has(d.id) && !have.has(d.id));
+  for (const d of defaults) seenSet.add(d.id);
+  return {tools: added.length ? [...saved, ...added] : saved, seen: [...seenSet], added: added.length};
+}
+
+function readSeen(storage) {
+  try {
+    const raw = storage?.getItem(SEEN_KEY);
+    if (raw == null) return null;
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data.filter(x => typeof x === 'string') : null;
+  } catch { return null; }
+}
+
+function saveSeen(storage, seen) {
+  try { storage?.setItem(SEEN_KEY, JSON.stringify(seen)); } catch { /* storage unavailable */ }
+}
+
 export function loadTools(storage, now = Date.now()) {
+  let saved = null;
   try {
     const raw = storage?.getItem(TOOLS_KEY);
-    if (raw != null) return parseList(raw);
+    if (raw != null) saved = parseList(raw);
   } catch { /* fall through to the seed */ }
+  if (saved) {
+    const merged = mergeDefaults(saved, seedTools(now), readSeen(storage) ?? LEGACY_SEEN);
+    if (merged.added) saveTools(storage, merged.tools);
+    saveSeen(storage, merged.seen);
+    return merged.tools;
+  }
   const tools = seedTools(now);
   saveTools(storage, tools);
+  saveSeen(storage, tools.map(t => t.id));
   return tools;
 }
 

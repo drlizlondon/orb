@@ -27,3 +27,12 @@ test('service worker is registered relative to app.js, not the page (works from 
  assert.ok(src.includes("serviceWorker.register(new URL('sw.js',import.meta.url))"));
  assert.ok(!/serviceWorker\.register\(['"]\.\/sw\.js/.test(src),'page-relative ./sw.js 404s under /orb/app/');
 });
+
+test('A2 service worker updates promptly: skipWaiting, clients.claim, old-cache cleanup, network-first shell',()=>{
+ const sw=read('sw.js').toString();
+ assert.ok(sw.includes('self.skipWaiting()')&&sw.includes('self.clients.claim()'));
+ assert.ok(/key\.startsWith\('orbit-'\)&&key!==BUILD/.test(sw)&&sw.includes('caches.delete'),'old orbit-* caches deleted');
+ assert.ok(/respondWith\(fetch\(/.test(sw),'network first');
+ assert.ok(!/cache\.match\(path\)\)\.then\(hit=>hit\|\|fetch/.test(sw),'not cache-first');
+ assert.ok(sw.includes("cache:'no-cache'"),'bypasses the HTTP cache');
+});

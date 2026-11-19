@@ -1,7 +1,8 @@
-// Cache-first for same-origin app-shell files. The cache name carries the build hash
-// (scripts/build.mjs rewrites it), so a new build replaces the old cache.
+// Network-first for same-origin app-shell files, cache as the offline fallback, so a new deploy
+// reaches a returning visitor on the next load instead of being pinned to the old cache.
+// The cache name carries the build hash (scripts/build.mjs rewrites it); activate deletes older orbit-* caches.
 // Paths are relative to where this worker lives, so it works at a domain root or under /orb/.
-const BUILD='orbit-24311ef6c52b';
+const BUILD='orbit-8a7a5a5d03a9';
 const BASE=new URL('./',self.location).pathname;
 const SHELL=['','app/','app.js','inspector.js','style.css','manifest.webmanifest','icon-192.png','icon-512.png'].map(p=>BASE+p);
 self.addEventListener('install',event=>{event.waitUntil(caches.open(BUILD).then(cache=>cache.addAll(SHELL.map(url=>new Request(url,{cache:'reload'})))).then(()=>self.skipWaiting()));});
@@ -13,5 +14,8 @@ self.addEventListener('fetch',event=>{
  if(path===BASE+'index.html')path=BASE;
  if(path===BASE+'app'||path===BASE+'app/index.html')path=BASE+'app/';
  if(!SHELL.includes(path))return;
- event.respondWith(caches.open(BUILD).then(cache=>cache.match(path)).then(hit=>hit||fetch(request)));
+ event.respondWith(fetch(url.href,{cache:'no-cache'}).then(res=>{
+  if(res.ok&&!res.redirected){const copy=res.clone();caches.open(BUILD).then(cache=>cache.put(path,copy));}
+  return res;
+ }).catch(()=>caches.open(BUILD).then(cache=>cache.match(path)).then(hit=>hit||Response.error())));
 });
