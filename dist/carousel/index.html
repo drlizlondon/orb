@@ -895,10 +895,14 @@ function exportJson() {
 
 function resetCurrentDeck() {
   if (confirm("Reset this deck back to default text? Any custom edits on this deck will be cleared.")) {
-    localStorage.removeItem('carousel_decks_v2');
-    location.reload();
+    decks[currentDeck] = JSON.parse(JSON.stringify(DEFAULT_DECKS[currentDeck]));
+    persistDecks();
+    renderDeck();
   }
 }
+
+// Built-in defaults, copied before saved edits are merged in (used by resetCurrentDeck)
+const DEFAULT_DECKS = JSON.parse(JSON.stringify(decks));
 
 // Load from localStorage on startup if present
 const savedDecks = localStorage.getItem('carousel_decks_v2');
