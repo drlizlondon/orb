@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const html = fs.readFileSync(new URL('../dist/cover-series/index.html', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('../dist/carousel-insta/look.js', import.meta.url), 'utf8');
 const m = html.match(/\/\/ FACE-SAFE-BEGIN[\s\S]*?\/\/ FACE-SAFE-END/);
-assert.ok(m, 'FACE-SAFE block present in engine');
+assert.ok(m, 'FACE-SAFE block present in look.js');
 const ctx = vm.createContext({ window: {} });
 vm.runInContext(m[0] + '\nthis.placeFaceSafe = placeFaceSafe; this.detectFace = detectFace;', ctx);
 const { placeFaceSafe, detectFace } = ctx;
