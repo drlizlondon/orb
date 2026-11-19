@@ -187,15 +187,17 @@
     margin-bottom: 18px;
     outline: none;
   }
+  h1 { font-size: calc(34px * var(--fit, 1)); }
+  h1.cover { font-size: calc(42px * var(--fit, 1)); }
   .subtitle {
-    font-size: 21px;
+    font-size: calc(21px * var(--fit, 1));
     line-height: 1.45;
     color: #475569;
     font-weight: 600;
     outline: none;
   }
   .body-text {
-    font-size: 20px;
+    font-size: calc(20px * var(--fit, 1));
     line-height: 1.5;
     color: #334155;
     font-weight: 500;
@@ -207,7 +209,7 @@
     border: 3px solid #1E1E2F;
     border-radius: 16px;
     padding: 16px 22px;
-    font-size: 18px;
+    font-size: calc(18px * var(--fit, 1));
     font-weight: 800;
     color: #0F172A;
     box-shadow: 4px 4px 0px #1E1E2F;
@@ -291,6 +293,8 @@
     padding: 0;
     line-height: 1;
   }
+  .card-controls button.wide { width: auto; min-width: 34px; padding: 0 8px; font-size: 14px; }
+  .card-controls button.on { background: #FEF08A; }
   .card-controls button:hover { background: #FEF08A; }
   .card-controls button.danger:hover { background: #FECACA; }
   .card-controls button:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
@@ -325,10 +329,10 @@
       box-shadow: 14px 14px 0px #1E1E2F !important;
       padding: 64px 68px !important;
     }
-    h1 { font-size: 46px !important; }
-    .subtitle { font-size: 27px !important; }
-    .body-text { font-size: 26px !important; }
-    .rule-box { font-size: 22px !important; }
+    h1, h1.cover { font-size: calc(46px * var(--fit, 1)) !important; }
+    .subtitle { font-size: calc(27px * var(--fit, 1)) !important; }
+    .body-text { font-size: calc(26px * var(--fit, 1)) !important; }
+    .rule-box { font-size: calc(22px * var(--fit, 1)) !important; }
     [contenteditable="true"]:hover, [contenteditable="true"]:focus {
       outline: none !important;
       background: none !important;
@@ -613,6 +617,9 @@ function renderDeck() {
     const total = deck.cards.length;
     wrap.innerHTML = `
       <div class="card-controls">
+        <button class="wide fit-btn" title="Fit text to the card automatically" onclick="setFitAuto(${index})">Fit</button>
+        <button class="wide" title="Smaller text" onclick="nudgeFit(${index}, -1)">A−</button>
+        <button class="wide" title="Larger text" onclick="nudgeFit(${index}, 1)">A+</button>
         <button title="Move slide up" onclick="moveCard(${index}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
         <button title="Move slide down" onclick="moveCard(${index}, 1)" ${index === total - 1 ? 'disabled' : ''}>↓</button>
         <button title="Duplicate slide" onclick="duplicateCard(${index})">⧉</button>
@@ -627,7 +634,7 @@ function renderDeck() {
         </div>
 
         <div class="content">
-          <h1 style="font-size: ${card.isCover ? '42px' : '34px'};" contenteditable="true">${card.title}</h1>
+          <h1 class="${card.isCover ? 'cover' : ''}" contenteditable="true">${card.title}</h1>
           ${card.subtitle ? `<div class="subtitle" contenteditable="true">${card.subtitle}</div>` : ''}
           ${card.body ? `<div class="body-text" contenteditable="true">${card.body}</div>` : ''}
           ${card.rule ? `<div class="rule-box" contenteditable="true">✨ ${card.rule}</div>` : ''}
@@ -644,7 +651,59 @@ function renderDeck() {
     `;
     container.appendChild(wrap);
   });
+  fitAll();
 }
+
+// ---- Auto-fit slide text (text steps down until it fits the card) ----
+// card.fitManual === true -> card.fitScale is used as-is; otherwise auto-fit.
+const FIT_STEP = 0.02, FIT_FLOOR = 0.6, MANUAL_MIN = 0.4, MANUAL_MAX = 1.3;
+function cardOverflows(el){ return el.scrollHeight > el.clientHeight + 0.5; }
+function fitCardEl(wrap, card){
+  const box = wrap.querySelector('.card-container');
+  if(!box || !card) return 1;
+  let f = 1;
+  if(card.fitManual && typeof card.fitScale === 'number'){
+    f = card.fitScale;
+  } else {
+    box.style.setProperty('--fit', 1);
+    while(cardOverflows(box) && f > FIT_FLOOR + 1e-9){
+      f = Math.round((f - FIT_STEP) * 100) / 100;
+      box.style.setProperty('--fit', f);
+    }
+  }
+  box.style.setProperty('--fit', f);
+  box.dataset.fit = f;
+  const fb = wrap.querySelector('.fit-btn');
+  if(fb) fb.classList.toggle('on', !card.fitManual);
+  return f;
+}
+function fitAll(){
+  const cards = (decks[currentDeck] || {}).cards || [];
+  document.querySelectorAll('#cards-container .card-wrap').forEach((w, i) => fitCardEl(w, cards[i]));
+}
+let fitQueued = false;
+function queueFit(){
+  if(fitQueued) return;
+  fitQueued = true;
+  requestAnimationFrame(() => { fitQueued = false; fitAll(); });
+}
+function setFitAuto(i){
+  const c = decks[currentDeck].cards[i];
+  delete c.fitManual; delete c.fitScale;
+  persistDecks(); queueFit();
+}
+function nudgeFit(i, dir){
+  syncDomToState();
+  const c = decks[currentDeck].cards[i];
+  const wrap = document.querySelectorAll('#cards-container .card-wrap')[i];
+  const cur = c.fitManual && typeof c.fitScale === 'number'
+    ? c.fitScale : parseFloat(wrap.querySelector('.card-container').dataset.fit || '1');
+  c.fitManual = true;
+  c.fitScale = Math.min(MANUAL_MAX, Math.max(MANUAL_MIN, Math.round((cur + dir * 0.05) * 100) / 100));
+  persistDecks(); fitAll();
+}
+window.addEventListener('resize', queueFit);
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(queueFit);
 
 function switchDeck(deckKey) {
   syncDomToState();
@@ -712,6 +771,7 @@ document.getElementById('cards-container').addEventListener('input', () => {
     statusEl.style.color = '#D97706';
   }
   syncDomToState();
+  queueFit();
 });
 
 // A blank slide: neutral placeholder scaffolding only, never invented copy.
