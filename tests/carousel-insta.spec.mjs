@@ -32,6 +32,8 @@ const PNG = gradientPng(240, 300);
 // ---- stub Worker (cross-origin to the static server, like production) ----
 const calls = [];
 let approveMode = 'ok';
+let listMode = 'plain';
+const QBN = { id: 'c-qbn', concept: 'Build notes: queued topic\nsecond line', lane: 'wide', status: 'queued' };
 const SLIDES = [
   ['', '', 'I stopped doing this one thing', 'Here is what changed for me.', 'Swipe'],
   ['Why I can say this', '', 'I tried it myself', 'It saved me real time.', ''],
@@ -43,6 +45,7 @@ const SLIDES = [
   ['One thing', '', 'Comment IDEAS', 'And I will send you the list.', '']
 ].map(([kicker, num, title, sub, swipe]) => ({ kicker, num, title, sub, swipe }));
 const DRAFTED = { id: 'c-20261119-070000-ab12', concept: 'Use AI to plan the week', lane: 'ambitious-women', status: 'drafted', deck: { slides: SLIDES, caption: 'A short caption in my words.', claims: [], evidence: 'Use AI to plan the week' } };
+const BN = { id: 'c-bn', concept: 'Build notes: what shipped today', lane: 'wide', status: 'drafted', deck: { slides: SLIDES, caption: 'Series caption.', claims: [], evidence: 'Build notes: what shipped today' } };
 const FAILED = { id: 'c-20261119-070001-cd34', concept: 'A concept that failed', lane: 'wide', status: 'failed', reasons: ['invented figure: 90%'] };
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS' };
 const worker = http.createServer((req, res) => {
@@ -56,7 +59,8 @@ const worker = http.createServer((req, res) => {
     const j = (s, o) => { res.writeHead(s, { ...cors, 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
     if (req.headers.authorization !== 'Bearer ' + TOKEN) return j(401, { ok: false, error: 'access token required' });
     if (u.pathname === '/api/concepts' && req.method === 'POST') return j(201, { ok: true, concept: { id: 'c-x', status: 'queued' } });
-    if (u.pathname === '/api/concepts' && req.method === 'GET') return j(200, { ok: true, concepts: u.searchParams.get('status') === 'drafted' ? [DRAFTED] : u.searchParams.get('status') === 'failed' ? [FAILED] : [] });
+    if (u.pathname === '/api/concepts' && req.method === 'GET') { const st = u.searchParams.get('status'); if (listMode === 'series') return j(200, { ok: true, concepts: st === 'drafted' ? [BN, DRAFTED] : st === 'failed' ? [FAILED] : st === 'queued' ? [QBN] : [] }); return j(200, { ok: true, concepts: st === 'drafted' ? [DRAFTED] : st === 'failed' ? [FAILED] : [] }); }
+    if (u.pathname === '/api/run-now' && req.method === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
     if (u.pathname === '/api/album') return j(200, { ok: true, photos: [{ guid: 'g1', width: 240, height: 300, caption: 'a photo', url: '/img-album/g1' }] });
     if (u.pathname === '/api/publish' && req.method === 'PUT') return j(200, { ok: true, added: [JSON.parse(body).drafts[0].id], kept: [] });
     if (/^\/api\/drafts\/[^/]+\/approve$/.test(u.pathname)) return approveMode === 'ok' ? j(200, { ok: true }) : j(422, { ok: false, error: 'copy gate failed', reasons: ['number 90 is not in your evidence'] });
@@ -197,6 +201,54 @@ await check('AC-10.3.6 phone width 390: no horizontal scroll, whole flow, no con
   const ov2 = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(ov2 <= 0, 'horizontal overflow after flow ' + ov2);
   assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+await check('AC-12.1 Draft now: with text saves then run-now; without text only run-now; exact message', async () => {
+  const MSG = 'Asked your Mac to draft now. Check back in about 10 minutes (your Mac needs to be awake).';
+  calls.length = 0;
+  const { page, ctx } = await open({ width: 1200, height: 900 });
+  await page.fill('#concept-text', 'Use AI to plan the week');
+  await page.click('#draft-now');
+  await page.waitForFunction(() => document.getElementById('msg').textContent.startsWith('Asked your Mac'));
+  assert.equal(await page.textContent('#msg'), MSG);
+  const posts = calls.filter(c => c.method === 'POST');
+  assert.deepEqual(posts.map(c => c.path), ['/api/concepts', '/api/run-now']);
+  for (const c of posts) assert.equal(c.auth, 'Bearer ' + TOKEN);
+  calls.length = 0;
+  await page.click('#draft-now');
+  await page.waitForFunction(() => document.getElementById('msg').textContent.startsWith('Asked your Mac'));
+  assert.deepEqual(calls.filter(c => c.method === 'POST').map(c => c.path), ['/api/run-now']);
+  await ctx.close();
+});
+
+await check('AC-12.2/3 split sections, queued greyed, series draft loads 8 slides', async () => {
+  listMode = 'series';
+  const { page, ctx } = await open({ width: 390, height: 800 });
+  await page.click('#drafts-refresh2');
+  await page.waitForSelector('#drafts-list .draft-section .draft-item');
+  const secs = page.locator('#drafts-list .draft-section');
+  assert.equal(await secs.count(), 2);
+  const s0 = await secs.nth(0).innerText(), s1 = await secs.nth(1).innerText();
+  assert.match(s0, /Build notes series/); assert.match(s0, /Build notes: what shipped today/); assert.match(s0, /Waiting to be drafted/); assert.match(s0, /Build notes: queued topic/); assert.ok(!/second line/.test(s0));
+  assert.match(s1, /Your ideas/); assert.match(s1, /Use AI to plan the week/); assert.match(s1, /invented figure: 90%/); assert.ok(!/Waiting/.test(s1));
+  assert.equal(await secs.nth(0).locator('.draft-item.waiting').count(), 1);
+  await secs.nth(0).locator('button').first().click();
+  assert.equal(await page.locator('.ig-card').count(), 8);
+  for (const x of await page.locator('.ig-card').allInnerTexts()) assert.ok(!/[\[\]]/.test(x));
+  const ov = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(ov <= 0, 'overflow ' + ov);
+  listMode = 'plain';
+  await ctx.close();
+});
+
+await check('AC-12.2 empty sections say Nothing here yet.', async () => {
+  const { page, ctx } = await open({ width: 390, height: 800 });
+  await page.evaluate(() => {}); 
+  const txt = await page.evaluate(async ([w, t]) => { const r = await fetch(w + '/api/concepts?status=queued', { headers: { Authorization: 'Bearer ' + t } }); return r.status; }, [W, TOKEN]);
+  assert.equal(txt, 200);
+  await page.click('#drafts-refresh2'); await page.waitForSelector('#drafts-list .draft-section');
+  assert.match(await page.locator('#drafts-list .draft-section').nth(0).innerText(), /Nothing here yet\./);
   await ctx.close();
 });
 

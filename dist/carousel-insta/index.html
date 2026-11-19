@@ -100,6 +100,8 @@
   #msg ul { margin: 6px 0 0 18px; font-weight: 500; }
   .draft-item { border-top: 1px solid #3a3647; padding: 10px 0; font-size: 14px; }
   .draft-item:first-child { border-top: none; }
+  .draft-item.waiting { opacity: 0.55; }
+  .draft-section h3 { font-size: 15px; margin: 14px 0 4px; }
   .draft-item .why { color: #ffb37a; font-size: 13px; margin-top: 4px; }
   .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 8px 0; }
   .album-grid button { padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: #15141b; cursor: pointer; aspect-ratio: 4/5; }
@@ -171,12 +173,13 @@
         <option value="wide">Everyone</option>
       </select>
       <button class="action-btn" id="concept-send" type="button">Save my idea</button>
+      <button class="action-btn" id="draft-now" type="button">Draft now</button>
     </div>
   </div>
 
   <div class="panel" id="drafts-panel">
     <h2>Drafts ready</h2>
-    <div class="row"><button class="action-btn ghost" id="drafts-refresh" type="button">Check for drafts</button></div>
+    <div class="row"><button class="action-btn ghost" id="drafts-refresh" type="button">Check for drafts</button><button class="action-btn ghost" id="drafts-refresh2" type="button">Refresh</button></div>
     <div id="drafts-list"></div>
   </div>
 
@@ -560,30 +563,65 @@ function loadDraftConcept(c) {
   say('ok', 'Loaded. Change anything you like, then approve.');
 }
 
+document.getElementById('draft-now').addEventListener('click', async () => {
+  const concept = document.getElementById('concept-text').value.trim();
+  try {
+    if (concept) {
+      const r = await api('/api/concepts', 'POST', { concept, lane: document.getElementById('concept-lane').value });
+      if (!r.ok) { say('err', 'Could not save that: ' + failText(r)); return; }
+      document.getElementById('concept-text').value = '';
+    }
+    const n = await api('/api/run-now', 'POST');
+    if (!n.ok) { say('err', 'Could not ask your Mac to draft: ' + failText(n)); return; }
+    say('ok', 'Asked your Mac to draft now. Check back in about 10 minutes (your Mac needs to be awake).');
+  } catch (e) { say('err', e.message || 'Could not reach the server.'); }
+});
+
+function isSeries(c) { return /^\s*Build notes/.test(c.concept || ''); }
+function previewLine(c) { return ((c.concept || '').split('\n')[0] || '').slice(0, 120); }
+
+function addSection(list, title, drafted, failed, queued) {
+  const sec = document.createElement('div'); sec.className = 'draft-section';
+  const h = document.createElement('h3'); h.textContent = title; sec.appendChild(h);
+  if (!drafted.length && !failed.length && !queued.length) {
+    const e = document.createElement('div'); e.className = 'hint'; e.textContent = 'Nothing here yet.'; sec.appendChild(e);
+  }
+  drafted.forEach(c => {
+    const row = document.createElement('div'); row.className = 'draft-item';
+    const t = document.createElement('div'); t.textContent = previewLine(c);
+    const b = document.createElement('button'); b.className = 'action-btn'; b.type = 'button'; b.textContent = 'Open this draft'; b.style.marginTop = '8px';
+    b.addEventListener('click', () => loadDraftConcept(c));
+    row.append(t, b); sec.appendChild(row);
+  });
+  failed.forEach(c => {
+    const row = document.createElement('div'); row.className = 'draft-item';
+    const t = document.createElement('div'); t.textContent = previewLine(c);
+    const w = document.createElement('div'); w.className = 'why'; w.textContent = 'Could not be written: ' + (c.reasons || []).join('; ');
+    row.append(t, w); sec.appendChild(row);
+  });
+  queued.forEach(c => {
+    const row = document.createElement('div'); row.className = 'draft-item waiting';
+    const t = document.createElement('div'); t.textContent = previewLine(c);
+    const w = document.createElement('div'); w.className = 'hint'; w.textContent = 'Waiting to be drafted';
+    row.append(t, w); sec.appendChild(row);
+  });
+  list.appendChild(sec);
+}
+
 async function refreshDrafts() {
   const list = document.getElementById('drafts-list');
   try {
-    const [ok, bad] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed')]);
+    const [ok, bad, wait] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed'), api('/api/concepts?status=queued')]);
     if (!ok.ok) { say('err', failText(ok)); return; }
     list.innerHTML = '';
     const drafted = ok.data.concepts || [];
     const failed = (bad.ok ? bad.data.concepts : []) || [];
-    if (!drafted.length && !failed.length) list.textContent = 'Nothing yet.';
-    drafted.forEach(c => {
-      const row = document.createElement('div'); row.className = 'draft-item';
-      const t = document.createElement('div'); t.textContent = (c.concept || '').slice(0, 120);
-      const b = document.createElement('button'); b.className = 'action-btn'; b.type = 'button'; b.textContent = 'Open this draft'; b.style.marginTop = '8px';
-      b.addEventListener('click', () => loadDraftConcept(c));
-      row.append(t, b); list.appendChild(row);
-    });
-    failed.forEach(c => {
-      const row = document.createElement('div'); row.className = 'draft-item';
-      const t = document.createElement('div'); t.textContent = (c.concept || '').slice(0, 120);
-      const w = document.createElement('div'); w.className = 'why'; w.textContent = 'Could not be written: ' + (c.reasons || []).join('; ');
-      row.append(t, w); list.appendChild(row);
-    });
+    const queued = (wait.ok ? wait.data.concepts : []) || [];
+    addSection(list, 'Build notes series', drafted.filter(isSeries), failed.filter(isSeries), queued.filter(isSeries));
+    addSection(list, 'Your ideas', drafted.filter(c => !isSeries(c)), failed.filter(c => !isSeries(c)), queued.filter(c => !isSeries(c)));
   } catch (e) { say('err', e.message || 'Could not reach the server.'); }
 }
+document.getElementById('drafts-refresh2').addEventListener('click', refreshDrafts);
 document.getElementById('drafts-refresh').addEventListener('click', refreshDrafts);
 
 // ---- Album ----
