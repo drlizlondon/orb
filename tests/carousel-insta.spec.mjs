@@ -675,7 +675,11 @@ await check('Drag words (AC3, AC4): at 390px with touch, dragging the title move
   let k = await page.evaluate(() => lastRes[1].blocks.title); assert.ok(k.x >= 0 && k.y >= 0 && k.x + k.w <= 1080 && k.y + k.h <= 1350, JSON.stringify(k)); assert.ok(k.y < 2 && k.x < 2, 'pinned at the corner ' + JSON.stringify(k));
   await touchDrag(page, cdp, handleOf(page, 1, 'title'), 300, 600);
   k = await page.evaluate(() => lastRes[1].blocks.title); assert.ok(k.x + k.w <= 1080.01 && k.y + k.h <= 1350.01 && k.x >= 0 && k.y >= 0, JSON.stringify(k));
-  assert.ok(await page.evaluate(() => { const o = cards[1].offsets.title; return Math.abs(o.dx) < 1080 && Math.abs(o.dy) < 1350; }), 'a clamped offset is kept, not the raw drag');
+  assert.ok(await page.evaluate(() => { const o = cards[1].offsets.title, b = lastRes[1].blocks.title; return o.dx === b.dx && o.dy === b.dy; }), 'the kept offset is the applied (clamped) one, not the raw drag');
+  // it survives a reload: the saved slide comes back with its offset (loadDeck -> norm)
+  const kept = await page.evaluate(() => cards[1].offsets.title);
+  await page.reload(); await page.waitForFunction(() => typeof cards !== 'undefined' && cards.length > 1);
+  assert.deepEqual(await page.evaluate(() => cards[1].offsets.title), kept);
   assert.deepEqual(errors, []);
   await ctx.close();
 });
