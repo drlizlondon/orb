@@ -114,7 +114,9 @@ async function detectFace(img) {
 
 const T = { W: 1080, H: 1350, margin: 48, bottom: 96, maxTextTop: 0.5, titleMaxW: 800, subMaxW: 700,
   titleSize: [84, 72], titleMin: 48, titleStep: 6, subSize: 38, subMin: 30, subLH: 1.22, kickerSize: 58, numSize: 130,
-  handleSize: 46, counterSize: 30, swipeSize: 48, K: 0.6 };
+  handleSize: 46, counterSize: 30, swipeSize: 48, K: 0.6,
+  // SOC-18.1: the 1080x1920 reel safe zone (addendum SOC-17 2026-11-20; capY is the approved prototype's caption centre)
+  SAFE: { top: 260, bottom: 1700, left: 48, right: 940, capW: 800, capBottom: 1640, capY: 1560 } };
 const coverDefaults = () => ({ kicker: 'Dr Liz London', h1: 'Using', h2: 'AI', h3: 'to Earn More', h4: 'and', h5: 'Work Less' });
 
 function fontsReady() {
@@ -252,5 +254,41 @@ function twoPass(cv, draw, im, opts) {
 function renderSlide(cv, slide, i, total, im, opts) { return twoPass(cv, ctx => drawText(ctx, slide, i, total), im, opts); }
 function renderSeries(cv, cover, i, total, im, opts) { return twoPass(cv, ctx => drawSeries(ctx, cover, i, total), im, opts); }
 
-window.OneLook = { T, C, pad3, coverDefaults, fontsReady, detectFace, placeFaceSafe, place, renderSlide, renderSeries };
+// ---------- the reel overlay (SOC-18.1) ----------
+// Transparent 1080x1920 layer: one handle tag at the safe-zone corner, one caption centred above the caption line.
+// Every word drawn comes from the input; empty input draws nothing. Caption look = the approved prototype: white, weight 900, black outline, soft shadow.
+function renderReelOverlay(cv, o) {
+  o = o || {}; const handle = o.handle || '', caption = o.caption || '', S = T.SAFE;
+  cv.width = 1080; cv.height = 1920; const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 1080, 1920);
+  const rects = { tag: null, caption: null };
+  let captionSize = 0, fits = true;
+  if (handle) {
+    ctx.save();
+    const tag = block(ctx, { x: S.left, y: S.top, text: handle, font: '700 italic ' + T.handleSize + 'px ' + CAVEAT, size: T.handleSize, padL: 30, padR: 30, padT: 8, padB: 18, rad: 10, amp: 8, seed: 21, brush: true, color: C.soft, base: 0.82 });
+    underline(ctx, S.left + 40, S.left + tag.w - 40, tag.y + tag.h - 9, C.hot, -2);
+    rects.tag = { x: tag.x, y: tag.y, w: tag.w, h: tag.h };
+    ctx.restore();
+  }
+  if (caption) {
+    ctx.save();
+    const capFont = n => '900 ' + n + 'px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    let size = 104; ctx.font = capFont(size);
+    while (size > 40 && ctx.measureText(caption).width + 14 > S.capW) { size -= 2; ctx.font = capFont(size); }
+    const w = ctx.measureText(caption).width + 14;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowOffsetY = 6; ctx.shadowBlur = 18; ctx.shadowColor = 'rgba(0,0,0,.6)';
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 14; ctx.lineJoin = 'round'; ctx.strokeText(caption, 540, S.capY);
+    ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    ctx.fillStyle = '#fff'; ctx.fillText(caption, 540, S.capY);
+    ctx.restore();
+    rects.caption = { x: 540 - w / 2, y: S.capY - size * 0.6, w, h: size * 1.2 };
+    captionSize = size; fits = w <= S.capW;
+  }
+  const t = rects.tag, c = rects.caption;
+  const safe = (!t || (t.x >= S.left && t.y >= S.top && t.x + t.w <= S.right)) &&
+    (!c || (c.x >= S.left && c.y >= S.top && c.x + c.w <= S.right && c.y + c.h <= S.capBottom && c.x >= 1080 - S.right));
+  return { rects, captionSize, fits, safe };
+}
+
+window.OneLook = { T, C, pad3, coverDefaults, fontsReady, detectFace, placeFaceSafe, place, renderSlide, renderSeries, renderReelOverlay };
 })();

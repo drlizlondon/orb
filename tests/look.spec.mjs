@@ -57,7 +57,7 @@ async function t(name, fn) { try { await fn(); passed++; console.log('PASS ' + n
 
 await t('API surface and tokens', async () => {
   const k = await page.evaluate(() => ({ keys: Object.keys(OneLook).sort(), T: OneLook.T, C: OneLook.C, pad: OneLook.pad3(7), cd: OneLook.coverDefaults() }));
-  assert.deepEqual(k.keys, ['C', 'T', 'coverDefaults', 'detectFace', 'fontsReady', 'pad3', 'place', 'placeFaceSafe', 'renderSeries', 'renderSlide']);
+  assert.deepEqual(k.keys, ['C', 'T', 'coverDefaults', 'detectFace', 'fontsReady', 'pad3', 'place', 'placeFaceSafe', 'renderReelOverlay', 'renderSeries', 'renderSlide']);
   assert.equal(k.pad, '#007');
   assert.deepEqual(k.cd, { kicker: 'Dr Liz London', h1: 'Using', h2: 'AI', h3: 'to Earn More', h4: 'and', h5: 'Work Less' });
   for (const [n, v] of Object.entries({ W: 1080, H: 1350, margin: 48, bottom: 96, maxTextTop: 0.5, titleMaxW: 800, subMaxW: 700, titleMin: 48, titleStep: 6, subSize: 38, subMin: 30, subLH: 1.22, kickerSize: 58, numSize: 130, handleSize: 46, counterSize: 30, swipeSize: 48, K: 0.6 })) assert.equal(k.T[n], v, 'T.' + n);
