@@ -17,6 +17,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const FILE = process.env.PAGE_FILE || path.join(root, 'dist/carousel-insta/index.html');
 const LOOK = path.join(root, 'dist/carousel-insta/look.js');
+const REEL = path.join(root, 'dist/carousel-insta/reel.js');
 const OLD_PAGE = path.join(here, 'fixtures/carousel-insta-66d8942.html'); // the page as it was at orb 66d8942 (106 controls, 43 editable, 7.2 screens)
 const COVER = path.join(root, 'dist/cover-series/index.html');
 const require = createRequire(import.meta.url);
@@ -99,6 +100,7 @@ const site = http.createServer((req, res) => {
   const p = req.url.split('?')[0];
   const send = (f, t) => { res.writeHead(200, { 'content-type': t }); res.end(fs.readFileSync(f)); };
   if (p === '/look.js') return send(LOOK, 'text/javascript');
+  if (p === '/reel.js') return send(REEL, 'text/javascript');
   if (p === '/old/') return send(OLD_PAGE, 'text/html');
   if (p === '/cover/') return send(COVER, 'text/html');
   if (p === '/') return send(FILE, 'text/html');
@@ -153,15 +155,15 @@ const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('appr
 
 // ===== Simplicity caps =====
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
-  await check(`Ready at ${vpName}: 6 drafts with pictures, controls <= drafts + 2, <= 2 screens, <= 25 furniture words, no "Check for drafts"; an injected button trips the cap`, async () => {
+  await check(`Ready at ${vpName}: 6 drafts with pictures, controls <= drafts + 4 (two buttons, Carousels and Reels, join New idea and More), <= 2 screens, <= 27 furniture words (25 plus the two new button words), no "Check for drafts"; an injected button trips the cap`, async () => {
     const { page, errors, ctx } = await open(vp);
     assert.equal(await page.locator('.ready-item:visible').count(), 6);
     await page.waitForFunction(() => [...document.querySelectorAll('.ready-item img')].length === 6 && [...document.querySelectorAll('.ready-item img')].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
     assert.equal(await page.textContent('#ready-heading'), 'Ready to post (6)');
     const m = await metrics(page);
-    assert.ok(m.controls <= 6 + 2, 'controls ' + m.controls);
+    assert.ok(m.controls <= 6 + 4, 'controls ' + m.controls);
     assert.ok(m.height <= 2 * m.vh, 'height ' + m.height);
-    assert.ok(m.words <= 25, 'furniture words ' + m.words);
+    assert.ok(m.words <= 27, 'furniture words ' + m.words);
     assert.equal(await page.getByText('Check for drafts').count(), 0);
     assert.equal(await page.getByText('Refresh').count(), 0);
     assert.equal(await page.textContent('h1'), 'Insta Creator');
@@ -170,7 +172,7 @@ for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
     assert.match(await page.locator('.ready-title').first().textContent(), /foxtrot/);
     // must-fail: one more visible button breaks the very assert above
     await page.evaluate(() => { const b = document.createElement('button'); b.textContent = 'Check for drafts'; document.getElementById('ready-main').appendChild(b); });
-    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 2, 'the cap assert must fire on an extra button, controls ' + m2.controls);
+    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 4, 'the cap assert must fire on an extra button, controls ' + m2.controls);
     assert.deepEqual(errors, []);
     await ctx.close();
   });
@@ -756,7 +758,7 @@ await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain 
   assert.ok(!/[–—]/.test(src), 'dash'); assert.ok(!/calm/i.test(src), 'calm');
   assert.ok(!(/function\s+renderDeck/.test(src) && /carousel_decks_v2/.test(src) && /syncDomToState/.test(src)));
   const routes = [...new Set([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)/g)].map(m => m[1]).concat([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)\?/g)].map(m => m[1])))].sort();
-  assert.deepEqual(routes, ['/api/album', '/api/concepts', '/api/drafts/', '/api/publish', '/api/run-now', '/api/series', '/api/series/floor']);
+  assert.deepEqual(routes, ['/api/album', '/api/concepts', '/api/drafts/', '/api/publish', '/api/reels', '/api/reels/', '/api/run-now', '/api/series', '/api/series/floor']);
   assert.ok(/'\/api\/drafts\/' \+ encodeURIComponent\(id\) \+ '\/approve'/.test(src));
   assert.ok(!/localStorage\.setItem\(\s*LS_TOKEN[^)]*\)\s*;?\s*\n[^]*fetch\(\s*['"]http/.test(src));
   execFileSync('node', ['/Users/lizzie/NightMode/scripts/no-stray-orb-tool.mjs'], { stdio: 'pipe' });

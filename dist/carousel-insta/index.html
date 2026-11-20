@@ -57,6 +57,27 @@
   .ready-actions button { flex: 1 1 0; }
   #ready-waiting { font-size: 15px; opacity: 0.85; margin: 6px 0; }
 
+  /* home choice: Carousels and Reels, two equal buttons */
+  #home-choice { display: flex; gap: 10px; margin: 6px 0 14px; }
+  #home-choice button { flex: 1 1 0; }
+  #home-choice button[aria-current="page"] { box-shadow: 0 0 0 3px #faf1e2; }
+
+  /* reels */
+  #reel-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 12px; }
+  .reel-item { background: rgba(250,241,226,0.1); border: 2px solid #f9c9e6; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .reel-open { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; background: none; color: #faf1e2; border: none; padding: 4px; }
+  .reel-open:disabled { opacity: 0.7; cursor: default; }
+  .reel-title { font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+  .reel-status { font-size: 14px; opacity: 0.9; overflow-wrap: anywhere; }
+  .reel-item, .reel-open { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .reel-open { word-break: break-word; }
+  #narrator-box { margin-top: 12px; }
+  #reel-script { min-height: 120px; }
+  #nr-video { display: block; margin: 0 auto 8px; height: min(60vh, 640px); aspect-ratio: 9 / 16; max-width: 100%; background: #5a2578; border-radius: 10px; }
+  #nr-status { text-align: center; font-size: 15px; font-weight: 700; margin: 6px 0; }
+  #nr-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #3a1150; border-top: 2px solid #f9c9e6; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); z-index: 50; }
+  #nr-bar .main-btn { width: 100%; }
+
   /* screen 2: check and approve */
   .top-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
   .top-row h2 { margin: 0; }
@@ -108,6 +129,10 @@
   <div id="conn-slot-ready"></div>
   <div id="ready-msg" class="msg" role="status" aria-live="polite"></div>
   <div id="ready-main">
+    <div id="home-choice">
+      <button id="carousels-btn" class="main-btn" type="button" aria-current="page">Carousels</button>
+      <button id="trial-btn" class="main-btn" type="button">Reels</button>
+    </div>
     <p id="ready-status" class="hint"></p>
     <button id="ready-retry" class="quiet-btn" type="button" hidden>Try again</button>
     <h2 id="ready-heading" hidden>Ready to post (0)</h2>
@@ -117,6 +142,42 @@
     <div class="ready-actions">
       <button id="new-idea-btn" class="main-btn" type="button">New idea</button>
       <button id="more-btn" class="quiet-btn" type="button">More</button>
+    </div>
+  </div>
+</section>
+
+<section id="screen-trial" class="col" hidden>
+  <div class="top-row">
+    <button id="trial-back" class="quiet-btn small-btn" type="button">Back</button>
+    <h2>Reels</h2>
+  </div>
+  <div id="conn-slot-trial"></div>
+  <div id="trial-main">
+    <p class="hint">Save a reel to your phone, then post it in Instagram with Trial switched on.</p>
+    <div id="narrator-box" class="panel">
+      <h2>Narrator reel</h2>
+      <label for="reel-script">Your script</label>
+      <textarea id="reel-script" rows="5"></textarea>
+      <p class="hint">Lewis reads it over your album videos. Your reels run about 10 seconds.</p>
+      <button id="reel-make" class="main-btn" type="button" disabled>Make reel</button>
+      <div id="reel-msg" class="msg" role="status" aria-live="polite"></div>
+    </div>
+    <div id="reel-list"></div>
+    <h2 id="reel-saved-heading" hidden></h2>
+    <div id="reel-saved-list"></div>
+  </div>
+</section>
+
+<section id="screen-reel" class="col" hidden>
+  <div class="top-row">
+    <button id="reel-back" class="quiet-btn small-btn" type="button">Back</button>
+  </div>
+  <video id="nr-video" controls playsinline loop></video>
+  <div id="nr-status" role="status" aria-live="polite"></div>
+  <div id="nr-bar">
+    <div class="bar-in">
+      <div id="nr-msg" class="msg" role="status" aria-live="polite"></div>
+      <button id="nr-save" class="main-btn" type="button" disabled>Save to phone</button>
     </div>
   </div>
 </section>
@@ -252,6 +313,7 @@
 <input type="file" id="photo-input" accept="image/*" style="display:none">
 
 <script src="look.js"></script>
+<script src="reel.js"></script>
 <script>
 const STORE_KEY = 'ig_carousel_v1';
 const TYPE_KEY = 'ig_post_type_v1';
@@ -317,7 +379,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function msgFor(name) {
   if (!$('idea-sheet').hidden) return $('idea-msg');
   if (!$('more-sheet').hidden) return $('more-msg');
-  return $({ ready: 'ready-msg', review: 'msg', edit: 'edit-msg' }[name || current]);
+  return $({ ready: 'ready-msg', trial: 'reel-msg', reel: 'nr-msg', review: 'msg', edit: 'edit-msg' }[name || current]);
 }
 function say(kind, text, list) {
   const m = msgFor(); if (!m) return;
@@ -326,9 +388,11 @@ function say(kind, text, list) {
 }
 function clearMsg(m) { if (m) { m.className = 'msg'; m.textContent = ''; } }
 function show(name) {
-  ['ready', 'review', 'edit'].forEach(n => { $('screen-' + n).hidden = n !== name; });
+  ['ready', 'trial', 'reel', 'review', 'edit'].forEach(n => { $('screen-' + n).hidden = n !== name; });
   current = name; clearMsg(msgFor(name));
-  document.body.classList.toggle('has-bar', name !== 'ready');
+  document.body.classList.toggle('has-bar', name !== 'ready' && name !== 'trial');
+  if (name !== 'reel') releaseReelVideo();
+  if (name !== 'trial') clearTimeout(reelPoll);
   window.scrollTo(0, 0);
 }
 
@@ -375,8 +439,9 @@ $('set-save').addEventListener('click', () => {
 function applyConnection() {
   const on = connected();
   $('ready-main').hidden = !on;
+  $('trial-main').hidden = !on;
   if (on) { if (!$('more-sheet').hidden) placeConn('conn-slot-more'); else $('conn-pool').appendChild($('conn-box')); }
-  else placeConn('conn-slot-ready');
+  else placeConn(current === 'trial' ? 'conn-slot-trial' : 'conn-slot-ready');
 }
 
 // ---------- images and faces ----------
@@ -930,10 +995,150 @@ $('approve-btn').addEventListener('click', async () => {
 });
 function reviewBlockedNow() { return lastRes.some(r => r && (r.faceClear === false || r.fits === false)); }
 
+// ---------- reels (SOC-18.5 + 18.5a) ----------
+let reels = [];
+let reelPoll = null;
+let reelUrl = null;
+let reelOpenTok = 0;
+const reelWaiting = () => reels.some(r => r.status === 'queued' || r.status === 'rendering');
+const seconds = r => (r.durationMs / 1000).toFixed(1) + ' seconds';
+function reelTitle(r) { const t = String(r.script || ''); return t.length > 60 ? t.slice(0, 60) + '...' : t; }
+function reelStatusLine(r) {
+  if (r.status === 'queued') return 'Waiting for your Mac';
+  if (r.status === 'rendering') return 'Being made';
+  if (r.status === 'ready') return 'Ready, ' + seconds(r);
+  if (r.status === 'approved') return 'Approved, ' + seconds(r);
+  if (r.status === 'failed') return 'Could not make it: ' + ((r.reasons && r.reasons[0]) || 'unknown reason');
+  return r.videoGone ? 'Saved, video no longer kept' : 'Saved';
+}
+function reelRow(r) {
+  const row = document.createElement('div'); row.className = 'reel-item'; row.dataset.id = r.id;
+  const open = document.createElement('button'); open.type = 'button'; open.className = 'reel-open';
+  const t = document.createElement('span'); t.className = 'reel-title'; t.textContent = reelTitle(r);
+  const st = document.createElement('span'); st.className = 'reel-status'; st.textContent = reelStatusLine(r);
+  open.append(t, st);
+  const playable = (r.status === 'ready' || r.status === 'approved' || r.status === 'saved') && !r.videoGone;
+  if (playable) open.addEventListener('click', () => openReel(r)); else open.disabled = true;
+  row.appendChild(open);
+  if (r.status === 'failed') {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'reel-retry quiet-btn small-btn'; b.textContent = 'Try again';
+    b.addEventListener('click', () => retryReel(r.id)); row.appendChild(b);
+  }
+  if (r.status === 'ready') {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'reel-approve-' + r.id; b.className = 'main-btn'; b.textContent = 'Approve';
+    b.addEventListener('click', () => approveReel(r.id, b)); row.appendChild(b);
+  }
+  return row;
+}
+function renderReels() {
+  const list = $('reel-list'), sl = $('reel-saved-list');
+  list.textContent = ''; sl.textContent = '';
+  const open = reels.filter(r => r.status !== 'saved'), saved = reels.filter(r => r.status === 'saved');
+  open.forEach(r => list.appendChild(reelRow(r)));
+  saved.forEach(r => sl.appendChild(reelRow(r)));
+  $('reel-saved-heading').hidden = !saved.length;
+  $('reel-saved-heading').textContent = 'Saved (' + saved.length + ')';
+}
+async function loadReels() {
+  clearTimeout(reelPoll);
+  if (!connected() || current !== 'trial') return;
+  try {
+    const r = await api('/api/reels');
+    if (r.ok && Array.isArray(r.data.reels)) { reels = r.data.reels; renderReels(); }
+  } catch (e) {}
+  if (current === 'trial' && reelWaiting()) reelPoll = setTimeout(loadReels, 30000);
+}
+function openTrial() {
+  show('trial'); applyConnection();
+  try { history.replaceState(null, '', '#reels'); } catch (e) {}
+  $('reel-make').disabled = !$('reel-script').value.trim();
+  loadReels();
+}
+function openCarousels() { show('ready'); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+$('trial-btn').addEventListener('click', openTrial);
+$('carousels-btn').addEventListener('click', openCarousels);
+$('trial-back').addEventListener('click', openCarousels);
+$('reel-script').addEventListener('input', () => { $('reel-make').disabled = !$('reel-script').value.trim(); });
+$('reel-make').addEventListener('click', async () => {
+  const text = $('reel-script').value.trim(), msg = $('reel-msg');
+  if (!text) return;
+  $('reel-make').disabled = true;
+  try {
+    const r = await api('/api/reels', 'POST', { script: text });
+    if (r.status === 201) {
+      $('reel-script').value = '';
+      msg.className = 'msg ok'; msg.textContent = 'On its way. Your Mac makes it in a few minutes, then it shows here.';
+      await loadReels();
+    } else if (r.status === 422) {
+      msg.className = 'msg err'; msg.textContent = 'This script needs a change:';
+      const ul = document.createElement('ul');
+      (r.data.reasons || []).slice(0, 3).forEach(x => { const li = document.createElement('li'); li.textContent = x; ul.appendChild(li); });
+      msg.appendChild(ul);
+    } else { msg.className = 'msg err'; msg.textContent = 'Could not send it. Check your connection and try again.'; }
+  } catch (e) { msg.className = 'msg err'; msg.textContent = 'Could not send it. Check your connection and try again.'; }
+  $('reel-make').disabled = !$('reel-script').value.trim();
+});
+async function retryReel(id) {
+  try { await api('/api/reels/' + encodeURIComponent(id) + '/retry', 'POST', {}); } catch (e) {}
+  loadReels();
+}
+async function approveReel(id, btn) {
+  btn.disabled = true;
+  const msg = $('reel-msg');
+  try {
+    const r = await api('/api/reels/' + encodeURIComponent(id) + '/approve', 'POST', {});
+    if (r.ok) { msg.className = 'msg ok'; msg.textContent = 'Approved. Open it to save it to your phone.'; }
+    else if (r.status === 409) { msg.className = 'msg warn'; msg.textContent = 'This reel was already approved.'; }
+    else { msg.className = 'msg err'; msg.textContent = 'Could not approve it. Check your connection and try again.'; }
+  } catch (e) { msg.className = 'msg err'; msg.textContent = 'Could not approve it. Check your connection and try again.'; }
+  loadReels();
+}
+function releaseReelVideo() {
+  reelOpenTok++;
+  const v = $('nr-video');
+  if (reelUrl) { try { v.removeAttribute('src'); v.load(); } catch (e) {} URL.revokeObjectURL(reelUrl); reelUrl = null; }
+}
+async function openReel(r) {
+  show('reel');
+  const tok = ++reelOpenTok;
+  const status = $('nr-status'), save = $('nr-save'), msg = $('nr-msg');
+  save.disabled = true; msg.className = 'msg';
+  // Save to phone only after Approve (18.5a): ready reels have no Save button.
+  const canSave = r.status === 'approved' || r.status === 'saved';
+  save.hidden = !canSave;
+  if (!canSave) { msg.className = 'msg warn'; msg.textContent = 'Approve this reel on the Reels screen first. Then you can save it.'; }
+  status.textContent = 'Getting your reel...';
+  let res;
+  try { res = await fetch(workerBase() + '/api/reels/' + encodeURIComponent(r.id) + '/video', { headers: { Authorization: 'Bearer ' + workerToken() } }); } catch (e) { res = null; }
+  if (tok !== reelOpenTok) return;
+  if (!res || !res.ok) { status.textContent = res && res.status === 404 ? 'This video is no longer kept.' : 'Could not get the video. Go back and try again.'; return; }
+  const blob = await res.blob();
+  if (tok !== reelOpenTok) return;
+  const file = new File([blob], 'drliz-reel-' + r.id + '.mp4', { type: 'video/mp4' });
+  reelUrl = URL.createObjectURL(file);
+  $('nr-video').src = reelUrl;
+  status.textContent = (r.status === 'saved' ? 'Saved, ' : r.status === 'approved' ? 'Approved, ' : 'Ready, ') + seconds(r) + '.';
+  save.disabled = !canSave;
+  save.onclick = async () => {
+    save.disabled = true;
+    let out;
+    try { out = await OneReel.save(file); } catch (e) { out = 'cancelled'; }
+    if (out === 'cancelled') { msg.className = 'msg warn'; msg.textContent = 'Not saved.'; save.disabled = false; return; }
+    try {
+      const m = await api('/api/reels/' + encodeURIComponent(r.id) + '/saved', 'POST', {});
+      if (m.ok) { msg.className = 'msg ok'; msg.textContent = 'Saved. Now post it in Instagram with Trial switched on.'; }
+      else { msg.className = 'msg warn'; msg.textContent = 'Saved to your phone, but could not mark it here.'; }
+    } catch (e) { msg.className = 'msg warn'; msg.textContent = 'Saved to your phone, but could not mark it here.'; }
+    save.disabled = false;
+  };
+}
+$('reel-back').addEventListener('click', () => openTrial());
+
 // ---------- start ----------
 showSettingsState();
 setType(type);
 syncCoverFields();
+if (location.hash === '#reels' || location.hash === '#trial') { applyConnection(); openTrial(); }
 if (location.hash === '#series') { cards = defaultDeck().map(norm); setType('series'); renderEdit(); show('edit'); }
 applyConnection();
 if (connected()) loadAll();
