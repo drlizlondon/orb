@@ -144,74 +144,107 @@ function layout(ctx, s, titleSize, subSize) {
   if (s.swipe) h += 14 + T.swipeSize + 26;
   return { tl, sl, h };
 }
+// SOC-18.10: every movable block is drawn through g(name, fn). fn(c, R) draws on c and reports its rects through R (the same
+// calls drawText/drawSeries always made). With no offset for the name, fn runs once, on the real ctx, exactly as before.
+// With an offset {dx, dy} (1080-wide slide units) fn first runs on a scratch canvas to learn the block's box, the offset is
+// clamped so the whole box stays inside the slide, then fn runs on the real ctx under translate. Reported rects and blocks[name] are the moved ones.
+let scratchCtx = null;
+function scratch() { if (!scratchCtx) { const cv = document.createElement('canvas'); cv.width = T.W; cv.height = T.H; scratchCtx = cv.getContext('2d'); } return scratchCtx; }
+function mover(ctx, offsets, rects, blocks) {
+  return function g(name, fn) {
+    const o = offsets && offsets[name], want = { dx: (o && +o.dx) || 0, dy: (o && +o.dy) || 0 };
+    const box = () => { let b = null; return { R(r) { if (!(r.w > 0) || !(r.h > 0)) return; if (!b) b = { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }; else { b.x0 = Math.min(b.x0, r.x); b.y0 = Math.min(b.y0, r.y); b.x1 = Math.max(b.x1, r.x + r.w); b.y1 = Math.max(b.y1, r.y + r.h); } }, get: () => b }; };
+    let dx = 0, dy = 0;
+    if ((want.dx || want.dy) && Number.isFinite(want.dx) && Number.isFinite(want.dy)) {
+      const m = box(), sc = scratch(); sc.save(); fn(sc, m.R); sc.restore();
+      const b = m.get();
+      if (b) { dx = Math.max(-b.x0, Math.min(T.W - b.x1, want.dx)); dy = Math.max(-b.y0, Math.min(T.H - b.y1, want.dy)); }
+    }
+    const m = box();
+    const R = (r, p) => { m.R(r); p = p || 0; if (!(r.w > 0) || !(r.h > 0)) return; rects.push({ x: r.x + dx - p, y: r.y + dy - p, w: r.w + 2 * p, h: r.h + 2 * p }); };
+    let out;
+    if (dx || dy) { ctx.save(); ctx.translate(dx, dy); out = fn(ctx, R); ctx.restore(); } else out = fn(ctx, R);
+    const b = m.get();
+    if (b) blocks[name] = { x: b.x0 + dx, y: b.y0 + dy, w: b.x1 - b.x0, h: b.y1 - b.y0, dx, dy };
+    return out;
+  };
+}
 function drawText(ctx, s, i, total) {
-  const { rects, R } = rectsOf();
+  const { rects, R } = rectsOf(), blocks = {}, g = mover(ctx, s.offsets, rects, blocks);
   let titleSize = T.titleSize[i === 0 ? 0 : 1], subSize = T.subSize, L = layout(ctx, s, titleSize, subSize);
   const maxH = T.H * (1 - T.maxTextTop) - T.bottom;
   while (L.h > maxH && titleSize > T.titleMin) { titleSize -= T.titleStep; L = layout(ctx, s, titleSize, subSize); }
   while (L.h > maxH && subSize > T.subMin) { subSize -= 2; L = layout(ctx, s, titleSize, subSize); }
   const fits = L.h <= maxH;
   // top row: handle (left), page count (right)
-  if (s.handle) {
-    const tag = block(ctx, { x: T.margin, y: 48, text: s.handle, font: '700 italic ' + T.handleSize + 'px ' + CAVEAT, size: T.handleSize, padL: 30, padR: 30, padT: 8, padB: 18, rad: 10, amp: 8, seed: 21, brush: true, color: C.soft, base: 0.82 });
-    underline(ctx, T.margin + 40, T.margin + tag.w - 40, tag.y + tag.h - 9, C.hot, -2); R(tag, 6);
-  }
+  if (s.handle) g('handle', (c, R) => {
+    const tag = block(c, { x: T.margin, y: 48, text: s.handle, font: '700 italic ' + T.handleSize + 'px ' + CAVEAT, size: T.handleSize, padL: 30, padR: 30, padT: 8, padB: 18, rad: 10, amp: 8, seed: 21, brush: true, color: C.soft, base: 0.82 });
+    underline(c, T.margin + 40, T.margin + tag.w - 40, tag.y + tag.h - 9, C.hot, -2); R(tag, 6);
+  });
   R(counter(ctx, i, total), 4);
   let y = T.H - T.bottom - L.h; const x = T.margin;
   if (s.num) {
-    const nb = block(ctx, { x: x + 10, y, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: 40, padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, ins: [4, 8, 0, 8], base: 0.86 }); R(nb, 8);
-    if (s.kicker) { const kb = block(ctx, { x: nb.x + nb.w + 16, y: y + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); }
+    const y0 = y;
+    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: 40, padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
+    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); });
     y += nb.h + 14;
   } else if (s.kicker) {
-    const kb = block(ctx, { x, y, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); y += T.kickerSize + 30 + 14;
+    const y0 = y;
+    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
   }
-  L.tl.forEach((line, k) => { const tb = block(ctx, { x: x + (k % 2 ? 18 : 0), y, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: 28, padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, base: 0.86 }); R(tb, 6); y += tb.h - 4; });
+  const yT = y;
+  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? 18 : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: 28, padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
   if (L.tl.length) y += 14;
   if (L.sl.length) {
-    ctx.font = '600 ' + subSize + 'px ' + BALOO; const lh = subSize * T.subLH, bw = Math.max(...L.sl.map(t => ctx.measureText(t).width)) + 68, bh = 24 + L.sl.length * lh + 26;
-    fillRough(ctx, x - 14, y, bw, bh, 40, 6, 5, false, C.purple); R({ x: x - 14, y, w: bw, h: bh }, 6);
-    ctx.fillStyle = C.cream; ctx.textBaseline = 'alphabetic'; L.sl.forEach((t, k) => ctx.fillText(t, x - 14 + 34, y + 24 + subSize * 0.82 + k * lh));
+    ctx.font = '600 ' + subSize + 'px ' + BALOO; const lh = subSize * T.subLH, bw = Math.max(...L.sl.map(t => ctx.measureText(t).width)) + 68, bh = 24 + L.sl.length * lh + 26, ys = y;
+    g('sub', (c, R) => {
+      fillRough(c, x - 14, ys, bw, bh, 40, 6, 5, false, C.purple); R({ x: x - 14, y: ys, w: bw, h: bh }, 6);
+      c.font = '600 ' + subSize + 'px ' + BALOO; c.fillStyle = C.cream; c.textBaseline = 'alphabetic'; L.sl.forEach((t, k) => c.fillText(t, x - 14 + 34, ys + 24 + subSize * 0.82 + k * lh));
+    });
     y += bh;
   }
-  if (s.swipe) { const sb = block(ctx, { x, y: y + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: 26, padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, base: 0.84 }); R(sb, 6); }
-  return { rects, titleSize, subSize, fits, textTop: T.H - T.bottom - L.h };
+  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: 26, padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, base: 0.84 }); R(sb, 6); }); }
+  return { rects, blocks, titleSize, subSize, fits, textTop: T.H - T.bottom - L.h };
 }
 // Series slide 1: the cover's own marks (kicker tag, headline blocks, purple arrow box, #NNN badge) in the shared positions.
-function drawSeries(ctx, c, i, total) {
-  const { rects, R } = rectsOf(), K = T.K;
-  if (c.kicker) {
-    const tag = block(ctx, { x: T.margin, y: 48, text: c.kicker, font: '700 italic 62px ' + CAVEAT, size: 62, padL: 36, padR: 34, padT: 10, padB: 24, rad: 10, amp: 10, seed: 21, brush: true, color: C.soft, base: 0.82 });
-    underline(ctx, T.margin + 70, T.margin + tag.w - 70, tag.y + tag.h - 12, C.hot, -3); R(tag, 6);
-  }
+// Movable blocks: kicker (the tag), title (the whole headline stack), strap (the arrow box), badge (#NNN).
+function drawSeries(ctx, c0, i, total) {
+  const c = c0, { rects, R } = rectsOf(), K = T.K, blocks = {}, g = mover(ctx, c.offsets, rects, blocks);
+  if (c.kicker) g('kicker', (cx, R) => {
+    const tag = block(cx, { x: T.margin, y: 48, text: c.kicker, font: '700 italic 62px ' + CAVEAT, size: 62, padL: 36, padR: 34, padT: 10, padB: 24, rad: 10, amp: 10, seed: 21, brush: true, color: C.soft, base: 0.82 });
+    underline(cx, T.margin + 70, T.margin + tag.w - 70, tag.y + tag.h - 12, C.hot, -3); R(tag, 6);
+  });
   R(counter(ctx, i, total), 4);
   // arrow box (only when she has written a strapline)
   ctx.font = '600 italic 31px ' + BALOO; const lines = c.strap ? wrapLines(ctx, c.strap, 538) : [], lh = 36.6, bh = lines.length ? 26 + lines.length * lh + 30 : 0;
   const bannerY = T.H - T.bottom - bh;
   const stackH = Math.round((112 + 18 - 4 + 228 * 0.95 + 6 + 2 + 76 + 14 + 8 + 104 + 14) * K);
   const hy = bannerY - 26 - stackH;
-  const B = (o) => o.text ? block(ctx, o) : { x: o.x, y: o.y, w: 0, h: 0 };
-  ctx.save(); ctx.translate(T.margin - 50 * K, hy); ctx.scale(K, K);
-  let y = 0; const sub = [];
-  const u = B({ x: 76, y, text: c.h1, font: '800 112px ' + BALOO, size: 112, padL: 30, padR: 30, padT: 6, padB: 12, rad: 26, amp: 3.5, seed: 4, color: C.cream, base: 0.86 }); sub.push(u); y += u.h - 4;
-  const ai = B({ x: 102, y, text: c.h2, font: '800 228px ' + BALOO, size: 228, lh: 0.95, padL: 62, padR: 62, padT: 0, padB: 6, rad: 10, amp: 16, seed: 9, brush: true, color: C.pink, ins: [6, 10, 0, 10], base: 0.86 }); sub.push(ai); y += ai.h + 2;
-  const earn = B({ x: 50, y, text: c.h3, font: '800 76px ' + BALOO, size: 76, padL: 26, padR: 26, padT: 6, padB: 8, rad: 22, amp: 3.5, seed: 14, color: C.cream, base: 0.86 }); sub.push(earn); y += earn.h + 8;
-  const and = B({ x: 50, y: y + 20, text: c.h4, font: '800 56px ' + BALOO, size: 56, padL: 20, padR: 20, padT: 10, padB: 12, rad: 20, amp: 3, seed: 17, color: C.cream, base: 0.86 });
-  const wk = B({ x: 50 + and.w - 2, y, text: c.h5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, base: 0.84 }); sub.push(and, wk);
-  if (wk.w) underline(ctx, wk.x + 46, wk.x + wk.w - 50, wk.y + wk.h - 2, C.hot, -3);
-  ctx.restore();
-  sub.forEach(r => R({ x: T.margin - 50 * K + r.x * K, y: hy + r.y * K, w: r.w * K, h: r.h * K }, 8));
-  if (lines.length) {
+  g('title', (cx, R) => {
+    const B = (o) => o.text ? block(cx, o) : { x: o.x, y: o.y, w: 0, h: 0 };
+    cx.save(); cx.translate(T.margin - 50 * K, hy); cx.scale(K, K);
+    let y = 0; const sub = [];
+    const u = B({ x: 76, y, text: c.h1, font: '800 112px ' + BALOO, size: 112, padL: 30, padR: 30, padT: 6, padB: 12, rad: 26, amp: 3.5, seed: 4, color: C.cream, base: 0.86 }); sub.push(u); y += u.h - 4;
+    const ai = B({ x: 102, y, text: c.h2, font: '800 228px ' + BALOO, size: 228, lh: 0.95, padL: 62, padR: 62, padT: 0, padB: 6, rad: 10, amp: 16, seed: 9, brush: true, color: C.pink, ins: [6, 10, 0, 10], base: 0.86 }); sub.push(ai); y += ai.h + 2;
+    const earn = B({ x: 50, y, text: c.h3, font: '800 76px ' + BALOO, size: 76, padL: 26, padR: 26, padT: 6, padB: 8, rad: 22, amp: 3.5, seed: 14, color: C.cream, base: 0.86 }); sub.push(earn); y += earn.h + 8;
+    const and = B({ x: 50, y: y + 20, text: c.h4, font: '800 56px ' + BALOO, size: 56, padL: 20, padR: 20, padT: 10, padB: 12, rad: 20, amp: 3, seed: 17, color: C.cream, base: 0.86 });
+    const wk = B({ x: 50 + and.w - 2, y, text: c.h5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, base: 0.84 }); sub.push(and, wk);
+    if (wk.w) underline(cx, wk.x + 46, wk.x + wk.w - 50, wk.y + wk.h - 2, C.hot, -3);
+    cx.restore();
+    sub.forEach(r => R({ x: T.margin - 50 * K + r.x * K, y: hy + r.y * K, w: r.w * K, h: r.h * K }, 8));
+  });
+  if (lines.length) g('strap', (cx, R) => {
     R({ x: 34, y: bannerY, w: 700, h: bh }, 6);
-    fillRough(ctx, 34, bannerY, 700, bh, 70, 8, 5, false, C.purple);
-    ctx.save(); ctx.strokeStyle = C.hot; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.translate(60, bannerY + 34); ctx.stroke(new Path2D('M4 22c14-4 38-4 56 0M46 8l16 14-14 12')); ctx.restore();
-    ctx.font = '600 italic 31px ' + BALOO; ctx.fillStyle = C.cream; ctx.textBaseline = 'alphabetic'; lines.forEach((t, k) => ctx.fillText(t, 34 + 112, bannerY + 26 + 27 + k * lh));
-    underline(ctx, 34 + 230, 34 + 640, bannerY + bh - 14, C.hot, 2);
-  }
+    fillRough(cx, 34, bannerY, 700, bh, 70, 8, 5, false, C.purple);
+    cx.save(); cx.strokeStyle = C.hot; cx.lineWidth = 5; cx.lineCap = 'round'; cx.lineJoin = 'round'; cx.translate(60, bannerY + 34); cx.stroke(new Path2D('M4 22c14-4 38-4 56 0M46 8l16 14-14 12')); cx.restore();
+    cx.font = '600 italic 31px ' + BALOO; cx.fillStyle = C.cream; cx.textBaseline = 'alphabetic'; lines.forEach((t, k) => cx.fillText(t, 34 + 112, bannerY + 26 + 27 + k * lh));
+    underline(cx, 34 + 230, 34 + 640, bannerY + bh - 14, C.hot, 2);
+  });
   // #NNN badge, bottom right, on the same bottom line as the arrow box
   const ep = pad3(c.num); ctx.font = '700 italic 104px ' + CAVEAT; const ew = ctx.measureText(ep).width + 92, eh = 6 + 104 + 22, ex = T.W - 48 - ew, ey = T.H - T.bottom - eh + 16;
-  R({ x: ex, y: ey, w: ew, h: eh }, 8); fillRough(ctx, ex, ey, ew, eh, 12, 14, 41, true, C.pink); ctx.fillStyle = C.purple; ctx.fillText(ep, ex + 46, ey + 6 + 104 * 0.78); underline(ctx, ex + 60, ex + ew - 60, ey + eh - 12, C.yellow, 0);
+  g('badge', (cx, R) => { R({ x: ex, y: ey, w: ew, h: eh }, 8); fillRough(cx, ex, ey, ew, eh, 12, 14, 41, true, C.pink); cx.font = '700 italic 104px ' + CAVEAT; cx.fillStyle = C.purple; cx.fillText(ep, ex + 46, ey + 6 + 104 * 0.78); underline(cx, ex + 60, ex + ew - 60, ey + eh - 12, C.yellow, 0); });
   const textTop = hy;
-  return { rects, textTop, fits: textTop >= T.H * T.maxTextTop };
+  return { rects, blocks, textTop, fits: textTop >= T.H * T.maxTextTop };
 }
 
 // ---------- the photo ----------
@@ -249,7 +282,7 @@ function twoPass(cv, draw, im, opts) {
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;
   const pl = place(iw, ih, im ? opts.face || null : null, pre.rects, opts.frame || null);
   drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom); draw(ctx);
-  return { rects: pre.rects, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
+  return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
 }
 function renderSlide(cv, slide, i, total, im, opts) { return twoPass(cv, ctx => drawText(ctx, slide, i, total), im, opts); }
 function renderSeries(cv, cover, i, total, im, opts) { return twoPass(cv, ctx => drawSeries(ctx, cover, i, total), im, opts); }

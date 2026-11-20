@@ -1,4 +1,4 @@
-// SOC-13.4 "a check that cannot fail proves nothing": breaks a copy of look.js in 11 ways and demands tests/look.spec.mjs goes red each time.
+// SOC-13.4 "a check that cannot fail proves nothing": breaks a copy of look.js in 15 ways and demands tests/look.spec.mjs or tests/look-offsets.spec.mjs goes red each time.
 // Run: node tests/look-mutations.spec.mjs   (same env as tests/look.spec.mjs)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -19,20 +19,27 @@ const MUT = [
   ['fits always true', s => s.replace('const fits = L.h <= maxH;', 'const fits = true;')],
   ['face check always says clear', s => s.replace('cleared = !rects.some(', 'cleared = true || !rects.some(')],
   ['her frame zoom ignored', s => s.replace('const zoom = frame ? frame.zoom : 1;', 'const zoom = 1;')],
-  ['the old handle drawn on the series slide', s => s.replace("if (c.kicker) {", "if (c.kicker) { ctx.fillText('@drlizlondon', 0, 0);")]
+  ['the old handle drawn on the series slide', s => s.replace("if (c.kicker) g('kicker', (cx, R) => {", "if (c.kicker) g('kicker', (cx, R) => { cx.fillText('@drlizlondon', 0, 0);")],
+  // SOC-18.10
+  ['offsets ignored', s => s.replace('const o = offsets && offsets[name],', 'const o = null,')],
+  ['a default offset of 1 px in y', s => s.replace('dy: (o && +o.dy) || 0 };', 'dy: (o && +o.dy) || 1 };')],
+  ['clamp removed', s => s.replace('dx = Math.max(-b.x0, Math.min(T.W - b.x1, want.dx)); dy = Math.max(-b.y0, Math.min(T.H - b.y1, want.dy));', 'dx = want.dx; dy = want.dy;')],
+  ['moved rects not reported to the face check', s => s.replace('rects.push({ x: r.x + dx - p, y: r.y + dy - p,', 'rects.push({ x: r.x - p, y: r.y - p,')]
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'look-mut-'));
 let bad = 0;
-const base = spawnSync('node', [path.join(here, 'look.spec.mjs')], { encoding: 'utf8' });
-console.log('baseline (unmodified look.js): exit ' + base.status + ' ' + (base.stdout.trim().split('\n').pop()));
-if (base.status !== 0) { console.log('baseline is red, mutation results mean nothing'); process.exit(1); }
+const SPECS = ['look.spec.mjs', 'look-offsets.spec.mjs'];
+const runAll = env => SPECS.map(f => spawnSync('node', [path.join(here, f)], { encoding: 'utf8', env: env ? { ...process.env, ...env } : process.env }));
+const base = runAll();
+console.log('baseline (unmodified look.js): exit ' + base.map(b => b.status).join(',') + ' ' + base.map(b => b.stdout.trim().split('\n').pop()).join(' | '));
+if (base.some(b => b.status !== 0)) { console.log('baseline is red, mutation results mean nothing'); process.exit(1); }
 for (const [name, fn] of MUT) {
   const out = fn(SRC);
   if (out === SRC) { console.log('NOT APPLIED  ' + name + ' (the mutation did not change the file)'); bad++; continue; }
   const f = path.join(dir, 'look.js'); fs.writeFileSync(f, out);
-  const r = spawnSync('node', [path.join(here, 'look.spec.mjs')], { encoding: 'utf8', env: { ...process.env, LOOK_FILE: f } });
-  const fails = (r.stdout.match(/^FAIL .*/gm) || []).map(x => x.slice(5, 70));
-  const caught = r.status !== 0 && fails.length > 0;
+  const rs = runAll({ LOOK_FILE: f });
+  const fails = rs.flatMap(r => (r.stdout.match(/^FAIL .*/gm) || []).map(x => x.slice(5, 70)));
+  const caught = rs.some(r => r.status !== 0) && fails.length > 0;
   if (!caught) bad++;
   console.log((caught ? 'CAUGHT  ' : 'MISSED  ') + name + '\n          -> ' + (fails.join(' || ') || '(suite stayed green)'));
 }

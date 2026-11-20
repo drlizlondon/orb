@@ -637,6 +637,99 @@ await check('dist/cover-series forwards: refresh to ../carousel-insta/#series, t
   await ctx.close();
 });
 
+// ----- SOC-18.10: drag the words -----
+// Touch drag through the browser's own touch pipeline (CDP), on the handle the page puts over each block.
+async function touchDrag(page, cdp, loc, dx, dy) {
+  await loc.evaluate(e => e.closest('.slide-edit').scrollIntoView({ block: 'start' }));
+  const b = await loc.boundingBox(); const x = b.x + b.width / 2, y = b.y + b.height / 2, n = 8;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  for (let k = 1; k <= n; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + dx * k / n, y: y + dy * k / n }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(250);
+}
+async function openTouch(vp) {
+  const ctx = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, hasTouch: true, isMobile: true });
+  await ctx.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.href), r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+  const page = await ctx.newPage(); const errors = [];
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); }); page.on('pageerror', e => errors.push(String(e)));
+  await page.addInitScript(([b, t]) => { localStorage.setItem('orb_worker_base', b); localStorage.setItem('orb_approve_token', t); }, [W, TOKEN]);
+  await page.goto(S); await page.waitForSelector('.ready-item', { timeout: 15000 });
+  return { page, ctx, errors, cdp: await ctx.newCDPSession(page) };
+}
+const handleOf = (page, slide, name) => page.locator('.slide-edit').nth(slide).locator('.mv-handle[data-block="' + name + '"]');
+const handlesUp = page => page.waitForFunction(() => document.querySelectorAll('.mv-handle').length >= 8, null, { timeout: 15000 });
+await check('Drag words (AC3, AC4): at 390px with touch, dragging the title moves it, the slide keeps a non-zero offset, and a far drag stays inside the slide', async () => {
+  const { page, ctx, cdp, errors } = await openTouch(PH);
+  await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn'); await handlesUp(page);
+  assert.equal(await page.evaluate(() => cards[1].offsets), null);
+  assert.equal(await handleOf(page, 1, 'title').evaluate(e => getComputedStyle(e).touchAction), 'none');
+  const before = await page.evaluate(() => lastRes[1].blocks.title.y);
+  await touchDrag(page, cdp, handleOf(page, 1, 'title'), 0, -90);
+  const o = await page.evaluate(() => cards[1].offsets);
+  assert.ok(o && o.title && o.title.dy < -150 && Math.abs(o.title.dx) < 40, JSON.stringify(o));
+  assert.ok(await page.evaluate(b => lastRes[1].blocks.title.y < b - 150, before));
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem(STORE_KEY))[1].offsets.title.dy < 0), true, 'saved with the slide');
+  const hb = await handleOf(page, 1, 'title').boundingBox(), cb = await page.locator('.slide-edit').nth(1).locator('canvas').boundingBox(), t = await page.evaluate(() => lastRes[1].blocks.title);
+  assert.ok(Math.abs((hb.y + 6 - cb.y) / cb.height * 1350 - t.y) < 12, 'the handle sits over the drawn block');
+  await touchDrag(page, cdp, handleOf(page, 1, 'title'), -300, -400);
+  let k = await page.evaluate(() => lastRes[1].blocks.title); assert.ok(k.x >= 0 && k.y >= 0 && k.x + k.w <= 1080 && k.y + k.h <= 1350, JSON.stringify(k)); assert.ok(k.y < 2 && k.x < 2, 'pinned at the corner ' + JSON.stringify(k));
+  await touchDrag(page, cdp, handleOf(page, 1, 'title'), 300, 600);
+  k = await page.evaluate(() => lastRes[1].blocks.title); assert.ok(k.x + k.w <= 1080.01 && k.y + k.h <= 1350.01 && k.x >= 0 && k.y >= 0, JSON.stringify(k));
+  assert.ok(await page.evaluate(() => { const o = cards[1].offsets.title; return Math.abs(o.dx) < 1080 && Math.abs(o.dy) < 1350; }), 'a clamped offset is kept, not the raw drag');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
+await check('Drag words (AC3 export): the PNG sent on approve uses the moved position; with the offsets stripped the same slide draws differently', async () => {
+  const { page, ctx, cdp } = await openTouch(PH);
+  await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn'); await handlesUp(page);
+  await touchDrag(page, cdp, handleOf(page, 1, 'title'), 0, -90);
+  assert.ok(await page.evaluate(() => cards[1].offsets && cards[1].offsets.title));
+  await page.click('#edit-done'); await reviewReady(page); await page.click('#approve-btn'); await approvedMsg(page);
+  const d = lastPub().drafts[0], sent = lastPub().images[d.id]['2'];
+  const r = await page.evaluate(async () => {
+    const cv = document.createElement('canvas'); await drawInto(cv, 1); const moved = cv.toDataURL('image/png').split(',')[1];
+    const saved = cards[1].offsets; cards[1].offsets = null; const cv2 = document.createElement('canvas'); await drawInto(cv2, 1); const plain = cv2.toDataURL('image/png').split(',')[1]; cards[1].offsets = saved;
+    return { moved, plain };
+  });
+  assert.equal(sent, r.moved, 'the sent image is the moved draw'); assert.notEqual(sent, r.plain, 'and it differs from the unmoved draw');
+  await ctx.close();
+});
+const faceMsg = page => page.textContent('#edit-msg');
+await check('Drag words (AC5, AC6): words over the face warn; a drag that still overlaps keeps the warning; dragging every block clear removes it and Approve works; Reset words brings it back', async () => {
+  st.drafted = [faceDeck('blocked', 'gb')];
+  const { page, ctx, cdp } = await openTouch(PH);
+  await page.click('.ready-item');
+  await page.waitForFunction(() => /Words are over your face on slide 2/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  await page.click('#edit-btn');
+  await page.waitForFunction(() => document.querySelectorAll('.slide-edit')[1].querySelectorAll('.mv-handle').length >= 3, null, { timeout: 15000 });
+  const names = await page.evaluate(() => Object.keys(lastRes[1].blocks).filter(n => n !== 'handle'));
+  assert.deepEqual(names.sort(), ['kicker', 'sub', 'title']);
+  await touchDrag(page, cdp, handleOf(page, 1, 'title'), 0, -190);
+  assert.equal(await page.evaluate(() => lastRes[1].faceClear), false); assert.match(await faceMsg(page), /Words are over your face on slide 2/);
+  await touchDrag(page, cdp, handleOf(page, 1, 'sub'), 0, -190);
+  assert.equal(await page.evaluate(() => lastRes[1].faceClear), false);
+  await touchDrag(page, cdp, handleOf(page, 1, 'kicker'), 0, -190);
+  assert.equal(await page.evaluate(() => lastRes[1].faceClear), true); assert.equal(await faceMsg(page), '');
+  await page.click('#edit-done'); await reviewReady(page);
+  assert.ok(!/over your face/.test(await page.textContent('#msg')));
+  await page.click('#edit-btn');
+  const plain = await page.evaluate(async () => { const keep = cards[1].offsets; cards[1].offsets = null; const c = document.createElement('canvas'); await drawInto(c, 1); const h = c.toDataURL(); cards[1].offsets = keep; return h; });
+  const moved = await page.evaluate(async () => { const c = document.createElement('canvas'); await drawInto(c, 1); return c.toDataURL(); });
+  assert.notEqual(plain, moved);
+  await page.locator('.slide-edit').nth(1).getByRole('button', { name: 'Reset words' }).click(); await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => cards[1].offsets), null);
+  assert.equal(await page.evaluate(async () => { const c = document.createElement('canvas'); await drawInto(c, 1); return c.toDataURL(); }), plain);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.slide-edit')[1].querySelector('canvas').toDataURL()), plain, 'the on-screen canvas is back to the plain draw');
+  assert.match(await faceMsg(page), /over your face on slide 2/);
+  await ctx.close();
+});
+await check('Drag words: a deck nobody dragged has no offsets on any slide', async () => {
+  const { page, ctx } = await openTouch(PH);
+  await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn'); await handlesUp(page);
+  assert.ok(await page.evaluate(() => cards.every(c => c.offsets === null)));
+  await ctx.close();
+});
+
 await check('At 390px wide the page has no sideways overflow on each of the three screens, in both modes, and no console errors', async () => {
   const { page, errors, ctx } = await open(PH);
   const ov = () => page.evaluate(() => document.documentElement.scrollWidth - innerWidth);

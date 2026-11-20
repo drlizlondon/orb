@@ -32,6 +32,13 @@ const MUT = [
   ['the old amber is back', rep('.small-btn {', '.small-btn { color: #ffd9a0;')],
   ['the number is added to the caption', rep("const draft = { id, caption, evidence", "const draft = { id, caption: caption + (type === 'series' ? ' ' + OneLook.pad3(n) : ''), evidence")],
   ['success message is hidden before the screen changes (no wait)', rep('await sleep(1500);', '')],
+  // SOC-18.10
+  ['slideFor drops the offsets (preview and export ignore the move)', rep('sub: c.sub, swipe: c.swipe, offsets: c.offsets }; }', 'sub: c.sub, swipe: c.swipe }; }')],
+  ['a drag is not saved with the slide (norm drops offsets)', rep('face: s.face, offsets: s.offsets || null };', 'face: s.face, offsets: null };')],
+  ['the face check is not shown again after a drag', rep('if (afterDrag.delete(i)) editFaceCheck(i);', 'afterDrag.delete(i);')],
+  ['Reset words does nothing', rep('c.offsets = null; persist(); queueDraw(i); afterDrag.add(i);', 'persist();')],
+  ['handles scroll the page instead of dragging (no touch-action none)', rep('touch-action: none; cursor: grab;', 'cursor: grab;')],
+  ['the raw drag is kept instead of the clamped value', rep('else if (o.dx !== b.dx || o.dy !== b.dy) { c.offsets[n] = { dx: b.dx, dy: b.dy }; changed = true; }', '')],
   ['approve can fire before the face check finishes (never disabled while drawing)', rep("  $('approve-btn').disabled = true;\n  const rs = await Promise.all(", "  const rs = await Promise.all(")]
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'creator-mut-'));

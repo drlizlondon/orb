@@ -77,6 +77,9 @@
   .slide-edit { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 16px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 2px solid rgba(249,201,230,0.3); }
   .slide-canvas { width: 100%; max-width: 460px; height: auto; aspect-ratio: 4 / 5; background: #5a2578; border-radius: 10px; display: block; }
   .frame-box { margin-top: 8px; }
+  .canvas-wrap { position: relative; width: 100%; max-width: 460px; }
+  .mv-handle { position: absolute; box-sizing: content-box; padding: 6px; margin: -6px; touch-action: none; cursor: grab; outline: 2px dashed rgba(250,241,226,0.75); outline-offset: -2px; border-radius: 8px; -webkit-user-select: none; user-select: none; }
+  .mv-handle.drag { cursor: grabbing; outline-style: solid; outline-color: #ffd21e; }
   .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 8px 0; }
   .album-grid button { padding: 0; border: 3px solid transparent; border-radius: 10px; overflow: hidden; background: #5a2578; aspect-ratio: 4 / 5; }
   .album-grid button.sel { border-color: #f29bd0; }
@@ -268,7 +271,7 @@ function defaultDeck() {
   ];
 }
 function norm(s) {
-  return { handle: s.handle || '', kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: s.photo || '', frame: s.frame || null, face: s.face };
+  return { handle: s.handle || '', kicker: s.kicker || '', num: s.num || '', title: s.title || '', sub: s.sub || '', swipe: s.swipe || '', photo: s.photo || '', frame: s.frame || null, face: s.face, offsets: s.offsets || null };
 }
 function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -400,8 +403,8 @@ function currentN() {
   const n = parseInt($('series-num').value, 10);
   return n >= 1 && n <= 999 ? n : (seriesInfo.next || 1);
 }
-function coverFor() { return Object.assign({}, cover, { strap: cards[0] ? cards[0].title : '', num: currentN() }); }
-function slideFor(c) { return { handle: c.handle || HANDLE, kicker: c.kicker, num: c.num, title: c.title, sub: c.sub, swipe: c.swipe }; }
+function coverFor() { return Object.assign({}, cover, { strap: cards[0] ? cards[0].title : '', num: currentN(), offsets: cards[0] ? cards[0].offsets : null }); }
+function slideFor(c) { return { handle: c.handle || HANDLE, kicker: c.kicker, num: c.num, title: c.title, sub: c.sub, swipe: c.swipe, offsets: c.offsets }; }
 async function drawInto(cv, i) {
   const tok = cv._tok = (cv._tok || 0) + 1;
   await fontsP;
@@ -422,7 +425,7 @@ function queueDraw(i) {
   if (raf) return;
   raf = requestAnimationFrame(async () => {
     raf = 0; const list = [...dirty]; dirty.clear();
-    for (const j of list) { const cv = document.querySelectorAll('#edit-slides canvas.slide-canvas')[j]; if (cv) { const r = await drawInto(cv, j); if (r) lastRes[j] = r; } }
+    for (const j of list) { const cv = document.querySelectorAll('#edit-slides canvas.slide-canvas')[j]; if (cv) { const r = await drawInto(cv, j); if (r) { lastRes[j] = r; syncHandles(j, cv); } } }
   });
 }
 
@@ -604,6 +607,52 @@ $('review-back').addEventListener('click', () => show('ready'));
 $('edit-btn').addEventListener('click', () => { renderEdit(); show('edit'); });
 
 // ---------- screen 3: edit ----------
+// SOC-18.10: drag the words. Each block OneLook reports gets a transparent handle over it (touch-action none on the handle only,
+// so the rest of the slide still scrolls the page). A move is stored as c.offsets[name] = {dx, dy} in 1080-wide slide units;
+// OneLook clamps it inside the slide and reports the applied value, which is what is kept.
+const BLOCKS = ['handle', 'num', 'kicker', 'title', 'sub', 'swipe', 'strap', 'badge'];
+let drag = null; const afterDrag = new Set();
+function editFaceCheck(i) {
+  const r = lastRes[i]; if (!r || current !== 'edit') return;
+  if (r.faceClear === false) say('err', 'Words are over your face on slide ' + (i + 1) + '. Drag the words or move the photo.');
+  else if (!lastRes.some(x => x && x.faceClear === false)) clearMsg($('edit-msg'));
+}
+function syncHandles(i, cv) {
+  const r = lastRes[i], wrap = cv.parentNode, c = cards[i]; if (!r || !wrap || !c) return;
+  const blocks = r.blocks || {}; let changed = false;
+  if (c.offsets) {
+    BLOCKS.forEach(n => { const b = blocks[n], o = c.offsets[n]; if (!o) return; if (!b || (!b.dx && !b.dy)) { delete c.offsets[n]; changed = true; } else if (o.dx !== b.dx || o.dy !== b.dy) { c.offsets[n] = { dx: b.dx, dy: b.dy }; changed = true; } });
+    if (!Object.keys(c.offsets).length) { c.offsets = null; changed = true; }
+  }
+  const have = {}; wrap.querySelectorAll('.mv-handle').forEach(h => { have[h.dataset.block] = h; });
+  BLOCKS.forEach(n => {
+    const b = blocks[n], h = have[n];
+    if (!b) { if (h) h.remove(); return; }
+    const el = h || makeHandle(i, n, cv, wrap);
+    el.style.left = (b.x / 1080 * 100) + '%'; el.style.top = (b.y / 1350 * 100) + '%';
+    el.style.width = (b.w / 1080 * 100) + '%'; el.style.height = (b.h / 1350 * 100) + '%';
+  });
+  if (changed && !drag) persist();
+  if (afterDrag.delete(i)) editFaceCheck(i);
+}
+function makeHandle(i, name, cv, wrap) {
+  const el = document.createElement('div'); el.className = 'mv-handle'; el.dataset.block = name; el.setAttribute('aria-label', 'Drag the ' + name);
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) {}
+    const b = ((lastRes[i] || {}).blocks || {})[name] || {};
+    drag = { i, name, x0: e.clientX, y0: e.clientY, bx: b.dx || 0, by: b.dy || 0, el };
+    el.classList.add('drag');
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag || drag.el !== el) return;
+    const sc = 1080 / (cv.getBoundingClientRect().width || 1080), c = cards[i];
+    c.offsets = Object.assign({}, c.offsets, { [name]: { dx: drag.bx + (e.clientX - drag.x0) * sc, dy: drag.by + (e.clientY - drag.y0) * sc } });
+    queueDraw(i);
+  });
+  const end = () => { if (!drag || drag.el !== el) return; el.classList.remove('drag'); drag = null; afterDrag.add(i); persist(); queueDraw(i); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  wrap.appendChild(el); return el;
+}
 function setType(t) {
   type = t; lsSet(TYPE_KEY, t);
   $('type-series').classList.toggle('on', t === 'series');
@@ -656,6 +705,7 @@ function renderEdit() {
     const mk = (text, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'quiet-btn small-btn'; b.textContent = text; b.disabled = !!dis; b.addEventListener('click', fn); row.appendChild(b); return b; };
     mk('Move up', () => moveCard(i, -1), i === 0); mk('Move down', () => moveCard(i, 1), i === cards.length - 1); mk('Delete', () => deleteCard(i), cards.length <= 1);
     mk('Add / replace photo', () => pickPhoto(i));
+    mk('Reset words', () => { c.offsets = null; persist(); queueDraw(i); afterDrag.add(i); });
     const fr = document.createElement('div'); fr.className = 'frame-box'; fr.hidden = true;
     const sl = [['fx', 'Left / right', 0, 1, 0.01], ['fy', 'Up / down', 0, 1, 0.01], ['zoom', 'Zoom', 1, 2, 0.01]];
     const ranges = {};
@@ -673,7 +723,8 @@ function renderEdit() {
       if (!fr.hidden) { const f = c.frame || lastRes[i]; if (f) { ranges.fx.value = f.fx; ranges.fy.value = f.fy; ranges.zoom.value = f.zoom; } }
     });
     fields.append(row, fr);
-    el.append(cv, fields); box.appendChild(el);
+    const wrap = document.createElement('div'); wrap.className = 'canvas-wrap'; wrap.appendChild(cv);
+    el.append(wrap, fields); box.appendChild(el);
   });
   $('add-slide').hidden = cards.length >= 10;
   fillAlbumSlides();
@@ -818,7 +869,7 @@ function slideText(c, i, n) {
   if (type === 'series' && i === 0) return [cover.kicker, cover.h1, cover.h2, cover.h3, cover.h4, cover.h5, c.title, OneLook.pad3(n)].filter(x => x && String(x).trim()).join(' ');
   return [c.kicker, c.num, c.title, c.sub, c.swipe].filter(x => x && x.trim()).join(' ');
 }
-function deckSig(n) { return JSON.stringify([type, n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame])]); }
+function deckSig(n) { return JSON.stringify([type, n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame, c.offsets])]); }
 async function renderAllPngs() {
   await OneLook.fontsReady();
   for (const c of cards) if (c.photo && isRemote(c.photo) && !(await loadImg(c.photo))) throw new Error('A photo on this deck cannot be read for export (the server did not allow it). Pick it again from "Use my photos".');

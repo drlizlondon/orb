@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check:creator": "node tests/look.spec.mjs && node tests/look-render.spec.mjs && node tests/carousel-insta.spec.mjs",
+    "check:creator": "node tests/look.spec.mjs && node tests/look-offsets.spec.mjs && node tests/look-render.spec.mjs && node tests/carousel-insta.spec.mjs",
     "check": "node --check dist/app.js && node --check dist/canvas-fallback.js && node --check dist/projects.js && node --check dist/navigation.js && node --check dist/sw.js && node --test tests/*.test.mjs"
   },
   "dependencies": {
