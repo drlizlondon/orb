@@ -881,6 +881,21 @@ for (const [slug, review, orig, expected] of LOOKS) {
     await ctx.close();
   });
 }
+await check('SOC-23 Job line: a drafted post with a job shows "Job: <job>" muted above the Second look line; one without a job shows none', async () => {
+  const c = st.drafted.find(x => x.id === 'c-alpha');
+  delete c.review; delete c.deckBefore;
+  c.job = 'right-people';
+  let { page, errors, ctx } = await open(PH);
+  await openItem(page, 'alpha'); await reviewReady(page);
+  const j = await page.evaluate(() => { const e = document.getElementById('job-line'), p = document.getElementById('second-look'); return { text: e.textContent, hidden: e.hidden, opacity: getComputedStyle(e).opacity, above: e.getBoundingClientRect().bottom <= p.getBoundingClientRect().top, approve: !document.getElementById('approve-btn').disabled }; });
+  assert.equal(j.text, 'Job: right-people'); assert.equal(j.hidden, false); assert.ok(Number(j.opacity) < 1, 'muted'); assert.ok(j.above, 'above the Second look line'); assert.ok(j.approve, 'Approve not blocked');
+  assert.deepEqual(errors, []); await ctx.close();
+  delete c.job;
+  ({ page, errors, ctx } = await open(PH));
+  await openItem(page, 'alpha'); await reviewReady(page);
+  assert.equal(await page.evaluate(() => document.getElementById('job-line').hidden), true, 'no job, no line');
+  assert.deepEqual(errors, []); await ctx.close();
+});
 await check('SOC-22 Second look on the Reels screen: a ready reel shows its line, a reel with no review says not checked yet', async () => {
   st.reels = [
     { id: 'r-20261121000000-aaaa', script: 'A checked reel', status: 'ready', durationMs: 9000, createdAt: '2026-11-21T00:00:00Z', review: { verdict: 'pass', note: 'Easy to follow.', round: 0 } },

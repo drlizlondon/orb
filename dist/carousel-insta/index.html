@@ -75,6 +75,7 @@
   #reel-script { min-height: 120px; }
   .second-look { font-size: 14px; opacity: 0.8; margin: 6px 0; overflow-wrap: anywhere; }
   .second-look .look-orig { margin-left: 8px; }
+  .job-line { font-size: 14px; opacity: 0.6; margin: 6px 0 0; }
   #orig-deck { font-size: 14px; opacity: 0.9; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   #nr-video { display: block; margin: 0 auto 8px; height: min(60vh, 640px); aspect-ratio: 9 / 16; max-width: 100%; background: #5a2578; border-radius: 10px; }
   #nr-status { text-align: center; font-size: 15px; font-weight: 700; margin: 6px 0; }
@@ -192,6 +193,7 @@
   </div>
   <div id="review-strip" tabindex="-1"></div>
   <div id="review-count">1 / 1</div>
+  <p id="job-line" class="job-line" hidden></p>
   <p id="second-look" class="second-look" hidden></p>
   <div id="orig-deck" role="region" aria-label="The original words" hidden></div>
   <label for="caption">Caption</label>
@@ -692,6 +694,8 @@ function secondLookLine(rv) {
   return 'Second look: looks good.' + note;
 }
 function showSecondLook(c) {
+  const jl = $('job-line'), JOBS = ['go-to', 'buyers', 'right-people']; // SOC-23: the job the drafter gave this post, muted, above the Second look line
+  if (c && JOBS.includes(c.job)) { jl.textContent = 'Job: ' + c.job; jl.hidden = false; } else { jl.textContent = ''; jl.hidden = true; }
   const p = $('second-look'), od = $('orig-deck');
   od.hidden = true; od.textContent = '';
   if (!c) { p.hidden = true; p.textContent = ''; return; }
