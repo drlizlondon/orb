@@ -42,8 +42,8 @@ await page.evaluate(() => {
     SLIDES_.forEach((s, i) => { out['slide' + i] = hash(mk(s, i, mod)); });
     out.series = hash((() => { const c = cv(); OneLook.renderSeries(c, mod ? { ...cover, offsets: mod } : cover, 0, 4, null, {}); return c.toDataURL(); })());
     const img = mkImg(1200, 1600), face = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 };
-    out.photo = hash((() => { const c = cv(); OneLook.renderSlide(c, mod ? { ...SLIDES_[3], offsets: mod } : SLIDES_[3], 3, 4, img, { face }); return c.toDataURL(); })());
-    out.seriesPhoto = hash((() => { const c = cv(); OneLook.renderSeries(c, mod ? { ...cover, offsets: mod } : cover, 0, 4, img, { face }); return c.toDataURL(); })());
+    out.photo = hash((() => { const c = cv(); OneLook.renderSlide(c, mod ? { ...SLIDES_[3], offsets: mod } : SLIDES_[3], 3, 4, img, { face, finish: false }); return c.toDataURL(); })());
+    out.seriesPhoto = hash((() => { const c = cv(); OneLook.renderSeries(c, mod ? { ...cover, offsets: mod } : cover, 0, 4, img, { face, finish: false }); return c.toDataURL(); })());
     return out;
   };
   window.mk = (s, i, mod) => { const c = cv(); OneLook.renderSlide(c, mod ? { ...s, offsets: mod } : s, i, 7, null, {}); return c.toDataURL(); };
@@ -57,7 +57,7 @@ if (process.env.GOLDEN_WRITE) {
   fs.writeFileSync(GOLD, JSON.stringify(await page.evaluate(() => draws(null)), null, 1) + '\n');
   console.log('wrote ' + GOLD); await browser.close(); process.exit(0);
 }
-const golden = JSON.parse(fs.readFileSync(GOLD, 'utf8'));
+const golden = JSON.parse(fs.readFileSync(GOLD, 'utf8')); delete golden.finishPhoto; delete golden.finishDark; // SOC-26: owned by look.spec.mjs
 
 await t('AC1: with no offsets, every slide, idea and series draw is toDataURL-identical to before SOC-18.10', async () => {
   assert.deepEqual(await page.evaluate(() => draws(null)), golden);

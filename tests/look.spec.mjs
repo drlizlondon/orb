@@ -306,6 +306,60 @@ await t('SOC-26 dark leaves no state behind: a photo-look draw after a dark draw
   }, { S: SLIDES[3] });
   assert.ok(o);
 });
+// ---- SOC-26: the photo finish (numbers are the SOC-26 brief's design values) ----
+await t('SOC-26 finish (must-fail fixture): a flat, low-contrast mid-grey photo gets a wider range with the finish than without, in the photo look and the dark look', async () => {
+  const o = await page.evaluate(() => {
+    const flat = document.createElement('canvas'); flat.width = 1080; flat.height = 1350; const fx = flat.getContext('2d');
+    const g = fx.createLinearGradient(0, 0, 1080, 0); g.addColorStop(0, 'rgb(110,110,110)'); g.addColorStop(1, 'rgb(146,146,146)'); fx.fillStyle = g; fx.fillRect(0, 0, 1080, 1350);
+    const E = { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' };
+    const sd = (look, finish) => { const cv = document.createElement('canvas'); OneLook.renderSlide(cv, E, 0, 1, flat, { look, finish }); const d = cv.getContext('2d').getImageData(700, 500, 300, 1).data; let m = 0, n = 0; for (let k = 0; k < d.length; k += 4) { m += d[k + 1]; n++; } m /= n; let v = 0; for (let k = 0; k < d.length; k += 4) v += (d[k + 1] - m) ** 2; return Math.sqrt(v / n); };
+    return { pOn: sd('photo', true), pOff: sd('photo', false), dOn: sd('dark', true), dOff: sd('dark', false) };
+  });
+  assert.ok(o.pOn > o.pOff * 1.25, 'photo ' + JSON.stringify(o)); assert.ok(o.dOn > o.dOff * 1.25, 'dark ' + JSON.stringify(o));
+});
+await t('SOC-26 finish: a near-perfect photo (full range 4..250) changes little: mean abs difference per channel <= 8, and a flat photo keeps its brightness', async () => {
+  const o = await page.evaluate(() => {
+    const mk = (a, b) => { const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1080, 0); g.addColorStop(0, `rgb(${a},${a},${a})`); g.addColorStop(1, `rgb(${b},${b},${b})`); x.fillStyle = g; x.fillRect(0, 0, 1080, 1350); return c; };
+    const E = { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' };
+    const px = (img, finish) => { const cv = document.createElement('canvas'); OneLook.renderSlide(cv, E, 0, 1, img, { look: 'photo', finish }); return cv.getContext('2d').getImageData(700, 500, 300, 100).data; };
+    const diff = (a, b) => { let s = 0, n = 0; for (let k = 0; k < a.length; k += 4) for (let c = 0; c < 3; c++) { s += Math.abs(a[k + c] - b[k + c]); n++; } return s / n; };
+    const perfect = mk(4, 250), flatImg = mk(200, 200);
+    const f = px(flatImg, true), nf = px(flatImg, false);
+    return { perfect: diff(px(perfect, true), px(perfect, false)), flatMean: [f[1], nf[1]] };
+  });
+  assert.ok(o.perfect <= 8, 'mean diff ' + o.perfect); assert.ok(o.perfect > 0, 'it is not a no-op');
+  assert.ok(Math.abs(o.flatMean[0] - o.flatMean[1]) <= 8, 'a flat photo keeps its brightness ' + o.flatMean);
+});
+await t('SOC-26 finish: deterministic, runs only on the photo (no photo = no change), skipped when finish is false; lowRes unchanged by it', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const d = (img, opts) => { const c = document.createElement('canvas'); const r = OneLook.renderSlide(c, S, 3, 4, img, { look: 'dark', ...opts }); return { u: c.toDataURL(), low: r.lowRes }; };
+    const im = mkImg(1200, 1600);
+    return { same: d(im, {}).u === d(im, {}).u, differs: d(im, {}).u !== d(im, { finish: false }).u, noPhoto: d(null, {}).u === d(null, { finish: false }).u, low: [d(mkImg(400, 500), {}).low, d(mkImg(400, 500), { finish: false }).low] };
+  }, { S: SLIDES[3] });
+  assert.ok(o.same && o.differs && o.noPhoto); assert.deepEqual(o.low, [true, true]);
+});
+await t('SOC-26 finish golden: a fixed photo through the finish (photo look and dark look) hashes to the stored values (tests/fixtures/look-golden.json finishPhoto, finishDark)', async () => {
+  const h = await page.evaluate(({ S }) => {
+    const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(16) + ':' + s.length; };
+    const d = look => { const c = document.createElement('canvas'); OneLook.renderSlide(c, S, 3, 7, mkImg(1200, 1600), { look }); return hash(c.toDataURL()); };
+    return { finishPhoto: d('photo'), finishDark: d('dark') };
+  }, { S: SLIDES[3] });
+  const gp = path.join(here, 'fixtures/look-golden.json'), g = JSON.parse(fs.readFileSync(gp, 'utf8'));
+  if (process.env.GOLDEN_WRITE) { Object.assign(g, h); fs.writeFileSync(gp, JSON.stringify(g, null, 1) + '\n'); }
+  assert.equal(h.finishPhoto, g.finishPhoto); assert.equal(h.finishDark, g.finishDark);
+});
+await t('SOC-26 dark: soft text shadow 0 2px 12px rgba(0,0,0,.35) x 1080/460 on the white and cream text (handle, counter, title, sub) and not on the accent text', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const seen = {}; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (tx, ...a) { if (this.canvas === window.__cv) seen[tx] = [this.shadowColor, this.shadowBlur, this.shadowOffsetY]; return ft.call(this, tx, ...a); };
+    const cv = document.createElement('canvas'); window.__cv = cv;
+    OneLook.renderSlide(cv, { ...S, swipe: 'Swipe' }, 3, 7, null, { look: 'dark' });
+    CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null; return seen;
+  }, { S: SLIDES[3] });
+  const K = 1080 / 460;
+  for (const k of ['@drlizlondon', '4 / 7', 'Start with one question', 'Ask it one clear thing.']) { assert.equal(o[k][0], 'rgba(0, 0, 0, 0.35)', k); assert.ok(Math.abs(o[k][1] - 12 * K) < 0.01 && Math.abs(o[k][2] - 2 * K) < 0.01, k + ' ' + o[k]); }
+  for (const k of ['IDEA', '1', 'Swipe']) assert.equal(o[k][1], 0, k + ' has no shadow');
+});
 await t('SOC-24 photo look is pixel-identical to before: look "photo" and no look give the same pixels, and both match the pre-SOC-24 golden hashes', async () => {
   const o = await page.evaluate(({ S }) => {
     const img = mkImg(1200, 1600), face = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 };

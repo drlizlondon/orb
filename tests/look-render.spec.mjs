@@ -110,14 +110,15 @@ await t('Empty stays empty, must-fail: a default caption in the code is caught b
   assert.equal(r.blank, true, 'a mutated default draws something, so the blank assert above would fire'); await p2.close();
 });
 
+// SOC-26: the photo finish is new; these draws pass finish:false to prove the rest of the drawing is unchanged.
 await t('Feed untouched: slide and series drawings are identical to orb ' + BASE_COMMIT, async () => {
   const p0 = await openPage(BASE_SRC);
   const draw = () => {
     const s = { handle: '@drlizlondon', kicker: 'Idea', num: '1', title: 'Start with one question', sub: 'Ask it one clear thing.', swipe: 'Swipe' };
     const img = mkImg(1200, 1600), face = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 }, out = [];
-    const cv1 = document.createElement('canvas'); OneLook.renderSlide(cv1, s, 3, 4, img, { face }); out.push(cv1.toDataURL());
+    const cv1 = document.createElement('canvas'); OneLook.renderSlide(cv1, s, 3, 4, img, { face, finish: false }); out.push(cv1.toDataURL());
     const cv2 = document.createElement('canvas'); OneLook.renderSlide(cv2, { ...s, kicker: '', num: '', swipe: '' }, 0, 2, null, {}); out.push(cv2.toDataURL());
-    const cv3 = document.createElement('canvas'); OneLook.renderSeries(cv3, { ...OneLook.coverDefaults(), strap: "I'll show you how I'm using AI", num: 1 }, 0, 4, img, { face }); out.push(cv3.toDataURL());
+    const cv3 = document.createElement('canvas'); OneLook.renderSeries(cv3, { ...OneLook.coverDefaults(), strap: "I'll show you how I'm using AI", num: 1 }, 0, 4, img, { face, finish: false }); out.push(cv3.toDataURL());
     return out;
   };
   const a = await p0.evaluate(draw), b = await page.evaluate(draw); await p0.close();

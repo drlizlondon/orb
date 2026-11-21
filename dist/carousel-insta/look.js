@@ -268,6 +268,9 @@ const DARK = {
   sub: { size: 19, lh: 1.26, mt: 15, color: '#f3f1ee' },               // :64 weight 500
   swipe: { size: 15, mt: 18 },                                         // :65 weight 700
   normalLH: 1.17 };                                                    // line-height: normal for the system sans (kicker, swipe, handle, counter)
+const SHADOW = { color: 'rgba(0,0,0,0.35)', y: 2, blur: 12 }; // SOC-26 brief: 0 2px 12px rgba(0,0,0,.35), scaled by DK to the 1080 slide
+function shadowOn(c) { c.shadowColor = SHADOW.color; c.shadowOffsetX = 0; c.shadowOffsetY = SHADOW.y * DK; c.shadowBlur = SHADOW.blur * DK; }
+function shadowOff(c) { c.shadowColor = 'rgba(0,0,0,0)'; c.shadowBlur = 0; c.shadowOffsetY = 0; }
 function setLS(ctx, px) { if ('letterSpacing' in ctx) ctx.letterSpacing = px + 'px'; }
 function darkLines(ctx, text, maxW) { return text ? wrapLines(ctx, text, maxW) : []; }
 function drawDark(ctx, s, i, total) {
@@ -295,11 +298,11 @@ function drawDark(ctx, s, i, total) {
   ctx.textBaseline = 'alphabetic';
   if (s.handle) g('handle', (c, R) => {
     const sz = D.handle.size * DK; c.font = '700 ' + sz + 'px ' + F; c.fillStyle = D.handle.color;
-    const y = D.handle.top * DK, x = D.handle.left * DK; c.fillText(s.handle, x, base(y, sz, D.normalLH));
+    const y = D.handle.top * DK, x = D.handle.left * DK; shadowOn(c); c.fillText(s.handle, x, base(y, sz, D.normalLH)); shadowOff(c);
     R({ x, y, w: c.measureText(s.handle).width, h: sz * D.normalLH }, 6);
   });
   { const sz = D.count.size * DK, t = (i + 1) + ' / ' + total; ctx.font = '700 ' + sz + 'px ' + F; ctx.fillStyle = D.count.color;
-    const w = ctx.measureText(t).width, x = T.W - D.count.right * DK - w, y = D.count.top * DK; ctx.fillText(t, x, base(y, sz, D.normalLH)); R({ x, y, w, h: sz * D.normalLH }, 4); }
+    const w = ctx.measureText(t).width, x = T.W - D.count.right * DK - w, y = D.count.top * DK; shadowOn(ctx); ctx.fillText(t, x, base(y, sz, D.normalLH)); shadowOff(ctx); R({ x, y, w, h: sz * D.normalLH }, 4); }
   let y = bottom - L.h; const textTop = y;
   if (s.kicker) { const y0 = y; g('kicker', (c, R) => {
     c.font = '700 ' + L.kS + 'px ' + F; setLS(c, D.kicker.ls * DK); c.fillStyle = D.accent;
@@ -309,17 +312,60 @@ function drawDark(ctx, s, i, total) {
     c.font = '800 ' + L.nS + 'px ' + F; c.fillStyle = D.accent; c.fillText(s.num, x0, base(y0, L.nS, D.num.lh)); R({ x: x0, y: y0, w: c.measureText(s.num).width, h: L.hN }, 6); }); y += L.hN + D.num.mb * DK; }
   if (L.tl.length) { const yT = y; g('title', (c, R) => {
     c.font = '800 ' + ts + 'px ' + F; setLS(c, D.title.ls * DK); c.fillStyle = D.title.color; let bw = 0;
-    L.tl.forEach((t, k) => { c.fillText(t, x0, base(yT + k * ts * D.title.lh, ts, D.title.lh)); bw = Math.max(bw, c.measureText(t).width); }); setLS(c, 0);
+    shadowOn(c); L.tl.forEach((t, k) => { c.fillText(t, x0, base(yT + k * ts * D.title.lh, ts, D.title.lh)); bw = Math.max(bw, c.measureText(t).width); }); setLS(c, 0); shadowOff(c);
     R({ x: x0, y: yT, w: bw, h: L.hT }, 6); }); y += L.hT; }
   if (L.sl.length) { y += D.sub.mt * DK; const yS = y; g('sub', (c, R) => {
     c.font = '500 ' + ss + 'px ' + F; c.fillStyle = D.sub.color; let bw = 0;
-    L.sl.forEach((t, k) => { c.fillText(t, x0, base(yS + k * ss * D.sub.lh, ss, D.sub.lh)); bw = Math.max(bw, c.measureText(t).width); });
+    shadowOn(c); L.sl.forEach((t, k) => { c.fillText(t, x0, base(yS + k * ss * D.sub.lh, ss, D.sub.lh)); bw = Math.max(bw, c.measureText(t).width); }); shadowOff(c);
     R({ x: x0, y: yS, w: bw, h: L.hS }, 6); }); y += L.hS; }
   if (s.swipe) { y += D.swipe.mt * DK; const yW = y; g('swipe', (c, R) => {
     c.font = '700 ' + L.wS + 'px ' + F; c.fillStyle = D.accent; c.fillText(s.swipe, x0, base(yW, L.wS, D.normalLH)); R({ x: x0, y: yW, w: c.measureText(s.swipe).width, h: L.hW }, 6); }); }
   return { rects, blocks, titleSize: Math.round(ts), subSize: Math.round(ss), fits, textTop };
 }
 function drawDarkScrim(ctx) { const g = ctx.createLinearGradient(0, T.H, 0, 0); DARK.scrim.forEach(([o, c]) => g.addColorStop(o, c)); ctx.fillStyle = g; ctx.fillRect(0, 0, T.W, T.H); }
+
+
+// ---------- SOC-26: the photo finish ----------
+// Applied to the photo only (never the words), after the cover scaling and before the scrim and the text, in BOTH looks. Deterministic, one pass over
+// the output-size ImageData. Every number below is a design value from the SOC-26 brief (coordinator message, 2026-11-21; founder: "high quality post production look").
+// No background blur, no face retouching. opts.finish === false skips it (used only to make before/after samples and tests).
+const FINISH = { lo: 4, hi: 250, maxGain: 1.4, pLo: 0.01, pHi: 0.99, curve: 0.16 /* slope +8% at the midtone */, warmR: 4, warmB: 4, sat: 1.06, sharpR: 1.2, sharpAmt: 0.35 };
+function applyFinish(ctx) {
+  const F = FINISH, W = T.W, H = T.H, id = ctx.getImageData(0, 0, W, H), d = id.data, n = W * H;
+  const lum = new Float32Array(n), hist = new Uint32Array(256);
+  for (let i = 0, o = 0; i < n; i++, o += 4) { const y = 0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2]; lum[i] = y; hist[Math.min(255, Math.round(y))]++; }
+  const pct = q => { let acc = 0; const t = q * n; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= t) return v; } return 255; };
+  const p1 = pct(F.pLo), p99 = pct(F.pHi);
+  const gain = p99 > p1 ? Math.min(F.maxGain, (F.hi - F.lo) / (p99 - p1)) : 1;
+  // unclamped (range wide enough): p1 -> lo and p99 -> hi exactly. Clamped (a very flat photo): stretch by maxGain around its own middle, so it never jumps to another brightness.
+  const unclamped = p99 > p1 && (F.hi - F.lo) / (p99 - p1) <= F.maxGain, mid = unclamped ? p1 : (p1 + p99) / 2, ctr = unclamped ? F.lo : (p1 + p99) / 2;
+  const sm = v => v * v * (3 - 2 * v);
+  // pass 1: levels (one linear map, same on every channel so hue is kept), S-curve, midtone warmth, saturation
+  for (let i = 0, o = 0; i < n; i++, o += 4) {
+    let r = ctr + (d[o] - mid) * gain, g = ctr + (d[o + 1] - mid) * gain, b = ctr + (d[o + 2] - mid) * gain;
+    r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
+    r /= 255; g /= 255; b /= 255;
+    r += F.curve * (sm(r) - r); g += F.curve * (sm(g) - g); b += F.curve * (sm(b) - b);
+    let y = 0.299 * r + 0.587 * g + 0.114 * b; const w = 4 * y * (1 - y);
+    r = r * 255 + F.warmR * w; b = b * 255 - F.warmB * w; g *= 255; y *= 255;
+    y = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = y + (r - y) * F.sat; g = y + (g - y) * F.sat; b = y + (b - y) * F.sat;
+    d[o] = r < 0 ? 0 : r > 255 ? 255 : r; d[o + 1] = g < 0 ? 0 : g > 255 ? 255 : g; d[o + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+    lum[i] = 0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2];
+  }
+  // pass 2: unsharp mask on luminance only (no colour fringes), gaussian sigma = radius, separable 7-tap
+  const R = 3, k = []; let ks = 0; for (let j = -R; j <= R; j++) { const w = Math.exp(-(j * j) / (2 * F.sharpR * F.sharpR)); k.push(w); ks += w; }
+  for (let j = 0; j < k.length; j++) k[j] /= ks;
+  const tmp = new Float32Array(n), blur = new Float32Array(n);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let a = 0; for (let j = -R; j <= R; j++) { const xx = x + j < 0 ? 0 : x + j >= W ? W - 1 : x + j; a += lum[y * W + xx] * k[j + R]; } tmp[y * W + x] = a; }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let a = 0; for (let j = -R; j <= R; j++) { const yy = y + j < 0 ? 0 : y + j >= H ? H - 1 : y + j; a += tmp[yy * W + x] * k[j + R]; } blur[y * W + x] = a; }
+  for (let i = 0, o = 0; i < n; i++, o += 4) {
+    const dl = F.sharpAmt * (lum[i] - blur[i]);
+    const r = d[o] + dl, g = d[o + 1] + dl, b = d[o + 2] + dl;
+    d[o] = r < 0 ? 0 : r > 255 ? 255 : r; d[o + 1] = g < 0 ? 0 : g > 255 ? 255 : g; d[o + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+  }
+  ctx.putImageData(id, 0, 0);
+}
 
 // ---------- the photo ----------
 // face = { x, y, w, h } as fractions of the image. frame = { fx, fy, zoom } or null.
@@ -346,11 +392,12 @@ function place(imgW, imgH, face, rects, frame) {
   return { fx, fy, zoom, cleared, lowRes: lowResAt(sc) };
 }
 // SOC-25: ONE uniform scale on both axes (cover), never a per-axis fit: a circle stays a circle.
-function drawPhoto(ctx, im, fx, fy, zoom, dark) {
+function drawPhoto(ctx, im, fx, fy, zoom, dark, finish) {
   ctx.fillStyle = dark ? DARK.ground : '#bdbdba'; ctx.fillRect(0, 0, T.W, T.H); if (!im) return;
   const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
   const s = Math.max(T.W / iw, T.H / ih) * zoom, dw = iw * s, dh = ih * s;
   ctx.drawImage(im, -(dw - T.W) * fx, -(dh - T.H) * fy, dw, dh);
+  if (finish !== false) applyFinish(ctx); // SOC-26: the finish, photo only, before the tint, the scrim and the words
   if (dark) return; // the dark look has no plum tint (its template has none)
   const g = ctx.createLinearGradient(0, 0, T.W * 0.55, T.H * 0.1); g.addColorStop(0, 'rgba(58,17,80,.22)'); g.addColorStop(1, 'rgba(58,17,80,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, T.W, T.H);
 }
@@ -361,7 +408,7 @@ function twoPass(cv, draw, im, opts) {
   const pre = draw(tmp.getContext('2d'));
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;
   const pl = place(iw, ih, im ? opts.face || null : null, pre.rects, opts.frame || null);
-  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark); if (dark) drawDarkScrim(ctx); draw(ctx);
+  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish); if (dark) drawDarkScrim(ctx); draw(ctx);
   return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, lowRes: pl.lowRes, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
 }
 function renderSlide(cv, slide, i, total, im, opts) { const dk = !!opts && opts.look === 'dark'; return twoPass(cv, ctx => (dk ? drawDark : drawText)(ctx, slide, i, total), im, opts); }

@@ -40,6 +40,14 @@ const MUT = [
   ['dark fit never reported', s => s.replace('const fits = L.h <= avail;', 'const fits = true;')],
   ['dark look leaks into the photo look (every slide drawn dark)', s => s.replace("const dk = !!opts && opts.look === 'dark';", 'const dk = true;')],
   ['dark look drops the photo (never drawn)', s => s.replace("drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark); if (dark)", "drawPhoto(ctx, null, pl.fx, pl.fy, pl.zoom, dark); if (dark)")],
+  // SOC-26 finish
+  ['finish disabled', s => s.replace('if (finish !== false) applyFinish(ctx);', 'if (false) applyFinish(ctx);')],
+  ['finish gain not clamped (a flat photo explodes)', s => s.replace('maxGain: 1.4,', 'maxGain: 9,')],
+  ['finish sharpening far too strong (0.35 becomes 3)', s => s.replace('sharpAmt: 0.35', 'sharpAmt: 3')],
+  ['finish warmth too strong (4 becomes 40)', s => s.replace('warmR: 4, warmB: 4', 'warmR: 40, warmB: 40')],
+  ['finish applied when finish is false', s => s.replace('if (finish !== false) applyFinish(ctx);', 'applyFinish(ctx);')],
+  ['dark text shadow removed', s => s.replace('function shadowOn(c) {', 'function shadowOn(c) { return;')],
+  ['dark shadow left on for the accent text', s => s.replace('function shadowOff(c) {', 'function shadowOff(c) { return;')],
   // SOC-25
   ['photo fitted to the slide on both axes (non-uniform scale)', s => s.replace('ctx.drawImage(im, -(dw - T.W) * fx, -(dh - T.H) * fy, dw, dh);', 'ctx.drawImage(im, 0, 0, T.W, T.H);')],
   ['photo scaled by width only (a landscape source is squeezed in y)', s => s.replace('const s = Math.max(T.W / iw, T.H / ih) * zoom, dw = iw * s, dh = ih * s;', 'const s = T.W / iw * zoom, dw = iw * s, dh = T.H * zoom;')],
