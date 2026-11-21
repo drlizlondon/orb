@@ -37,17 +37,13 @@ function roughRect(ctx, x, y, w, h, rad, amp, seed, brush) {
 function fillRough(ctx, x, y, w, h, rad, amp, seed, brush, color) { roughRect(ctx, x, y, w, h, rad, amp, seed, brush); ctx.fillStyle = color; ctx.fill(); }
 
 // block with text; returns {x,y,w,h}
-// SOC-24: plainMode is true only while a plain-look slide is drawn (set in twoPass). A block with o.plainColor then draws its
-// text in that colour with no pill; every other block, and every photo-look draw, is exactly as before.
-let plainMode = false;
 function block(ctx, o) {
   ctx.font = o.font; ctx.textBaseline = 'alphabetic';
   const tw = ctx.measureText(o.text).width;
   const w = tw + o.padL + o.padR, h = o.size * (o.lh || 1) + o.padT + o.padB;
   const ins = o.ins || [0, 0, 0, 0];
-  const bare = plainMode && !!o.plainColor;
-  if (!bare) fillRough(ctx, o.x - ins[3], o.y - ins[0], w + ins[1] + ins[3], h + ins[0] + ins[2], o.rad, o.amp, o.seed, o.brush, o.color);
-  ctx.fillStyle = bare ? o.plainColor : C.purple;
+  fillRough(ctx, o.x - ins[3], o.y - ins[0], w + ins[1] + ins[3], h + ins[0] + ins[2], o.rad, o.amp, o.seed, o.brush, o.color);
+  ctx.fillStyle = C.purple;
   ctx.fillText(o.text, o.x + o.padL, o.y + o.padT + o.size * (o.base || 0.78));
   return { x: o.x, y: o.y, w, h };
 }
@@ -187,32 +183,28 @@ function drawText(ctx, s, i, total) {
   });
   R(counter(ctx, i, total), 4);
   let y = T.H - T.bottom - L.h; const x = T.margin;
-  // SOC-24 plain: the block is centred between the handle tag and the bottom margin, and every line starts at the same x as the sub text (x + 20)
-  const PL = (photo, plain) => (plainMode ? plain : photo);
-  if (plainMode) { const top = 48 + T.handleSize + 26, bot = T.H - T.bottom; y = top + Math.max(0, (bot - top - L.h) / 2); }
-  const textTop0 = y;
   if (s.num) {
     const y0 = y;
-    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: PL(40, 10), padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, plainColor: C.soft, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
-    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: PL(28, 20), padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); });
+    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: 40, padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
+    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); });
     y += nb.h + 14;
   } else if (s.kicker) {
     const y0 = y;
-    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: PL(28, 20), padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
+    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
   }
   const yT = y;
-  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? PL(18, 0) : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: PL(28, 20), padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, plainColor: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
+  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? 18 : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: 28, padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
   if (L.tl.length) y += 14;
   if (L.sl.length) {
     ctx.font = '600 ' + subSize + 'px ' + BALOO; const lh = subSize * T.subLH, bw = Math.max(...L.sl.map(t => ctx.measureText(t).width)) + 68, bh = 24 + L.sl.length * lh + 26, ys = y;
     g('sub', (c, R) => {
-      if (!plainMode) fillRough(c, x - 14, ys, bw, bh, 40, 6, 5, false, C.purple); R({ x: x - 14, y: ys, w: bw, h: bh }, 6);
+      fillRough(c, x - 14, ys, bw, bh, 40, 6, 5, false, C.purple); R({ x: x - 14, y: ys, w: bw, h: bh }, 6);
       c.font = '600 ' + subSize + 'px ' + BALOO; c.fillStyle = C.cream; c.textBaseline = 'alphabetic'; L.sl.forEach((t, k) => c.fillText(t, x - 14 + 34, ys + 24 + subSize * 0.82 + k * lh));
     });
     y += bh;
   }
-  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: PL(26, 20), padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, plainColor: C.soft, base: 0.84 }); R(sb, 6); }); }
-  return { rects, blocks, titleSize, subSize, fits, textTop: plainMode ? textTop0 : T.H - T.bottom - L.h };
+  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: 26, padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, base: 0.84 }); R(sb, 6); }); }
+  return { rects, blocks, titleSize, subSize, fits, textTop: T.H - T.bottom - L.h };
 }
 // Series slide 1: the cover's own marks (kicker tag, headline blocks, purple arrow box, #NNN badge) in the shared positions.
 // Movable blocks: kicker (the tag), title (the whole headline stack), strap (the arrow box), badge (#NNN).
@@ -236,7 +228,7 @@ function drawSeries(ctx, c0, i, total) {
     const ai = B({ x: 102, y, text: c.h2, font: '800 228px ' + BALOO, size: 228, lh: 0.95, padL: 62, padR: 62, padT: 0, padB: 6, rad: 10, amp: 16, seed: 9, brush: true, color: C.pink, ins: [6, 10, 0, 10], base: 0.86 }); sub.push(ai); y += ai.h + 2;
     const earn = B({ x: 50, y, text: c.h3, font: '800 76px ' + BALOO, size: 76, padL: 26, padR: 26, padT: 6, padB: 8, rad: 22, amp: 3.5, seed: 14, color: C.cream, base: 0.86 }); sub.push(earn); y += earn.h + 8;
     const and = B({ x: 50, y: y + 20, text: c.h4, font: '800 56px ' + BALOO, size: 56, padL: 20, padR: 20, padT: 10, padB: 12, rad: 20, amp: 3, seed: 17, color: C.cream, base: 0.86 });
-    const wk = B({ x: 50 + and.w - 2, y, text: c.h5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); sub.push(and, wk);
+    const wk = B({ x: 50 + and.w - 2, y, text: c.h5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, base: 0.84 }); sub.push(and, wk);
     if (wk.w) underline(cx, wk.x + 46, wk.x + wk.w - 50, wk.y + wk.h - 2, C.hot, -3);
     cx.restore();
     sub.forEach(r => R({ x: T.margin - 50 * K + r.x * K, y: hy + r.y * K, w: r.w * K, h: r.h * K }, 8));
@@ -254,6 +246,80 @@ function drawSeries(ctx, c0, i, total) {
   const textTop = hy;
   return { rects, blocks, textTop, fits: textTop >= T.H * T.maxTextTop };
 }
+
+
+// ---------- SOC-26: the dark look ----------
+// The design of the 20 Nov post: her photo full-bleed, a dark fade over the lower part, small white handle and counter on top, and a
+// bottom-aligned stack: small letter-spaced kicker, big number, bold title, sub, short swipe line. No brush shapes.
+// Every value below is the old Orb creator's card CSS (git commit 2c825b7, dist/carousel-insta/index.html, the version that drew the post),
+// written in its 460 x 575 card units and multiplied by DK = 1080 / 460, the scale its own export used (html2canvas { scale: 1080 / 460 }, line 689).
+const DK = 1080 / 460;
+const DARK = {
+  ground: '#2b2a33',                                                   // index.html:48  .ig-card background (no photo)
+  scrim: [[0, 'rgba(10,10,16,0.92)'], [0.38, 'rgba(10,10,16,0.78)'], [0.72, 'rgba(10,10,16,0.30)'], [1, 'rgba(10,10,16,0.05)']], // :53 linear-gradient(to top, ...): stop 0 is the bottom edge
+  font: "-apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif", // :11 body font-family
+  accent: '#ffd9a0',                                                   // :61 .ig-kicker, :62 .ig-num, :65 .ig-swipe colour
+  handle: { top: 24, left: 30, size: 14, color: 'rgba(255,255,255,0.9)' },  // :55 .ig-handle
+  count: { top: 24, right: 30, size: 14, color: 'rgba(255,255,255,0.85)' }, // :56 .ig-count
+  box: { left: 34, right: 34, bottom: 46, top: 60 },                   // :57-60 .ig-content
+  kicker: { size: 13, ls: 2, mb: 12 },                                 // :61 uppercase, letter-spacing 2px, margin-bottom 12px, weight 700
+  num: { size: 92, lh: 0.9, mb: 8 },                                   // :62 weight 800
+  title: { size: 30, lh: 1.14, ls: -0.5, color: '#fff' },              // :63 weight 800; colour inherited from the card (white)
+  sub: { size: 19, lh: 1.26, mt: 15, color: '#f3f1ee' },               // :64 weight 500
+  swipe: { size: 15, mt: 18 },                                         // :65 weight 700
+  normalLH: 1.17 };                                                    // line-height: normal for the system sans (kicker, swipe, handle, counter)
+function setLS(ctx, px) { if ('letterSpacing' in ctx) ctx.letterSpacing = px + 'px'; }
+function darkLines(ctx, text, maxW) { return text ? wrapLines(ctx, text, maxW) : []; }
+function drawDark(ctx, s, i, total) {
+  const { rects, R } = rectsOf(), blocks = {}, g = mover(ctx, s.offsets, rects, blocks), D = DARK, F = D.font;
+  const x0 = D.box.left * DK, maxW = T.W - (D.box.left + D.box.right) * DK;
+  const top = D.box.top * DK, bottom = T.H - D.box.bottom * DK, avail = bottom - top;
+  const titleBase = D.title.size * DK, subBase = D.sub.size * DK;
+  const lay = (ts, ss) => {
+    ctx.font = '800 ' + ts + 'px ' + F; setLS(ctx, D.title.ls * DK); const tl = darkLines(ctx, s.title, maxW); setLS(ctx, 0);
+    ctx.font = '500 ' + ss + 'px ' + F; const sl = darkLines(ctx, s.sub, maxW);
+    const kS = D.kicker.size * DK, nS = D.num.size * DK, wS = D.swipe.size * DK;
+    const hK = s.kicker ? kS * D.normalLH : 0, hN = s.num ? nS * D.num.lh : 0, hT = tl.length * ts * D.title.lh, hS = sl.length * ss * D.sub.lh, hW = s.swipe ? wS * D.normalLH : 0;
+    let h = hK + hN + hT + hS + hW;
+    if (s.kicker) h += D.kicker.mb * DK;
+    if (s.num) h += D.num.mb * DK;
+    if (sl.length) h += D.sub.mt * DK;
+    if (s.swipe) h += D.swipe.mt * DK;
+    return { tl, sl, h, kS, nS, wS, hK, hN, hT, hS, hW };
+  };
+  let ts = titleBase, ss = subBase, L = lay(ts, ss);
+  while (L.h > avail && ts > T.titleMin) { ts -= 4; L = lay(ts, ss); }     // not in the old CSS (it let text overflow); the shrink uses the creator's own floors so the fit check can pass
+  while (L.h > avail && ss > T.subMin) { ss -= 2; L = lay(ts, ss); }
+  const fits = L.h <= avail;
+  const base = (yTop, size, lh) => yTop + ((lh - 1.15) / 2 + 0.93) * size; // alphabetic baseline of a line box (ascent .93, content 1.15 of the em)
+  ctx.textBaseline = 'alphabetic';
+  if (s.handle) g('handle', (c, R) => {
+    const sz = D.handle.size * DK; c.font = '700 ' + sz + 'px ' + F; c.fillStyle = D.handle.color;
+    const y = D.handle.top * DK, x = D.handle.left * DK; c.fillText(s.handle, x, base(y, sz, D.normalLH));
+    R({ x, y, w: c.measureText(s.handle).width, h: sz * D.normalLH }, 6);
+  });
+  { const sz = D.count.size * DK, t = (i + 1) + ' / ' + total; ctx.font = '700 ' + sz + 'px ' + F; ctx.fillStyle = D.count.color;
+    const w = ctx.measureText(t).width, x = T.W - D.count.right * DK - w, y = D.count.top * DK; ctx.fillText(t, x, base(y, sz, D.normalLH)); R({ x, y, w, h: sz * D.normalLH }, 4); }
+  let y = bottom - L.h; const textTop = y;
+  if (s.kicker) { const y0 = y; g('kicker', (c, R) => {
+    c.font = '700 ' + L.kS + 'px ' + F; setLS(c, D.kicker.ls * DK); c.fillStyle = D.accent;
+    const t = s.kicker.toUpperCase(); c.fillText(t, x0, base(y0, L.kS, D.normalLH)); const w = c.measureText(t).width; setLS(c, 0);
+    R({ x: x0, y: y0, w, h: L.hK }, 6); }); y += L.hK + D.kicker.mb * DK; }
+  if (s.num) { const y0 = y; g('num', (c, R) => {
+    c.font = '800 ' + L.nS + 'px ' + F; c.fillStyle = D.accent; c.fillText(s.num, x0, base(y0, L.nS, D.num.lh)); R({ x: x0, y: y0, w: c.measureText(s.num).width, h: L.hN }, 6); }); y += L.hN + D.num.mb * DK; }
+  if (L.tl.length) { const yT = y; g('title', (c, R) => {
+    c.font = '800 ' + ts + 'px ' + F; setLS(c, D.title.ls * DK); c.fillStyle = D.title.color; let bw = 0;
+    L.tl.forEach((t, k) => { c.fillText(t, x0, base(yT + k * ts * D.title.lh, ts, D.title.lh)); bw = Math.max(bw, c.measureText(t).width); }); setLS(c, 0);
+    R({ x: x0, y: yT, w: bw, h: L.hT }, 6); }); y += L.hT; }
+  if (L.sl.length) { y += D.sub.mt * DK; const yS = y; g('sub', (c, R) => {
+    c.font = '500 ' + ss + 'px ' + F; c.fillStyle = D.sub.color; let bw = 0;
+    L.sl.forEach((t, k) => { c.fillText(t, x0, base(yS + k * ss * D.sub.lh, ss, D.sub.lh)); bw = Math.max(bw, c.measureText(t).width); });
+    R({ x: x0, y: yS, w: bw, h: L.hS }, 6); }); y += L.hS; }
+  if (s.swipe) { y += D.swipe.mt * DK; const yW = y; g('swipe', (c, R) => {
+    c.font = '700 ' + L.wS + 'px ' + F; c.fillStyle = D.accent; c.fillText(s.swipe, x0, base(yW, L.wS, D.normalLH)); R({ x: x0, y: yW, w: c.measureText(s.swipe).width, h: L.hW }, 6); }); }
+  return { rects, blocks, titleSize: Math.round(ts), subSize: Math.round(ss), fits, textTop };
+}
+function drawDarkScrim(ctx) { const g = ctx.createLinearGradient(0, T.H, 0, 0); DARK.scrim.forEach(([o, c]) => g.addColorStop(o, c)); ctx.fillStyle = g; ctx.fillRect(0, 0, T.W, T.H); }
 
 // ---------- the photo ----------
 // face = { x, y, w, h } as fractions of the image. frame = { fx, fy, zoom } or null.
@@ -280,32 +346,25 @@ function place(imgW, imgH, face, rects, frame) {
   return { fx, fy, zoom, cleared, lowRes: lowResAt(sc) };
 }
 // SOC-25: ONE uniform scale on both axes (cover), never a per-axis fit: a circle stays a circle.
-function drawPhoto(ctx, im, fx, fy, zoom) {
-  ctx.fillStyle = '#bdbdba'; ctx.fillRect(0, 0, T.W, T.H); if (!im) return;
+function drawPhoto(ctx, im, fx, fy, zoom, dark) {
+  ctx.fillStyle = dark ? DARK.ground : '#bdbdba'; ctx.fillRect(0, 0, T.W, T.H); if (!im) return;
   const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
   const s = Math.max(T.W / iw, T.H / ih) * zoom, dw = iw * s, dh = ih * s;
   ctx.drawImage(im, -(dw - T.W) * fx, -(dh - T.H) * fy, dw, dh);
+  if (dark) return; // the dark look has no plum tint (its template has none)
   const g = ctx.createLinearGradient(0, 0, T.W * 0.55, T.H * 0.1); g.addColorStop(0, 'rgba(58,17,80,.22)'); g.addColorStop(1, 'rgba(58,17,80,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, T.W, T.H);
 }
 function twoPass(cv, draw, im, opts) {
   opts = opts || {}; cv.width = T.W; cv.height = T.H; const ctx = cv.getContext('2d');
-  if (opts.look === 'plain') { // SOC-24: no photo, no scrim, no face check; the purple ground, the same layout
-    plainMode = true;
-    try {
-      const tmpP = document.createElement('canvas'); tmpP.width = T.W; tmpP.height = T.H;
-      const preP = draw(tmpP.getContext('2d'));
-      ctx.fillStyle = C.purple; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);
-      return { rects: preP.rects, blocks: preP.blocks, textTop: Math.round(preP.textTop), fits: preP.fits, faceClear: null, lowRes: null, fx: 0.5, fy: 0.5, zoom: 1 };
-    } finally { plainMode = false; }
-  }
+  const dark = opts.look === 'dark'; // SOC-26: same photo placement and lowRes as the photo look; the ground, the scrim and the words differ
   const tmp = document.createElement('canvas'); tmp.width = T.W; tmp.height = T.H;
   const pre = draw(tmp.getContext('2d'));
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;
   const pl = place(iw, ih, im ? opts.face || null : null, pre.rects, opts.frame || null);
-  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom); draw(ctx);
+  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark); if (dark) drawDarkScrim(ctx); draw(ctx);
   return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, lowRes: pl.lowRes, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
 }
-function renderSlide(cv, slide, i, total, im, opts) { return twoPass(cv, ctx => drawText(ctx, slide, i, total), im, opts); }
+function renderSlide(cv, slide, i, total, im, opts) { const dk = !!opts && opts.look === 'dark'; return twoPass(cv, ctx => (dk ? drawDark : drawText)(ctx, slide, i, total), im, opts); }
 function renderSeries(cv, cover, i, total, im, opts) { return twoPass(cv, ctx => drawSeries(ctx, cover, i, total), im, opts); }
 
 // ---------- the reel overlay (SOC-18.1) ----------

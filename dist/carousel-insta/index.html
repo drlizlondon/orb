@@ -201,7 +201,7 @@
   <div id="orig-deck" role="region" aria-label="The original words" hidden></div>
   <div id="look-row" class="look-row" role="group" aria-label="Look">
     <button id="look-photo" class="quiet-btn small-btn" type="button" aria-pressed="true">Photo</button>
-    <button id="look-plain" class="quiet-btn small-btn" type="button" aria-pressed="false">Plain</button>
+    <button id="look-dark" class="quiet-btn small-btn" type="button" aria-pressed="false">Dark</button>
   </div>
   <label for="caption">Caption</label>
   <textarea id="caption" rows="3"></textarea>
@@ -368,8 +368,9 @@ let cards = loadDeck();
 let type = readType();
 let cover = readCover();
 let meta = { evidence: '', pending: null, conceptId: null };
-const LOOK_KEY = 'ig_look_v1'; // SOC-24: photo | plain for an item with no concept id (kept on this device)
-let look = lsGet(LOOK_KEY) === 'plain' ? 'plain' : 'photo';
+const LOOK_KEY = 'ig_look_v1'; // SOC-24/26: photo | dark for an item with no concept id (kept on this device)
+const lookOf = v => (v === 'dark' || v === 'plain') ? 'dark' : 'photo'; // SOC-26: a saved 'plain' (the retired SOC-24 look) opens as dark
+let look = lookOf(lsGet(LOOK_KEY));
 let current = 'ready';
 let seriesInfo = { last: null, next: null };
 let numTouched = false;
@@ -490,18 +491,17 @@ function slideFor(c) { return { handle: c.handle || HANDLE, kicker: c.kicker, nu
 async function drawInto(cv, i) {
   const tok = cv._tok = (cv._tok || 0) + 1;
   await fontsP;
-  const plain = look === 'plain'; // SOC-24: no photo is loaded or drawn; the photos stay on the cards
-  const url = cards[i] && !plain ? cards[i].photo : '';
+  const url = cards[i] ? cards[i].photo : '';
   const im = await loadImg(url);
   await albumReady;
   if (cv._tok !== tok || !cards[i]) return null;
   const c = cards[i];
-  if (!plain && c.photo !== url) return drawInto(cv, i);
-  if ((look === 'plain') !== plain) return drawInto(cv, i);
-  const has = !!(!plain && c.photo && im);
+  if (c.photo !== url) return drawInto(cv, i);
+  const dark = look === 'dark'; // SOC-26: the dark look keeps the photo, the face check and the size guard; the cover marks are the photo look's
+  const has = !!(c.photo && im);
   const opts = { face: has ? faceOf(c) : null, frame: c.frame || null };
-  if (plain) opts.look = 'plain';
-  const r = (type === 'series' && i === 0) ? OneLook.renderSeries(cv, coverFor(), i, cards.length, im, opts) : OneLook.renderSlide(cv, slideFor(c), i, cards.length, im, opts);
+  if (dark) opts.look = 'dark';
+  const r = (type === 'series' && i === 0 && !dark) ? OneLook.renderSeries(cv, coverFor(), i, cards.length, im, opts) : OneLook.renderSlide(cv, slideFor(c), i, cards.length, im, opts);
   return Object.assign({ hasPhoto: has }, r);
 }
 const dirty = new Set(); let raf = 0;
@@ -755,7 +755,7 @@ $('review-strip').addEventListener('scroll', () => {
   $('review-count').textContent = k + ' / ' + n;
 });
 function openReview() { show('review'); return drawReview(); }
-function syncLookButtons() { $('look-photo').setAttribute('aria-pressed', String(look === 'photo')); $('look-plain').setAttribute('aria-pressed', String(look === 'plain')); }
+function syncLookButtons() { $('look-photo').setAttribute('aria-pressed', String(look === 'photo')); $('look-dark').setAttribute('aria-pressed', String(look === 'dark')); }
 async function setLook(next) {
   if (look === next) return;
   look = next; syncLookButtons(); if (meta.ref) meta.ref.look = next;
@@ -764,14 +764,14 @@ async function setLook(next) {
   await drawn;
 }
 $('look-photo').addEventListener('click', () => setLook('photo'));
-$('look-plain').addEventListener('click', () => setLook('plain'));
+$('look-dark').addEventListener('click', () => setLook('dark'));
 function openDraft(c) {
   const slides = Array.isArray(c.deck && c.deck.slides) ? c.deck.slides : [];
   cards = slides.map(s => norm({ kicker: s.kicker, num: s.num, title: s.title, sub: s.sub, swipe: s.swipe, photo: (typeof s.photo === 'string' && s.photo) ? albumUrl(s.photo) : '' }));
   $('caption').value = (c.deck && c.deck.caption) || '';
   meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id, ref: c };
   setType(isSeries(c) ? 'series' : 'words');
-  look = c.look === 'plain' ? 'plain' : 'photo';
+  look = c.look ? lookOf(c.look) : (c.kind === 'life' ? 'dark' : 'photo'); // SOC-26: the Life series defaults to dark when the draft carries no look
   syncLookButtons();
   showSecondLook(c);
   syncStrap(); persist(); openReview();

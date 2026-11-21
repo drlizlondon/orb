@@ -37,11 +37,13 @@ const MUT = [
   // SOC-25
   ['small photo no longer blocks Approve', rep("else if (sm >= 0) { blocked = true;", "else if (sm >= 0) { blocked = false;")],
   ['small photo check removed from the review checks', rep("const sm = results.findIndex(r => r && r.hasPhoto && r.lowRes === true);", "const sm = -1;")],
-  // SOC-24
-  ['plain look is not passed to the renderer (plain draws the photo look)', rep("  if (plain) opts.look = 'plain';", '')],
+  // SOC-24 / SOC-26
+  ['dark look is not passed to the renderer (dark draws the photo look)', rep("  if (dark) opts.look = 'dark';", '')],
   ['the toggle redraws but never tells the Worker', rep("'/api/concepts/' + encodeURIComponent(meta.conceptId) + '/look'", "'/api/series'")],
   ['the series label is never shown', rep('if (c && SERIES[c.kind]) {', 'if (false) {')],
-  ['a concept with look plain opens as photo', rep("look = c.look === 'plain' ? 'plain' : 'photo';", "look = 'photo';")],
+  ['a concept with look plain opens as photo (old setting not mapped to dark)', rep("(v === 'dark' || v === 'plain') ? 'dark' : 'photo'", "v === 'dark' ? 'dark' : 'photo'")],
+  ['a life concept with no look opens Photo (default not dark)', rep("(c.kind === 'life' ? 'dark' : 'photo')", "'photo'")],
+  ['dark drops the photo (the size and face guards cannot run)', rep("const url = cards[i] ? cards[i].photo : '';", "const url = cards[i] && look !== 'dark' ? cards[i].photo : '';")],
   ['the look is not part of the approve signature (a stale publish can be reused)', rep('[type, look, n, cover,', '[type, n, cover,')],
   // SOC-18.10
   ['slideFor drops the offsets (preview and export ignore the move)', rep('sub: c.sub, swipe: c.swipe, offsets: c.offsets }; }', 'sub: c.sub, swipe: c.swipe }; }')],

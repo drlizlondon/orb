@@ -116,9 +116,9 @@ await t('SOC-25 uniform cover (must-fail fixture): a circle drawn into the slide
 await t('SOC-25 low-res flag (must-fail fixture): a 400x500 photo is lowRes true; 1080x1350, 1200x1600 and 2048x1536 are false; no photo is null; zooming a 1080x1350 photo in makes it true', async () => {
   const r = await page.evaluate(({ SLIDES }) => {
     const f = (img, opts) => OneLook.renderSlide(document.createElement('canvas'), SLIDES[3], 3, 4, img, opts).lowRes;
-    return { small: f(mkImg(400, 500), {}), seriesSmall: OneLook.renderSeries(document.createElement('canvas'), { ...OneLook.coverDefaults(), num: 1 }, 0, 4, mkImg(683, 1024), {}).lowRes, exact: f(mkImg(1080, 1350), {}), p: f(mkImg(1200, 1600), {}), l: f(mkImg(2048, 1536), {}), none: f(null, {}), plain: f(mkImg(400, 500), { look: 'plain' }), zoomed: f(mkImg(1080, 1350), { frame: { fx: 0.5, fy: 0.5, zoom: 1.3 } }) };
+    return { small: f(mkImg(400, 500), {}), seriesSmall: OneLook.renderSeries(document.createElement('canvas'), { ...OneLook.coverDefaults(), num: 1 }, 0, 4, mkImg(683, 1024), {}).lowRes, exact: f(mkImg(1080, 1350), {}), p: f(mkImg(1200, 1600), {}), l: f(mkImg(2048, 1536), {}), none: f(null, {}), dark: f(mkImg(400, 500), { look: 'dark' }), zoomed: f(mkImg(1080, 1350), { frame: { fx: 0.5, fy: 0.5, zoom: 1.3 } }) };
   }, { SLIDES });
-  assert.deepEqual(r, { small: true, seriesSmall: true, exact: false, p: false, l: false, none: null, plain: null, zoomed: true });
+  assert.deepEqual(r, { small: true, seriesSmall: true, exact: false, p: false, l: false, none: null, dark: true, zoomed: true });
 });
 await t('Face blocked (must-fail fixture, 1080x1350 no room): faceClear false, and the mapped box does hit a rect', async () => {
   const r = await page.evaluate(({ SLIDES, STRAP }) => {
@@ -204,8 +204,8 @@ await t('Same in, same out: identical toDataURL; 1080x1350; more than 20 colours
   assert.equal((SRC.match(/Math\.random/g) || []).length, 0, 'Math.random in look.js');
 });
 
-await t('Colours: no ffd9a0 in look.js; the seven C values equal the cover list', async () => {
-  assert.equal((SRC.match(/ffd9a0/gi) || []).length, 0);
+await t('Colours: ffd9a0 appears once in look.js (the dark look accent, DARK.accent); the seven C values equal the cover list', async () => {
+  assert.equal((SRC.match(/ffd9a0/gi) || []).length, 1);
   assert.deepEqual(await page.evaluate(() => OneLook.C), COVER_COLOURS);
 });
 
@@ -213,77 +213,106 @@ await t('No network, no storage, no write paths in look.js (G5)', async () => {
   for (const bad of ['fetch(', 'XMLHttpRequest', 'sendBeacon', 'localStorage', 'sessionStorage', 'Authorization', 'token', 'WebSocket', 'http://', 'https://']) assert.ok(!SRC.includes(bad), 'look.js contains ' + bad);
 });
 
-// ---- SOC-24: the plain look (opts.look === 'plain') ----
-await t('SOC-24 plain: purple ground (rgb 58,17,80) at 6 empty points even with a photo handed in; no scrim, no photo', async () => {
+// ---- SOC-26: the dark look (opts.look === 'dark'), replaces the SOC-24 plain look ----
+// Template values: git commit 2c825b7 of dist/carousel-insta/index.html (the page that drew the 20 Nov post), card units x 1080/460.
+const DKW = 1080 / 460;
+await t('SOC-26 dark: gradient (must-fail fixture): on a flat light photo the bottom edge is dark and the top edge is almost untouched', async () => {
   const px = await page.evaluate(({ S }) => {
-    const cv = document.createElement('canvas'), img = mkImg(1200, 1600);
-    const r = OneLook.renderSlide(cv, S, 3, 7, img, { look: 'plain', face: { x: 0.35, y: 0.15, w: 0.3, h: 0.22 } });
+    const flat = document.createElement('canvas'); flat.width = 1080; flat.height = 1350; const fx = flat.getContext('2d'); fx.fillStyle = '#eeeeee'; fx.fillRect(0, 0, 1080, 1350);
+    const cv = document.createElement('canvas'); OneLook.renderSlide(cv, S, 3, 7, flat, { look: 'dark' });
     const x = cv.getContext('2d'); const at = (a, b) => [...x.getImageData(a, b, 1, 1).data];
-    return { r: { fits: r.fits, faceClear: r.faceClear }, pts: [at(2, 2), at(1076, 2), at(2, 700), at(1076, 700), at(540, 300), at(1076, 1346)] };
+    return { top: at(1076, 2), mid: at(1076, 900), bottom: at(1076, 1346) };
   }, { S: SLIDES[3] });
-  for (const p of px.pts) assert.deepEqual(p, [58, 17, 80, 255]);
-  assert.equal(px.r.faceClear, null, 'no face check on plain');
-  assert.equal(px.r.fits, true);
+  // #eee under rgba(10,10,16,a): a = .05 at the top edge, .92 at the bottom edge (index.html:53)
+  const near = (p, e, tol) => p.slice(0, 3).every((v, k) => Math.abs(v - e[k]) <= tol);
+  assert.ok(near(px.top, [227, 227, 227], 3), 'top ' + px.top);
+  assert.ok(near(px.bottom, [28, 28, 34], 3), 'bottom ' + px.bottom);
+  assert.ok(px.bottom[0] < px.mid[0] && px.mid[0] < px.top[0], 'darker towards the bottom: ' + JSON.stringify(px));
 });
-await t('SOC-24 plain: title and sub drawn in #faf1e2, kicker, num and swipe in #f9c9e6, no pill behind the title', async () => {
+await t('SOC-26 dark: no photo draws the template ground #2b2a33 under the scrim; no plum tint on a photo', async () => {
+  const r = await page.evaluate(({ S }) => {
+    const cv = document.createElement('canvas'); OneLook.renderSlide(cv, S, 3, 7, null, { look: 'dark' });
+    const x = cv.getContext('2d'); const top = [...x.getImageData(2, 2, 1, 1).data];
+    const flat = document.createElement('canvas'); flat.width = 1080; flat.height = 1350; const fx = flat.getContext('2d'); fx.fillStyle = '#ffffff'; fx.fillRect(0, 0, 1080, 1350);
+    const c2 = document.createElement('canvas'); OneLook.renderSlide(c2, { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' }, 0, 1, flat, { look: 'dark' });
+    const tl = [...c2.getContext('2d').getImageData(0, 0, 1, 1).data];
+    return { top, tl };
+  }, { S: SLIDES[3] });
+  // #2b2a33 = 43,42,51 under .05 of (10,10,16) = 41,40,49; a white photo under .05 is 243, with no plum tint (plum would pull green down to ~230)
+  assert.ok(r.top.slice(0, 3).every((v, k) => Math.abs(v - [41, 40, 49][k]) <= 2), 'ground ' + r.top);
+  assert.ok(r.tl[0] >= 240 && r.tl[1] >= 240 && r.tl[2] >= 240, 'no tint ' + r.tl);
+});
+await t('SOC-26 dark: words in the template colours and fonts: handle, title white, sub #f3f1ee, kicker upper-case, kicker/num/swipe #ffd9a0, system sans, no pill', async () => {
   const o = await page.evaluate(({ S }) => {
-    const seen = {}; const ft = CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText = function (tx, ...a) { if (this.canvas === window.__cv) seen[tx] = this.fillStyle; return ft.call(this, tx, ...a); };
+    const seen = {}, fonts = {}; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (tx, ...a) { if (this.canvas === window.__cv) { seen[tx] = this.fillStyle; fonts[tx] = this.font; } return ft.call(this, tx, ...a); };
     const cv = document.createElement('canvas'); window.__cv = cv;
-    const s = { ...S, swipe: 'Swipe' };
-    const r = OneLook.renderSlide(cv, s, 3, 7, null, { look: 'plain' });
+    const r = OneLook.renderSlide(cv, { ...S, swipe: 'Swipe to see how' }, 3, 7, null, { look: 'dark' });
     CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null;
-    const b = r.blocks.title, x = cv.getContext('2d');
-    return { seen, corner: [...x.getImageData(Math.round(b.x) + 3, Math.round(b.y) + 3, 1, 1).data] };
+    return { seen, fonts, titleTop: r.blocks.title };
   }, { S: SLIDES[3] });
-  assert.equal(o.seen['Start with one'], '#faf1e2'); assert.equal(o.seen['question'], '#faf1e2'); // the title wraps in two lines
-  assert.equal(o.seen['Ask it one clear thing.'], '#faf1e2');
-  assert.equal(o.seen['Idea'], '#f9c9e6');
-  assert.equal(o.seen['1'], '#f9c9e6');
-  assert.equal(o.seen['Swipe  →'], '#f9c9e6');
-  assert.deepEqual(o.corner, [58, 17, 80, 255], 'a title pill would be cream here');
+  assert.equal(o.seen['IDEA'], '#ffd9a0'); assert.equal(o.seen['1'], '#ffd9a0'); assert.equal(o.seen['Swipe to see how'], '#ffd9a0');
+  assert.equal(o.seen['Start with one question'], '#ffffff'); assert.equal(o.seen['Ask it one clear thing.'], '#f3f1ee');
+  assert.equal(o.seen['@drlizlondon'], 'rgba(255, 255, 255, 0.9)'); assert.equal(o.seen['4 / 7'], 'rgba(255, 255, 255, 0.85)');
+  assert.ok(/^800 /.test(o.fonts['1']) && /^800 /.test(o.fonts['Start with one question']) && /^500 /.test(o.fonts['Ask it one clear thing.']) && /^(700|bold) /.test(o.fonts['Swipe to see how']) && /^(700|bold) /.test(o.fonts['IDEA']) && /^(700|bold) /.test(o.fonts['@drlizlondon']), JSON.stringify(o.fonts));
+  assert.equal(Math.round(parseFloat(o.fonts['1'].split(' ')[1])), Math.round(92 * DKW), 'num 92 card px');
+  assert.equal(Math.round(parseFloat(o.fonts['Start with one question'].split(' ')[1])), Math.round(30 * DKW), 'title 30 card px');
 });
-await t('SOC-24 plain: same layout and fit result as the photo look; the handle tag is still drawn; an over-long slide still reports fits:false', async () => {
+await t('SOC-26 dark: the stack is bottom-aligned at 46 card px from the bottom, left edge at 34 card px, in the template order kicker, num, title, sub, swipe', async () => {
+  const o = await page.evaluate(({ S }) => OneLook.renderSlide(document.createElement('canvas'), { ...S, swipe: 'Swipe' }, 3, 7, null, { look: 'dark' }), { S: SLIDES[3] });
+  const b = o.blocks, H = 1350;
+  assert.ok(Math.abs((b.swipe.y + b.swipe.h) - (H - 46 * DKW)) <= 1.5, 'bottom ' + (b.swipe.y + b.swipe.h));
+  for (const k of ['kicker', 'num', 'title', 'sub', 'swipe']) assert.ok(Math.abs(b[k].x - 34 * DKW) <= 0.5, k + ' x ' + b[k].x);
+  assert.ok(b.kicker.y < b.num.y && b.num.y < b.title.y && b.title.y < b.sub.y && b.sub.y < b.swipe.y);
+  assert.equal(o.fits, true);
+  assert.ok(Math.abs(b.handle.x - 30 * DKW) <= 0.5 && Math.abs(b.handle.y - 24 * DKW) <= 0.5, 'handle ' + JSON.stringify(b.handle));
+});
+await t('SOC-26 dark: a long title wraps to 3 lines inside the 34 card px margins and still fits; a huge one reports fits:false', async () => {
   const o = await page.evaluate(({ S }) => {
-    const a = OneLook.renderSlide(document.createElement('canvas'), S, 3, 7, null, {}), b = OneLook.renderSlide(document.createElement('canvas'), S, 3, 7, null, { look: 'plain' });
-    const long = { ...S, title: (S.title + ' ').repeat(40) };
-    const c = OneLook.renderSlide(document.createElement('canvas'), long, 3, 7, null, { look: 'plain' });
-    return { ta: a.textTop, tb: b.textTop, ha: a.blocks.handle, hb: b.blocks.handle, fa: [a.titleSize, a.subSize], fits: c.fits };
-  }, { S: SLIDES[3] });
-  assert.deepEqual(o.ha, o.hb); assert.ok(o.hb && o.hb.w > 0);
-  assert.equal(o.fits, false);
-});
-await t('SOC-24 plain: every title line starts at the same x as line 1 and as the sub (no stray indent on wrapped lines)', async () => {
-  const xs = await page.evaluate(({ S }) => {
     const seen = []; const ft = CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText = function (tx, x) { if (this.canvas === window.__cv) seen.push([tx, Math.round(x)]); return ft.apply(this, arguments); };
+    CanvasRenderingContext2D.prototype.fillText = function (tx, x) { if (this.canvas === window.__cv) seen.push([tx, x, this.measureText(tx).width]); return ft.apply(this, arguments); };
     const cv = document.createElement('canvas'); window.__cv = cv;
-    OneLook.renderSlide(cv, { ...S, kicker: '', num: '', title: "I don't want to be a full-time A&E doctor and I want more", sub: 'The question becomes: what else am I going to do?', swipe: 'Swipe' }, 3, 7, null, { look: 'plain' });
-    CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null; return seen;
+    const r = OneLook.renderSlide(cv, { ...S, num: '01', title: 'I stopped holding my whole life in my head and started writing every single small thing down in one place', swipe: 'Swipe to see how' }, 0, 5, null, { look: 'dark' });
+    CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null;
+    const huge = OneLook.renderSlide(document.createElement('canvas'), { ...S, title: ('word ').repeat(400) }, 0, 5, null, { look: 'dark' });
+    return { seen, fits: r.fits, hugeFits: huge.fits, ts: r.titleSize };
   }, { S: SLIDES[3] });
-  const title = xs.filter(([tx]) => /^(I don|a full|doctor|and I|want|more|be)/.test(tx) || (tx !== 'The question becomes: what else' && !/^(am I|@|\d \/|Swipe|what)/.test(tx) && xs.indexOf(xs.find(z => z[0] === tx)) < xs.findIndex(z => /^The question/.test(z[0]))));
-  const sub = xs.find(([tx]) => /^The question/.test(tx));
-  assert.ok(title.length >= 3, 'the title wraps in 3 or more lines: ' + JSON.stringify(xs));
-  for (const [tx, x] of title) assert.equal(x, title[0][1], 'title line "' + tx + '" x');
-  assert.equal(title[0][1], sub[1], 'title and sub share the left edge');
+  const lines = o.seen.filter(([tx]) => /^(I stopped|life|writing|every|one place|small|in my|started)/.test(tx) && tx.length > 6 && !/Swipe/.test(tx));
+  assert.ok(lines.length >= 3, 'wrapped: ' + JSON.stringify(o.seen.map(z => z[0])));
+  for (const [, x, w] of lines) assert.ok(x + w <= 1080 - 34 * DKW + 1, 'inside the right margin');
+  assert.equal(o.fits, true); assert.equal(o.hugeFits, false);
 });
-await t('SOC-24 plain: the whole text block is centred vertically in the space between the handle tag and the bottom margin (within 5% of the slide centre)', async () => {
-  const o = await page.evaluate(({ S }) => {
-    const r = OneLook.renderSlide(document.createElement('canvas'), { ...S, swipe: 'Swipe' }, 3, 7, null, { look: 'plain' });
-    const b = ['kicker', 'num', 'title', 'sub', 'swipe'].map(k => r.blocks[k]).filter(Boolean);
-    return { top: Math.min(...b.map(x => x.y)), bot: Math.max(...b.map(x => x.y + x.h)), H: OneLook.T.H };
+await t('SOC-26 dark: keeps the photo guards: face check runs (boolean), lowRes is true for a 400x500 photo, false for 1080x1350, null with no photo', async () => {
+  const r = await page.evaluate(({ S }) => {
+    const f = (img, o) => OneLook.renderSlide(document.createElement('canvas'), S, 3, 4, img, { look: 'dark', ...o });
+    return { small: f(mkImg(400, 500), {}).lowRes, exact: f(mkImg(1080, 1350), {}).lowRes, none: f(null, {}).lowRes, face: typeof f(mkImg(1200, 1600), { face: { x: 0.35, y: 0.15, w: 0.3, h: 0.22 } }).faceClear, noface: f(mkImg(1200, 1600), {}).faceClear };
   }, { S: SLIDES[3] });
-  const mid = (o.top + o.bot) / 2;
-  assert.ok(Math.abs(mid - o.H / 2) <= 0.05 * o.H, 'block centre ' + mid + ' vs ' + o.H / 2);
-  assert.ok(o.top > 120, 'the block starts below the handle tag');
+  assert.deepEqual(r, { small: true, exact: false, none: null, face: 'boolean', noface: null });
+});
+await t('SOC-26 dark: empty fields draw nothing (G1): no kicker, number, title, sub or swipe text from a blank slide', async () => {
+  const seen = await page.evaluate(() => {
+    const out = []; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (tx) { if (this.canvas === window.__cv) out.push(tx); return ft.apply(this, arguments); };
+    const cv = document.createElement('canvas'); window.__cv = cv;
+    OneLook.renderSlide(cv, { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' }, 0, 3, null, { look: 'dark' });
+    CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null; return out;
+  });
+  assert.deepEqual(seen, ['1 / 3'], 'only the page counter');
+});
+await t('SOC-26 dark leaves no state behind: a photo-look draw after a dark draw is identical to one with no dark draw before', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const d = opts => { const c = document.createElement('canvas'); OneLook.renderSlide(c, S, 3, 4, mkImg(1200, 1600), opts); return c.toDataURL(); };
+    const a = d({}); d({ look: 'dark' }); return a === d({});
+  }, { S: SLIDES[3] });
+  assert.ok(o);
 });
 await t('SOC-24 photo look is pixel-identical to before: look "photo" and no look give the same pixels, and both match the pre-SOC-24 golden hashes', async () => {
   const o = await page.evaluate(({ S }) => {
     const img = mkImg(1200, 1600), face = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 };
     const d = opts => { const c = document.createElement('canvas'); OneLook.renderSlide(c, S, 3, 4, img, opts); return c.toDataURL(); };
-    return { same: d({ face }) === d({ face, look: 'photo' }), plainDiffers: d({ face }) !== d({ face, look: 'plain' }) };
+    return { same: d({ face }) === d({ face, look: 'photo' }), darkDiffers: d({ face }) !== d({ face, look: 'dark' }) };
   }, { S: SLIDES[3] });
-  assert.ok(o.same); assert.ok(o.plainDiffers);
+  assert.ok(o.same); assert.ok(o.darkDiffers);
   const g = JSON.parse(fs.readFileSync(path.join(here, 'fixtures/look-golden.json'), 'utf8'));
   const h = await page.evaluate(({ S }) => {
     const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(16) + ':' + s.length; };

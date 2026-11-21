@@ -138,6 +138,7 @@ async function open(vp, o = {}) {
     window.__txt = []; const ft = CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText = function (t, ...a) { window.__txt.push(String(t)); return ft.call(this, t, ...a); };
   }, [W, TOKEN, o.legacy == null ? null : o.legacy, o.connected !== false]);
+  if (o.lsLook) await page.addInitScript(v => { try { localStorage.setItem('ig_look_v1', v); } catch (e) {} }, o.lsLook);
   await page.goto(S + (o.hash || ''));
   if (o.connected !== false && !o.hash && !o.noWait) await page.waitForSelector('.ready-item', { timeout: 15000 }).catch(() => {});
   return { page, errors, ctx };
@@ -201,7 +202,7 @@ await check('Two taps to approved: one .ready-item, then #approve-btn, nothing e
 });
 
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
-  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 7 controls (Back, Photo, Plain, caption, Slides from caption, Approve, Edit), no editable text, <= 27 furniture words (15 plus the five words of the SOC-22 line, plus Photo, Plain and the five-word series label of SOC-24 "Second look: not checked yet."), <= 1.3 screens (SOC-24 added the Photo/Plain row and the series line)`, async () => {
+  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 7 controls (Back, Photo, Dark, caption, Slides from caption, Approve, Edit), no editable text, <= 27 furniture words (15 plus the five words of the SOC-22 line, plus Photo, Dark and the five-word series label of SOC-24 "Second look: not checked yet."), <= 1.3 screens (SOC-24 added the Photo/Plain row and the series line)`, async () => {
     const { page, ctx } = await open(vp);
     await page.click('.ready-item');
     const v = reviewViolations(await metrics(page));
@@ -935,72 +936,91 @@ await check('SOC-22 Second look on the Reels screen: a ready reel shows its line
   await ctx.close();
 });
 
-// ----- SOC-24: plain look, toggle, series label -----
+// ----- SOC-24/26: look toggle (Photo / Dark), series label -----
 const SHOTS24 = path.join(process.env.HOME, 'soc24-shots'); fs.mkdirSync(SHOTS24, { recursive: true });
-const cornerPx = page => page.evaluate(() => [...document.querySelectorAll('#review-strip canvas')].map(cv => [...cv.getContext('2d').getImageData(3, 3, 1, 1).data]));
-const waitPlain = (page, on) => page.waitForFunction(on => { const c = [...document.querySelectorAll('#review-strip canvas')]; return c.length > 0 && c.every(cv => { const p = cv.getContext('2d').getImageData(3, 3, 1, 1).data; return (p[0] === 58 && p[1] === 17 && p[2] === 80) === on; }); }, on, { timeout: 15000 });
+const cornerPx = page => page.evaluate(() => [...document.querySelectorAll('#review-strip canvas')].map(cv => [...cv.getContext('2d').getImageData(1076, 1346, 1, 1).data]));
+const isDarkPx = p => p[0] < 45 && p[1] < 45 && p[2] < 50; // the dark scrim is .92 of rgb(10,10,16) at the bottom edge
+const waitDark = (page, on) => page.waitForFunction(on => { const c = [...document.querySelectorAll('#review-strip canvas')]; return c.length > 0 && c.every(cv => { const p = cv.getContext('2d').getImageData(1076, 1346, 1, 1).data; return (p[0] < 45 && p[1] < 45 && p[2] < 50) === on; }); }, on, { timeout: 15000 });
 const stripHash = page => page.evaluate(() => [...document.querySelectorAll('#review-strip canvas')].map(cv => cv.toDataURL().length + ':' + cv.toDataURL().slice(-60)));
-await check('SOC-24 plain look: every slide of a 4-slide deck is rgb(58,17,80) with no photo; the face check does not run; toggle Photo > Plain > Photo restores the same photo ids and the same pixels; the look is sent to the Worker', async () => {
-  st.drafted = [mk(4, 'idea', 'plain1', { createdAt: '2026-11-19T08:00:00Z' })];
+await check('SOC-26 dark look: every slide of a 4-slide deck gets the dark fade over its photo; the photos stay; the face check still runs; toggle Photo > Dark > Photo restores the same pixels; the look "dark" is sent to the Worker', async () => {
+  st.drafted = [mk(4, 'idea', 'dark1', { createdAt: '2026-11-19T08:00:00Z' })];
   const { page, ctx } = await open(PH);
   await page.click('.ready-item'); await reviewReady(page);
   const ids0 = await page.evaluate(() => cards.map(c => c.photo));
   const h0 = await stripHash(page);
-  assert.ok((await cornerPx(page)).every(p => !(p[0] === 58 && p[1] === 17 && p[2] === 80)), 'photo look has a photo');
+  assert.ok((await cornerPx(page)).every(p => !isDarkPx(p)), 'photo look has no dark fade');
   await page.screenshot({ path: path.join(SHOTS24, 'photo-390.png') });
-  await page.click('#look-plain'); await waitPlain(page, true); await reviewReady(page);
+  await page.click('#look-dark'); await waitDark(page, true); await reviewReady(page);
   const px = await cornerPx(page);
-  assert.equal(px.length, 4); for (const p of px) assert.deepEqual(p, [58, 17, 80, 255]);
-  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#review-strip')).backgroundImage), 'none');
-  assert.equal(await page.locator('#review-strip img').count(), 0);
-  assert.ok(await page.evaluate(() => lastRes.every(r => r && r.hasPhoto === false && r.faceClear === null)), 'no face check on plain');
+  assert.equal(px.length, 4); for (const p of px) assert.ok(isDarkPx(p), 'dark ' + p);
+  assert.ok(await page.evaluate(() => lastRes.every(r => r && r.hasPhoto === true && typeof r.faceClear === 'boolean')), 'photo and face check on dark');
   assert.ok(!(await page.locator('#approve-btn').isDisabled()));
-  await page.screenshot({ path: path.join(SHOTS24, 'plain-390.png') });
-  assert.ok(calls.some(c => c.method === 'POST' && /\/api\/concepts\/c-plain1\/look$/.test(c.path) && JSON.parse(c.body).look === 'plain'), 'look sent to the Worker');
-  assert.equal(await page.evaluate(() => cards.map(c => c.photo).join()), ids0.join(), 'photos stay on the cards while plain');
-  await page.click('#look-photo'); await waitPlain(page, false); await reviewReady(page);
+  await page.screenshot({ path: path.join(SHOTS24, 'dark-390.png') });
+  assert.ok(calls.some(c => c.method === 'POST' && /\/api\/concepts\/c-dark1\/look$/.test(c.path) && JSON.parse(c.body).look === 'dark'), 'look sent to the Worker');
+  assert.equal(await page.evaluate(() => cards.map(c => c.photo).join()), ids0.join(), 'photos stay on the cards');
+  await page.click('#look-photo'); await waitDark(page, false); await reviewReady(page);
   assert.equal(await page.evaluate(() => cards.map(c => c.photo).join()), ids0.join());
   assert.deepEqual(await stripHash(page), h0, 'Photo again draws the same pixels as at the start');
   assert.equal(calls.filter(c => /\/look$/.test(c.path)).length, 2);
+  assert.equal(await page.locator('#look-plain').count(), 0, 'no Plain button any more');
   await ctx.close();
 });
-await check('SOC-24 plain: a face-blocked photo deck is not blocked on plain (no photo, no face check) and is blocked again on Photo', async () => {
-  st.drafted = [faceDeck('blockedplain', 'gb')];
+await check('SOC-26 dark: the face check runs on dark too: a face-blocked photo deck is blocked on Photo and on Dark', async () => {
+  st.drafted = [faceDeck('blockeddark', 'gb')];
   const { page, ctx } = await open(PH);
   await page.click('.ready-item');
   await page.waitForFunction(() => /Words are over your face on slide 2/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
   assert.ok(await page.locator('#approve-btn').isDisabled());
-  await page.click('#look-plain'); await reviewReady(page);
-  assert.ok(!/over your face/.test(await page.textContent('#msg')));
-  assert.ok(!(await page.locator('#approve-btn').isDisabled()));
-  await page.click('#look-photo');
+  await page.click('#look-dark'); await waitDark(page, true);
   await page.waitForFunction(() => /Words are over your face on slide 2/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  assert.ok(await page.locator('#approve-btn').isDisabled(), 'still blocked on dark');
   await ctx.close();
 });
-await check('SOC-24 plain: the fit check still runs and blocks Approve on an over-long slide', async () => {
-  const c = mk(3, 'idea', 'longplain', { createdAt: '2026-11-19T08:00:00Z' });
-  c.deck.slides[1].title = 'Fixture long words '.repeat(30);
+await check('SOC-26 dark: the size guard blocks Approve on a too-small photo (400x500) on dark, names the slide, and sends nothing', async () => {
+  st.drafted = [mk(4, 'idea', 'smalldark', { createdAt: '2026-11-19T08:00:00Z', photoFor: i => i === 2 ? 'gs' : 'gc0' })];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await page.waitForFunction(() => /Photo too small/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  await page.click('#look-dark'); await waitDark(page, true);
+  await page.waitForFunction(() => /Photo too small for a sharp slide on slide 3/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  assert.equal(await page.textContent('#msg'), 'Photo too small for a sharp slide on slide 3. Pick another photo.');
+  assert.ok(await page.locator('#approve-btn').isDisabled());
+  await page.waitForTimeout(400); assert.equal(st.published.length, 0);
+  assert.ok(await page.evaluate(() => look === 'dark' && lastRes.some(r => r && r.hasPhoto && r.lowRes === true)));
+  await ctx.close();
+});
+await check('SOC-26 dark: the fit check still runs and blocks Approve on an over-long slide', async () => {
+  const c = mk(3, 'idea', 'longdark', { createdAt: '2026-11-19T08:00:00Z', photoFor: () => 'gn' }); // no face data, so the fit message is the one shown
+  c.deck.slides[1].title = 'Fixture long words '.repeat(60);
   st.drafted = [c];
   const { page, ctx } = await open(PH);
   await page.click('.ready-item'); await reviewReady(page).catch(() => {});
-  await page.click('#look-plain'); await waitPlain(page, true);
+  await page.click('#look-dark'); await waitDark(page, true);
   await page.waitForFunction(() => /Slide 2 has too many words to fit/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
   assert.ok(await page.locator('#approve-btn').isDisabled());
   await ctx.close();
 });
-await check('SOC-24 a concept whose look is plain opens plain; the series label shows for series, life and idea', async () => {
+await check('SOC-26 a concept whose look is the old "plain" opens dark; a life concept with no look opens dark; series and idea open Photo; the series label shows for series, life and idea', async () => {
   const t = i => `2026-11-19T07:0${i}:00Z`;
   const life = mk(3, 'life', 'golf', { createdAt: t(1) }); life.look = 'plain';
-  st.drafted = [mk(3, 'series', 'sierra', { createdAt: t(2) }), life, mk(3, 'idea', 'india', { createdAt: t(3) })];
+  const life2 = mk(3, 'life', 'hotel', { createdAt: t(4) }); delete life2.look;
+  st.drafted = [mk(3, 'series', 'sierra', { createdAt: t(2) }), life, mk(3, 'idea', 'india', { createdAt: t(3) }), life2];
   const { page, ctx } = await open(PH);
-  const want = { sierra: 'Series: Work less, do more', golf: 'Series: Life', india: 'One-off' };
+  const want = { sierra: 'Series: Work less, do more', golf: 'Series: Life', india: 'One-off', hotel: 'Series: Life' };
   for (const tag of Object.keys(want)) {
     await openItem(page, tag); await reviewReady(page);
     assert.equal(await page.textContent('#series-line'), want[tag]);
-    assert.equal(await page.evaluate(() => look), tag === 'golf' ? 'plain' : 'photo');
-    if (tag === 'golf') { assert.ok((await cornerPx(page)).every(p => p[0] === 58 && p[1] === 17 && p[2] === 80)); await page.screenshot({ path: path.join(SHOTS24, 'label-life-390.png') }); }
+    const dark = tag === 'golf' || tag === 'hotel';
+    assert.equal(await page.evaluate(() => look), dark ? 'dark' : 'photo', tag);
+    if (dark) { await waitDark(page, true); assert.ok((await cornerPx(page)).every(isDarkPx)); await page.screenshot({ path: path.join(SHOTS24, 'label-life-390.png') }); }
     await page.click('#review-back'); await page.waitForSelector('.ready-item');
   }
+  await ctx.close();
+});
+await check('SOC-26 a saved look "plain" on this device (SOC-24 setting) loads as dark', async () => {
+  st.drafted = [mk(3, 'idea', 'oldsetting', { createdAt: '2026-11-19T08:00:00Z' })];
+  const { page, ctx } = await open(PH, { lsLook: 'plain' });
+  assert.equal(await page.evaluate(() => look), 'dark');
+  assert.equal(await page.evaluate(() => lookOf('plain') + lookOf('dark') + lookOf('photo') + lookOf(undefined) + lookOf('neon')), 'darkdarkphotophotophoto');
   await ctx.close();
 });
 
@@ -1010,10 +1030,10 @@ await check('SOC-24 a look change after a refused approve publishes new images (
   await page.click('.ready-item'); await reviewReady(page);
   await page.click('#approve-btn'); await page.waitForFunction(() => /Not approved yet/.test(document.getElementById('msg').textContent), null, { timeout: 30000 });
   assert.equal(st.published.length, 1);
-  await page.click('#look-plain'); await waitPlain(page, true); await reviewReady(page);
+  await page.click('#look-dark'); await waitDark(page, true); await reviewReady(page);
   st.approveMode = 'ok';
   await page.click('#approve-btn'); await approvedMsg(page);
-  assert.equal(st.published.length, 2, 'the plain images were published, not the earlier photo ones');
+  assert.equal(st.published.length, 2, 'the dark images were published, not the earlier photo ones');
   await ctx.close();
 });
 
