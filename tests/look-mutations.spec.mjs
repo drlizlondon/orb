@@ -42,9 +42,10 @@ const MUT = [
   ['dark look drops the photo (never drawn)', s => s.replace("drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish);", "drawPhoto(ctx, null, pl.fx, pl.fy, pl.zoom, dark, opts.finish);")],
   // SOC-26 finish
   ['finish disabled', s => s.replace('if (finish !== false) applyFinish(ctx);', 'if (false) applyFinish(ctx);')],
-  ['finish gain not clamped (a flat photo explodes)', s => s.replace('maxGain: 1.4,', 'maxGain: 9,')],
+  ['finish gain not clamped (a flat photo explodes)', s => s.replace('maxGain: 1.25,', 'maxGain: 9,')],
   ['finish sharpening far too strong (0.35 becomes 3)', s => s.replace('sharpAmt: 0.35', 'sharpAmt: 3')],
-  ['finish warmth too strong (4 becomes 40)', s => s.replace('warmR: 4, warmB: 4', 'warmR: 40, warmB: 40')],
+  ['finish skin protection removed', s => s.replace('keep: 0.5 } };', 'keep: 1 } };')],
+  ['finish highlight cap removed', s => s.replace('hiRaiseMax: 6,', 'hiRaiseMax: 255,')],
   ['finish applied when finish is false', s => s.replace('if (finish !== false) applyFinish(ctx);', 'applyFinish(ctx);')],
   ['dark text shadow removed', s => s.replace('function shadowOn(c) {', 'function shadowOn(c) { return;')],
   ['dark shadow left on for the accent text', s => s.replace('function shadowOff(c) {', 'function shadowOff(c) { return;')],

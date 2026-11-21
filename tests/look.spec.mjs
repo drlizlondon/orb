@@ -330,6 +330,34 @@ await t('SOC-26 finish: a near-perfect photo (full range 4..250) changes little:
   assert.ok(o.perfect <= 8, 'mean diff ' + o.perfect); assert.ok(o.perfect > 0, 'it is not a no-op');
   assert.ok(Math.abs(o.flatMean[0] - o.flatMean[1]) <= 8, 'a flat photo keeps its brightness ' + o.flatMean);
 });
+await t('SOC-26 finish skin protection (brief rev2): skin-hue patches (120,80,60 and 200,150,120) change by <= 6 mean luminance and <= 4 in R-B, in the photo look and the dark look', async () => {
+  const o = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1080, 0); g.addColorStop(0, 'rgb(40,40,40)'); g.addColorStop(1, 'rgb(200,200,200)'); x.fillStyle = g; x.fillRect(0, 0, 1080, 1350);
+    const P = [[120, 80, 60, 150, 300], [200, 150, 120, 450, 300]]; for (const [r, gg, b, px, py] of P) { x.fillStyle = `rgb(${r},${gg},${b})`; x.fillRect(px, py, 120, 120); }
+    const E = { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' };
+    const read = (look, finish) => { const cv = document.createElement('canvas'); OneLook.renderSlide(cv, E, 0, 1, c, { look, finish }); const cx = cv.getContext('2d'); return P.map(([r, gg, b, px, py]) => { const d = cx.getImageData(px + 30, py + 30, 60, 60).data; let R = 0, G = 0, B = 0, n = 0; for (let k = 0; k < d.length; k += 4) { R += d[k]; G += d[k + 1]; B += d[k + 2]; n++; } R /= n; G /= n; B /= n; return { y: 0.299 * R + 0.587 * G + 0.114 * B, rb: R - B }; }); };
+    const out = {}; for (const look of ['photo', 'dark']) { const a = read(look, true), b = read(look, false); out[look] = a.map((v, i) => ({ dy: Math.abs(v.y - b[i].y), drb: Math.abs(v.rb - b[i].rb) })); }
+    return out;
+  });
+  for (const look of ['photo', 'dark']) for (const v of o[look]) { assert.ok(v.dy <= 6, look + ' luminance moved ' + JSON.stringify(o)); assert.ok(v.drb <= 4, look + ' R-B moved ' + JSON.stringify(o)); }
+});
+await t('SOC-26 finish highlight cap (brief rev2): no pixel with original luminance above 150 is raised by more than 6 (mean over a grey patch at 200 inside a dark photo)', async () => {
+  const o = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const x = c.getContext('2d'); x.fillStyle = 'rgb(60,60,60)'; x.fillRect(0, 0, 1080, 1350); x.fillStyle = 'rgb(200,200,200)'; x.fillRect(500, 300, 200, 200);
+    const E = { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' };
+    const rd = f => { const cv = document.createElement('canvas'); OneLook.renderSlide(cv, E, 0, 1, c, { look: 'dark', finish: f }); const d = cv.getContext('2d').getImageData(560, 360, 80, 80).data; let m = 0, n = 0; for (let k = 0; k < d.length; k += 4) { m += d[k + 1]; n++; } return m / n; };
+    return rd(true) - rd(false);
+  });
+  assert.ok(o <= 6.5, 'raised by ' + o);
+});
+await t('SOC-26 finish gain clamp (brief rev2, 1.25): a narrow 120..130 gradient widens by at most 1.25x (+2), it does not explode to the full range', async () => {
+  const o = await page.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1080, 0); g.addColorStop(0, 'rgb(120,120,120)'); g.addColorStop(1, 'rgb(130,130,130)'); x.fillStyle = g; x.fillRect(0, 0, 1080, 1350);
+    const E = { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' };
+    const sp = f => { const cv = document.createElement('canvas'); OneLook.renderSlide(cv, E, 0, 1, c, { look: 'dark', finish: f }); const cx = cv.getContext('2d'); return cx.getImageData(1000, 500, 1, 1).data[1] - cx.getImageData(80, 500, 1, 1).data[1]; }; return { on: sp(true), off: sp(false) };
+  });
+  assert.ok(o.on <= o.off * 1.25 + 3, 'span ' + JSON.stringify(o)); assert.ok(o.on >= o.off, 'span ' + JSON.stringify(o));
+});
 await t('SOC-26 finish: deterministic, runs only on the photo (no photo = no change), skipped when finish is false; lowRes unchanged by it', async () => {
   const o = await page.evaluate(({ S }) => {
     const d = (img, opts) => { const c = document.createElement('canvas'); const r = OneLook.renderSlide(c, S, 3, 4, img, { look: 'dark', ...opts }); return { u: c.toDataURL(), low: r.lowRes }; };

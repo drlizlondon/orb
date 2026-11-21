@@ -327,9 +327,18 @@ function drawDarkScrim(ctx) { const g = ctx.createLinearGradient(0, T.H, 0, 0); 
 
 // ---------- SOC-26: the photo finish ----------
 // Applied to the photo only (never the words), after the cover scaling and before the scrim and the text, in BOTH looks. Deterministic, one pass over
-// the output-size ImageData. Every number below is a design value from the SOC-26 brief (coordinator message, 2026-11-21; founder: "high quality post production look").
-// No background blur, no face retouching. opts.finish === false skips it (used only to make before/after samples and tests).
-const FINISH = { lo: 4, hi: 250, maxGain: 1.4, pLo: 0.01, pHi: 0.99, curve: 0.16 /* slope +8% at the midtone */, warmR: 4, warmB: 4, sat: 1.06, sharpR: 1.2, sharpAmt: 0.35 };
+// the output-size ImageData. Every number below is a design value from the SOC-26 brief rev2 (coordinator, 2026-11-21: rev1 lightened, warmed and shined her skin, so
+// warmth is removed, the curve and gain are gentler, highlights are capped and skin hues get half the change). No background blur, no face retouching.
+// opts.finish === false skips it (used only to make before/after samples and tests).
+const FINISH = { lo: 4, hi: 250, maxGain: 1.25, pLo: 0.01, pHi: 0.99, curve: 0.10 /* slope +5% at the midtone */, sat: 1.03, sharpR: 1.2, sharpAmt: 0.35,
+  hiFrom: 110, hiAbove: 150, hiRaiseMax: 6,                       // no pixel above luminance 150 may be raised by more than 6
+  skin: { h0: 5, h1: 45, s0: 0.15, s1: 0.75, keep: 0.5 } }; // HSV hue 5-45 deg, saturation 0.15-0.75: only half of the levels and curve change is applied
+function isSkin(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), dlt = mx - mn; if (!dlt || !mx) return false;
+  const sat = dlt / mx; if (sat < FINISH.skin.s0 || sat > FINISH.skin.s1) return false;
+  let h = mx === r ? ((g - b) / dlt) % 6 : mx === g ? (b - r) / dlt + 2 : (r - g) / dlt + 4; h *= 60; if (h < 0) h += 360;
+  return h >= FINISH.skin.h0 && h <= FINISH.skin.h1;
+}
 function applyFinish(ctx) {
   const F = FINISH, W = T.W, H = T.H, id = ctx.getImageData(0, 0, W, H), d = id.data, n = W * H;
   const lum = new Float32Array(n), hist = new Uint32Array(256);
@@ -337,23 +346,29 @@ function applyFinish(ctx) {
   const pct = q => { let acc = 0; const t = q * n; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= t) return v; } return 255; };
   const p1 = pct(F.pLo), p99 = pct(F.pHi);
   const gain = p99 > p1 ? Math.min(F.maxGain, (F.hi - F.lo) / (p99 - p1)) : 1;
-  // unclamped (range wide enough): p1 -> lo and p99 -> hi exactly. Clamped (a very flat photo): stretch by maxGain around its own middle, so it never jumps to another brightness.
+  // unclamped (range wide enough): p1 -> lo and p99 -> hi exactly. Clamped (a flat photo): stretch by maxGain around its own middle, so it never jumps to another brightness.
   const unclamped = p99 > p1 && (F.hi - F.lo) / (p99 - p1) <= F.maxGain, mid = unclamped ? p1 : (p1 + p99) / 2, ctr = unclamped ? F.lo : (p1 + p99) / 2;
   const sm = v => v * v * (3 - 2 * v);
-  // pass 1: levels (one linear map, same on every channel so hue is kept), S-curve, midtone warmth, saturation
+  // pass 1: levels (one linear map, same on every channel so hue is kept), S-curve, saturation, then the highlight cap
   for (let i = 0, o = 0; i < n; i++, o += 4) {
-    let r = ctr + (d[o] - mid) * gain, g = ctr + (d[o + 1] - mid) * gain, b = ctr + (d[o + 2] - mid) * gain;
+    const r0 = d[o], g0 = d[o + 1], b0 = d[o + 2], y0 = lum[i], keep = isSkin(r0, g0, b0) ? F.skin.keep : 1;
+    let r = ctr + (r0 - mid) * gain, g = ctr + (g0 - mid) * gain, b = ctr + (b0 - mid) * gain;
     r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
     r /= 255; g /= 255; b /= 255;
     r += F.curve * (sm(r) - r); g += F.curve * (sm(g) - g); b += F.curve * (sm(b) - b);
-    let y = 0.299 * r + 0.587 * g + 0.114 * b; const w = 4 * y * (1 - y);
-    r = r * 255 + F.warmR * w; b = b * 255 - F.warmB * w; g *= 255; y *= 255;
-    y = 0.299 * r + 0.587 * g + 0.114 * b;
+    r *= 255; g *= 255; b *= 255;
+    if (keep < 1) { const dl = (0.299 * r + 0.587 * g + 0.114 * b - y0) * keep; r = r0 + dl; g = g0 + dl; b = b0 + dl; } // skin: half of the levels + curve change, as a brightness shift only (the R-B skin tone is kept)
+    let y = 0.299 * r + 0.587 * g + 0.114 * b;
     r = y + (r - y) * F.sat; g = y + (g - y) * F.sat; b = y + (b - y) * F.sat;
+    y = 0.299 * r + 0.587 * g + 0.114 * b;
+    const cap = F.hiRaiseMax * keep; // skin gets half of the highlight allowance too
+    if (y0 > F.hiFrom && y > y0 + cap) { // the limit fades in over hiFrom..hiAbove (a hard step at 150 made blotchy patches in smooth skies); from hiAbove up it is the full cap
+      const w = y0 >= F.hiAbove ? 1 : (y0 - F.hiFrom) / (F.hiAbove - F.hiFrom), sh = (y - (y0 + cap)) * w; r -= sh; g -= sh; b -= sh;
+    }
     d[o] = r < 0 ? 0 : r > 255 ? 255 : r; d[o + 1] = g < 0 ? 0 : g > 255 ? 255 : g; d[o + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
     lum[i] = 0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2];
   }
-  // pass 2: unsharp mask on luminance only (no colour fringes), gaussian sigma = radius, separable 7-tap
+  // pass 2: unsharp mask on luminance only (no colour fringes), gaussian sigma = radius, separable 7-tap (unchanged from rev1)
   const R = 3, k = []; let ks = 0; for (let j = -R; j <= R; j++) { const w = Math.exp(-(j * j) / (2 * F.sharpR * F.sharpR)); k.push(w); ks += w; }
   for (let j = 0; j < k.length; j++) k[j] /= ks;
   const tmp = new Float32Array(n), blur = new Float32Array(n);
