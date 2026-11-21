@@ -232,8 +232,32 @@ await t('SOC-24 plain: same layout and fit result as the photo look; the handle 
     const c = OneLook.renderSlide(document.createElement('canvas'), long, 3, 7, null, { look: 'plain' });
     return { ta: a.textTop, tb: b.textTop, ha: a.blocks.handle, hb: b.blocks.handle, fa: [a.titleSize, a.subSize], fits: c.fits };
   }, { S: SLIDES[3] });
-  assert.equal(o.ta, o.tb); assert.deepEqual(o.ha, o.hb); assert.ok(o.hb && o.hb.w > 0);
+  assert.deepEqual(o.ha, o.hb); assert.ok(o.hb && o.hb.w > 0);
   assert.equal(o.fits, false);
+});
+await t('SOC-24 plain: every title line starts at the same x as line 1 and as the sub (no stray indent on wrapped lines)', async () => {
+  const xs = await page.evaluate(({ S }) => {
+    const seen = []; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (tx, x) { if (this.canvas === window.__cv) seen.push([tx, Math.round(x)]); return ft.apply(this, arguments); };
+    const cv = document.createElement('canvas'); window.__cv = cv;
+    OneLook.renderSlide(cv, { ...S, kicker: '', num: '', title: "I don't want to be a full-time A&E doctor and I want more", sub: 'The question becomes: what else am I going to do?', swipe: 'Swipe' }, 3, 7, null, { look: 'plain' });
+    CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null; return seen;
+  }, { S: SLIDES[3] });
+  const title = xs.filter(([tx]) => /^(I don|a full|doctor|and I|want|more|be)/.test(tx) || (tx !== 'The question becomes: what else' && !/^(am I|@|\d \/|Swipe|what)/.test(tx) && xs.indexOf(xs.find(z => z[0] === tx)) < xs.findIndex(z => /^The question/.test(z[0]))));
+  const sub = xs.find(([tx]) => /^The question/.test(tx));
+  assert.ok(title.length >= 3, 'the title wraps in 3 or more lines: ' + JSON.stringify(xs));
+  for (const [tx, x] of title) assert.equal(x, title[0][1], 'title line "' + tx + '" x');
+  assert.equal(title[0][1], sub[1], 'title and sub share the left edge');
+});
+await t('SOC-24 plain: the whole text block is centred vertically in the space between the handle tag and the bottom margin (within 5% of the slide centre)', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const r = OneLook.renderSlide(document.createElement('canvas'), { ...S, swipe: 'Swipe' }, 3, 7, null, { look: 'plain' });
+    const b = ['kicker', 'num', 'title', 'sub', 'swipe'].map(k => r.blocks[k]).filter(Boolean);
+    return { top: Math.min(...b.map(x => x.y)), bot: Math.max(...b.map(x => x.y + x.h)), H: OneLook.T.H };
+  }, { S: SLIDES[3] });
+  const mid = (o.top + o.bot) / 2;
+  assert.ok(Math.abs(mid - o.H / 2) <= 0.05 * o.H, 'block centre ' + mid + ' vs ' + o.H / 2);
+  assert.ok(o.top > 120, 'the block starts below the handle tag');
 });
 await t('SOC-24 photo look is pixel-identical to before: look "photo" and no look give the same pixels, and both match the pre-SOC-24 golden hashes', async () => {
   const o = await page.evaluate(({ S }) => {

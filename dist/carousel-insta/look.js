@@ -187,17 +187,21 @@ function drawText(ctx, s, i, total) {
   });
   R(counter(ctx, i, total), 4);
   let y = T.H - T.bottom - L.h; const x = T.margin;
+  // SOC-24 plain: the block is centred between the handle tag and the bottom margin, and every line starts at the same x as the sub text (x + 20)
+  const PL = (photo, plain) => (plainMode ? plain : photo);
+  if (plainMode) { const top = 48 + T.handleSize + 26, bot = T.H - T.bottom; y = top + Math.max(0, (bot - top - L.h) / 2); }
+  const textTop0 = y;
   if (s.num) {
     const y0 = y;
-    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: 40, padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, plainColor: C.soft, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
-    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); });
+    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: PL(40, 10), padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, plainColor: C.soft, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
+    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: PL(28, 20), padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); });
     y += nb.h + 14;
   } else if (s.kicker) {
     const y0 = y;
-    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
+    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: PL(28, 20), padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
   }
   const yT = y;
-  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? 18 : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: 28, padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, plainColor: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
+  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? PL(18, 0) : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: PL(28, 20), padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, plainColor: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
   if (L.tl.length) y += 14;
   if (L.sl.length) {
     ctx.font = '600 ' + subSize + 'px ' + BALOO; const lh = subSize * T.subLH, bw = Math.max(...L.sl.map(t => ctx.measureText(t).width)) + 68, bh = 24 + L.sl.length * lh + 26, ys = y;
@@ -207,8 +211,8 @@ function drawText(ctx, s, i, total) {
     });
     y += bh;
   }
-  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: 26, padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, plainColor: C.soft, base: 0.84 }); R(sb, 6); }); }
-  return { rects, blocks, titleSize, subSize, fits, textTop: T.H - T.bottom - L.h };
+  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: PL(26, 20), padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, plainColor: C.soft, base: 0.84 }); R(sb, 6); }); }
+  return { rects, blocks, titleSize, subSize, fits, textTop: plainMode ? textTop0 : T.H - T.bottom - L.h };
 }
 // Series slide 1: the cover's own marks (kicker tag, headline blocks, purple arrow box, #NNN badge) in the shared positions.
 // Movable blocks: kicker (the tag), title (the whole headline stack), strap (the arrow box), badge (#NNN).

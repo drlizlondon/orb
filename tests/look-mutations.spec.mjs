@@ -29,6 +29,8 @@ const MUT = [
   ['plain title in the wrong colour', s => s.replace('color: C.cream, plainColor: C.cream,', 'color: C.cream, plainColor: C.soft,')],
   ['plain keeps the title pill', s => s.replace('const bare = plainMode && !!o.plainColor;', 'const bare = false;')],
   ['plain ground is the wrong purple', s => s.replace('ctx.fillStyle = C.purple; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);', "ctx.fillStyle = '#3a1151'; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);")],
+  ['plain title lines 2+ keep the pill indent', s => s.replace('(k % 2 ? PL(18, 0) : 0)', '(k % 2 ? PL(18, 18) : 0)')],
+  ['plain block bottom-anchored again', s => s.replace('if (plainMode) { const top = 48', 'if (false) { const top = 48')],
   ['plain look leaks into the photo look (plainMode left on)', s => s.replace('} finally { plainMode = false; }', '} finally { plainMode = true; }')],
   ['moved rects not reported to the face check', s => s.replace('rects.push({ x: r.x + dx - p, y: r.y + dy - p,', 'rects.push({ x: r.x - p, y: r.y - p,')]
 ];
