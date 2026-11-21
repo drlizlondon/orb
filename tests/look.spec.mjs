@@ -102,6 +102,24 @@ await t('Face clear (face-clear fixture, 1200x1600): normal and series, and the 
   }, { SLIDES, STRAP });
   assert.equal(r.a.c, true); assert.equal(r.b.c, true); assert.equal(r.a.hit, false); assert.equal(r.b.hit, false); assert.equal(r.a.z, 1);
 });
+// SOC-25: the founder saw stretched faces on a posted carousel (html2canvas ignored object-fit:cover and fitted the photo to the box on
+// both axes). A perfect circle in the source must stay a perfect circle on the slide, for landscape, portrait and square sources.
+await t('SOC-25 uniform cover (must-fail fixture): a circle drawn into the slide stays a circle, drawn w:h = 1.00 +/- 0.02 for 800x600, 600x800 and 1000x1000 sources', async () => {
+  const r = await page.evaluate(() => {
+    const circleImg = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.fillStyle = '#000'; x.beginPath(); x.arc(w / 2, h * 0.38, Math.min(w, h) * 0.3, 0, Math.PI * 2); x.fill(); return c; };
+    const bbox = cv => { const d = cv.getContext('2d').getImageData(0, 0, 1080, 1350).data; let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1; for (let y = 0; y < 1350; y++) for (let x = 0; x < 1080; x++) { const o = (y * 1080 + x) * 4; if (d[o] < 30 && d[o + 1] < 30 && d[o + 2] < 40) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } } return { w: x1 - x0 + 1, h: y1 - y0 + 1 }; };
+    // empty slide text: only the page counter is drawn, away from the circle
+    return [[800, 600], [600, 800], [1000, 1000]].map(([w, h]) => { const cv = document.createElement('canvas'); OneLook.renderSlide(cv, { handle: '', kicker: '', num: '', title: '', sub: '', swipe: '' }, 0, 3, circleImg(w, h), {}); const b = bbox(cv); return { w, h, bw: b.w, bh: b.h, ratio: b.w / b.h }; });
+  });
+  for (const o of r) { assert.ok(o.bw > 200 && o.bh > 200, 'circle found ' + JSON.stringify(o)); assert.ok(Math.abs(o.ratio - 1) <= 0.02, 'circle ratio ' + JSON.stringify(o)); }
+});
+await t('SOC-25 low-res flag (must-fail fixture): a 400x500 photo is lowRes true; 1080x1350, 1200x1600 and 2048x1536 are false; no photo is null; zooming a 1080x1350 photo in makes it true', async () => {
+  const r = await page.evaluate(({ SLIDES }) => {
+    const f = (img, opts) => OneLook.renderSlide(document.createElement('canvas'), SLIDES[3], 3, 4, img, opts).lowRes;
+    return { small: f(mkImg(400, 500), {}), seriesSmall: OneLook.renderSeries(document.createElement('canvas'), { ...OneLook.coverDefaults(), num: 1 }, 0, 4, mkImg(683, 1024), {}).lowRes, exact: f(mkImg(1080, 1350), {}), p: f(mkImg(1200, 1600), {}), l: f(mkImg(2048, 1536), {}), none: f(null, {}), plain: f(mkImg(400, 500), { look: 'plain' }), zoomed: f(mkImg(1080, 1350), { frame: { fx: 0.5, fy: 0.5, zoom: 1.3 } }) };
+  }, { SLIDES });
+  assert.deepEqual(r, { small: true, seriesSmall: true, exact: false, p: false, l: false, none: null, plain: null, zoomed: true });
+});
 await t('Face blocked (must-fail fixture, 1080x1350 no room): faceClear false, and the mapped box does hit a rect', async () => {
   const r = await page.evaluate(({ SLIDES, STRAP }) => {
     const img = mkImg(1080, 1350), face = { x: 0.05, y: 0.7, w: 0.3, h: 0.2 };

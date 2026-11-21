@@ -34,6 +34,9 @@ const MUT = [
   ['success message is hidden before the screen changes (no wait)', rep('await sleep(1500);', '')],
   ['404 branch removed (wrong Worker address looks like a server error)', rep("if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under More, paste the address that ends in workers.dev.';", '')],
   ['saved address is not reduced to its origin (path and missing https:// kept)', rep("try { return new URL(/^https?:\\/\\//i.test(raw) ? raw : 'https://' + raw).origin; }", "try { return raw.replace(/\\/+$/, ''); }")],
+  // SOC-25
+  ['small photo no longer blocks Approve', rep("else if (sm >= 0) { blocked = true;", "else if (sm >= 0) { blocked = false;")],
+  ['small photo check removed from the review checks', rep("const sm = results.findIndex(r => r && r.hasPhoto && r.lowRes === true);", "const sm = -1;")],
   // SOC-24
   ['plain look is not passed to the renderer (plain draws the photo look)', rep("  if (plain) opts.look = 'plain';", '')],
   ['the toggle redraws but never tells the Worker', rep("'/api/concepts/' + encodeURIComponent(meta.conceptId) + '/look'", "'/api/series'")],

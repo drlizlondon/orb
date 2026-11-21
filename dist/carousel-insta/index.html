@@ -660,7 +660,9 @@ function applyChecks(results) {
   if (f >= 0) { blocked = true; text = 'Words are over your face on slide ' + (f + 1) + '. Tap Edit and move the photo, or use another photo.'; }
   else {
     const t = results.findIndex(r => r && r.fits === false);
+    const sm = results.findIndex(r => r && r.hasPhoto && r.lowRes === true); // SOC-25: never upscale a small photo silently
     if (t >= 0) { blocked = true; text = 'Slide ' + (t + 1) + ' has too many words to fit. Tap Edit and shorten it.'; }
+    else if (sm >= 0) { blocked = true; text = 'Photo too small for a sharp slide on slide ' + (sm + 1) + '. Pick another photo.'; }
     else {
       const n = results.findIndex(r => r && r.hasPhoto && r.faceClear === null);
       if (n >= 0) { kind = 'warn'; text = 'Could not check slide ' + (n + 1) + ' for your face. Have a look before you approve.'; }
@@ -786,7 +788,8 @@ let drag = null; const afterDrag = new Set();
 function editFaceCheck(i) {
   const r = lastRes[i]; if (!r || current !== 'edit') return;
   if (r.faceClear === false) say('err', 'Words are over your face on slide ' + (i + 1) + '. Drag the words or move the photo.');
-  else if (!lastRes.some(x => x && x.faceClear === false)) clearMsg($('edit-msg'));
+  else if (r.hasPhoto && r.lowRes === true) say('err', 'Photo too small for a sharp slide on slide ' + (i + 1) + '. Pick another photo.');
+  else if (!lastRes.some(x => x && (x.faceClear === false || (x.hasPhoto && x.lowRes === true)))) clearMsg($('edit-msg'));
 }
 function syncHandles(i, cv) {
   const r = lastRes[i], wrap = cv.parentNode, c = cards[i]; if (!r || !wrap || !c) return;
@@ -1100,7 +1103,7 @@ $('approve-btn').addEventListener('click', async () => {
     say('err', e.message || 'Something went wrong.');
   } finally { if (!done) btn.disabled = reviewBlockedNow(); }
 });
-function reviewBlockedNow() { return lastRes.some(r => r && (r.faceClear === false || r.fits === false)); }
+function reviewBlockedNow() { return lastRes.some(r => r && (r.faceClear === false || r.fits === false || (r.hasPhoto && r.lowRes === true))); }
 
 // ---------- reels (SOC-18.5 + 18.5a) ----------
 let reels = [];

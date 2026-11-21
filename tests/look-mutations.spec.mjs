@@ -1,4 +1,4 @@
-// SOC-13.4 "a check that cannot fail proves nothing": breaks a copy of look.js in 15 ways and demands tests/look.spec.mjs or tests/look-offsets.spec.mjs goes red each time.
+// SOC-13.4 "a check that cannot fail proves nothing": breaks a copy of look.js in many ways and demands tests/look.spec.mjs or tests/look-offsets.spec.mjs goes red each time.
 // Run: node tests/look-mutations.spec.mjs   (same env as tests/look.spec.mjs)
 import fs from 'node:fs';
 import os from 'node:os';
@@ -32,6 +32,11 @@ const MUT = [
   ['plain title lines 2+ keep the pill indent', s => s.replace('(k % 2 ? PL(18, 0) : 0)', '(k % 2 ? PL(18, 18) : 0)')],
   ['plain block bottom-anchored again', s => s.replace('if (plainMode) { const top = 48', 'if (false) { const top = 48')],
   ['plain look leaks into the photo look (plainMode left on)', s => s.replace('} finally { plainMode = false; }', '} finally { plainMode = true; }')],
+  // SOC-25
+  ['photo fitted to the slide on both axes (non-uniform scale)', s => s.replace('ctx.drawImage(im, -(dw - T.W) * fx, -(dh - T.H) * fy, dw, dh);', 'ctx.drawImage(im, 0, 0, T.W, T.H);')],
+  ['photo scaled by width only (a landscape source is squeezed in y)', s => s.replace('const s = Math.max(T.W / iw, T.H / ih) * zoom, dw = iw * s, dh = ih * s;', 'const s = T.W / iw * zoom, dw = iw * s, dh = T.H * zoom;')],
+  ['low-res flag removed', s => s.replace('const lowResAt = sc => sc > 1 + 1e-6;', 'const lowResAt = sc => false;')],
+  ['low-res flag fires on an exact-fit photo', s => s.replace('const lowResAt = sc => sc > 1 + 1e-6;', 'const lowResAt = sc => sc >= 1;')],
   ['moved rects not reported to the face check', s => s.replace('rects.push({ x: r.x + dx - p, y: r.y + dy - p,', 'rects.push({ x: r.x - p, y: r.y - p,')]
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'look-mut-'));

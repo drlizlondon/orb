@@ -34,17 +34,22 @@ function gradientPng(w, h) {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
-const PNG_34 = gradientPng(240, 320); // 3:4, like a phone photo
-const PNG_45 = gradientPng(240, 300); // 4:5, exactly the slide shape: no room to move
+// SOC-25: the creator refuses photos smaller than the slide needs (scale > 1), so the fixtures are real slide-sized photos.
+const PNG_34 = gradientPng(2160, 2880); // 3:4 (twice the slide: the Edit zoom goes to 2x without upscaling), like a phone photo
+const PNG_45 = gradientPng(2160, 2700); // 4:5, exactly the slide shape: no room to move
+const PNG_EXACT = gradientPng(1080, 1350); // exactly the slide: 1 output px per source px, still sharp
+const PNG_SMALL = gradientPng(400, 500); // too small for a sharp 1080x1350 slide
 // the 13.4 fixtures: face-clear (3:4) and face-blocked (4:5, no room)
 const FACE_CLEAR = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 };
 const FACE_BLOCKED = { x: 0.05, y: 0.7, w: 0.3, h: 0.2 };
 const ALBUM = [
-  { guid: 'gc0', width: 240, height: 320, caption: '', face: FACE_CLEAR },
-  { guid: 'gc1', width: 240, height: 320, caption: '', face: FACE_CLEAR },
-  { guid: 'gc2', width: 240, height: 320, caption: '', face: FACE_CLEAR },
-  { guid: 'gb', width: 240, height: 300, caption: '', face: FACE_BLOCKED },
-  { guid: 'gn', width: 240, height: 320, caption: '' } // no face key at all
+  { guid: 'gc0', width: 2160, height: 2880, caption: '', face: FACE_CLEAR },
+  { guid: 'gc1', width: 2160, height: 2880, caption: '', face: FACE_CLEAR },
+  { guid: 'gc2', width: 2160, height: 2880, caption: '', face: FACE_CLEAR },
+  { guid: 'gb', width: 2160, height: 2700, caption: '', face: FACE_BLOCKED },
+  { guid: 'gn', width: 2160, height: 2880, caption: '' }, // no face key at all
+  { guid: 'ge', width: 1080, height: 1350, caption: '' }, // SOC-25: exactly slide-sized, no face key
+  { guid: 'gs', width: 400, height: 500, caption: '', face: FACE_CLEAR } // SOC-25: too small
 ];
 
 // ---- stub Worker state (cross-origin to the static server, like production) ----
@@ -65,7 +70,7 @@ const worker = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
   const im = /^\/img-album\/(.+)$/.exec(u.pathname);
-  if (im) { res.writeHead(200, { ...cors, 'content-type': 'image/png' }); return res.end(im[1] === 'gb' ? PNG_45 : PNG_34); }
+  if (im) { res.writeHead(200, { ...cors, 'content-type': 'image/png' }); return res.end(im[1] === 'gb' ? PNG_45 : im[1] === 'gs' ? PNG_SMALL : im[1] === 'ge' ? PNG_EXACT : PNG_34); }
   let body = ''; req.on('data', d => body += d);
   req.on('end', () => {
     calls.push({ method: req.method, path: u.pathname + u.search, auth: req.headers.authorization || '', body });
@@ -419,6 +424,24 @@ await check('Every image sent on approve decodes to 1080x1350 with more than 20 
   })), imgs);
   for (const x of r) { assert.equal(x.w, 1080); assert.equal(x.h, 1350); assert.ok(x.colours > 20, 'colours ' + x.colours); }
   await ctx.close();
+});
+
+// ----- SOC-25: small photo rule -----
+await check('Small photo (400x500) on slide 3: message names the slide, Approve is disabled, nothing is sent; a photo that is exactly slide-sized is fine', async () => {
+  st.drafted = [mk(4, 'idea', 'smallpic', { createdAt: '2026-11-19T08:00:00Z', photoFor: i => i === 2 ? 'gs' : 'gc0' })];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item');
+  await page.waitForFunction(() => /Photo too small/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  assert.equal(await page.textContent('#msg'), 'Photo too small for a sharp slide on slide 3. Pick another photo.');
+  assert.ok(await page.locator('#approve-btn').isDisabled());
+  await page.waitForTimeout(400); assert.equal(st.published.length, 0);
+  await ctx.close();
+  st.drafted = [mk(4, 'idea', 'exactpic', { createdAt: '2026-11-19T08:00:00Z', photoFor: i => i === 1 ? 'ge' : 'gc0' })];
+  const o = await open(PH);
+  await o.page.click('.ready-item');
+  await o.page.waitForFunction(() => !document.getElementById('approve-btn').disabled && !document.getElementById('screen-review').hidden, null, { timeout: 15000 });
+  assert.ok(!/too small/.test(await o.page.textContent('#msg')));
+  await o.ctx.close();
 });
 
 // ----- face rule -----

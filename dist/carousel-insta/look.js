@@ -257,9 +257,12 @@ function drawSeries(ctx, c0, i, total) {
 
 // ---------- the photo ----------
 // face = { x, y, w, h } as fractions of the image. frame = { fx, fy, zoom } or null.
+// SOC-25: lowRes is true when drawing the photo cover-fitted needs more than 1 output px per source px (scale > 1): the slide
+// would be an upscale, so soft. It is reported, never hidden: the creator blocks Approve on it. null when there is no photo.
+const lowResAt = sc => sc > 1 + 1e-6;
 function place(imgW, imgH, face, rects, frame) {
   let fx = frame ? frame.fx : 0.5, fy = frame ? frame.fy : 0.5; const zoom = frame ? frame.zoom : 1;
-  if (!(imgW > 0 && imgH > 0)) return { fx, fy, zoom, cleared: null };
+  if (!(imgW > 0 && imgH > 0)) return { fx, fy, zoom, cleared: null, lowRes: null };
   const sc = Math.max(T.W / imgW, T.H / imgH) * zoom, dw = imgW * sc, dh = imgH * sc;
   let cleared = null;
   if (face) {
@@ -274,8 +277,9 @@ function place(imgW, imgH, face, rects, frame) {
     const f2 = boxAt(-(dw - T.W) * fx, -(dh - T.H) * fy);
     cleared = !rects.some(z => f2.x < z.x + z.w && f2.x + f2.w > z.x && f2.y < z.y + z.h && f2.y + f2.h > z.y);
   }
-  return { fx, fy, zoom, cleared };
+  return { fx, fy, zoom, cleared, lowRes: lowResAt(sc) };
 }
+// SOC-25: ONE uniform scale on both axes (cover), never a per-axis fit: a circle stays a circle.
 function drawPhoto(ctx, im, fx, fy, zoom) {
   ctx.fillStyle = '#bdbdba'; ctx.fillRect(0, 0, T.W, T.H); if (!im) return;
   const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
@@ -291,7 +295,7 @@ function twoPass(cv, draw, im, opts) {
       const tmpP = document.createElement('canvas'); tmpP.width = T.W; tmpP.height = T.H;
       const preP = draw(tmpP.getContext('2d'));
       ctx.fillStyle = C.purple; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);
-      return { rects: preP.rects, blocks: preP.blocks, textTop: Math.round(preP.textTop), fits: preP.fits, faceClear: null, fx: 0.5, fy: 0.5, zoom: 1 };
+      return { rects: preP.rects, blocks: preP.blocks, textTop: Math.round(preP.textTop), fits: preP.fits, faceClear: null, lowRes: null, fx: 0.5, fy: 0.5, zoom: 1 };
     } finally { plainMode = false; }
   }
   const tmp = document.createElement('canvas'); tmp.width = T.W; tmp.height = T.H;
@@ -299,7 +303,7 @@ function twoPass(cv, draw, im, opts) {
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;
   const pl = place(iw, ih, im ? opts.face || null : null, pre.rects, opts.frame || null);
   drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom); draw(ctx);
-  return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
+  return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, lowRes: pl.lowRes, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
 }
 function renderSlide(cv, slide, i, total, im, opts) { return twoPass(cv, ctx => drawText(ctx, slide, i, total), im, opts); }
 function renderSeries(cv, cover, i, total, im, opts) { return twoPass(cv, ctx => drawSeries(ctx, cover, i, total), im, opts); }
