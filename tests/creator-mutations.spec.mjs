@@ -60,6 +60,7 @@ const base = spawnSync('node', [path.join(here, 'carousel-insta.spec.mjs')], { e
 console.log('baseline (unmodified page): exit ' + base.status + ' ' + (base.stdout.trim().split('\n').pop()));
 if (base.status !== 0) { console.log('baseline is red, mutation results mean nothing'); process.exit(1); }
 for (const [name, fn] of MUT) {
+  if (process.env.MUT_FILTER && !new RegExp(process.env.MUT_FILTER, 'i').test(name)) continue; // optional: run a subset
   const out = fn(SRC);
   if (out === SRC) { console.log('NOT APPLIED  ' + name + ' (the mutation did not change the file)'); bad++; continue; }
   const f = path.join(dir, 'index.html'); fs.writeFileSync(f, out);
