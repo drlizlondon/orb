@@ -981,6 +981,19 @@ await check('SOC-24 a concept whose look is plain opens plain; the series label 
   await ctx.close();
 });
 
+await check('SOC-24 a look change after a refused approve publishes new images (the look is part of the approve signature)', async () => {
+  st.drafted = [mk(3, 'idea', 'sigcheck', { createdAt: '2026-11-19T08:00:00Z' })]; st.approveMode = 'fail';
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await reviewReady(page);
+  await page.click('#approve-btn'); await page.waitForFunction(() => /Not approved yet/.test(document.getElementById('msg').textContent), null, { timeout: 30000 });
+  assert.equal(st.published.length, 1);
+  await page.click('#look-plain'); await waitPlain(page, true); await reviewReady(page);
+  st.approveMode = 'ok';
+  await page.click('#approve-btn'); await approvedMsg(page);
+  assert.equal(st.published.length, 2, 'the plain images were published, not the earlier photo ones');
+  await ctx.close();
+});
+
 await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain path, no token in the source, only the spec\'d Worker routes', async () => {
   const src = fs.readFileSync(FILE, 'utf8');
   assert.ok(!/api\.buffer\.com|buffer-api|find-generic-password/i.test(src), 'buffer/credential path'); assert.ok(!src.includes(TOKEN));

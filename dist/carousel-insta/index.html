@@ -748,7 +748,7 @@ function openReview() { show('review'); return drawReview(); }
 function syncLookButtons() { $('look-photo').setAttribute('aria-pressed', String(look === 'photo')); $('look-plain').setAttribute('aria-pressed', String(look === 'plain')); }
 async function setLook(next) {
   if (look === next) return;
-  look = next; syncLookButtons(); meta.pending = null; if (meta.ref) meta.ref.look = next;
+  look = next; syncLookButtons(); if (meta.ref) meta.ref.look = next;
   persist(); const drawn = drawReview();
   if (meta.conceptId && connected()) { try { await api('/api/concepts/' + encodeURIComponent(meta.conceptId) + '/look', 'POST', { look: next }); } catch (e) {} } else lsSet(LOOK_KEY, look);
   await drawn;
