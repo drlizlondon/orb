@@ -520,16 +520,23 @@ async function refreshReady() {
   $('ready-status').textContent = 'Getting your drafts...';
   try {
     const [ok, bad, wait] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed'), api('/api/concepts?status=queued')]);
-    if (!ok.ok) throw new Error('list');
+    if (!ok.ok) { const e = new Error('list'); e.status = ok.status; throw e; }
     ready.drafted = ok.data.concepts || [];
     ready.failed = (bad.ok ? bad.data.concepts : []) || [];
     ready.queued = (wait.ok ? wait.data.concepts : []) || [];
     renderReady();
   } catch (e) {
     $('ready-list').innerHTML = '';
-    $('ready-status').textContent = 'Could not get your drafts.';
+    $('ready-status').textContent = readyFailText(e);
     $('ready-retry').hidden = false;
   }
+}
+// Say why the list failed, so a lost access code is not mistaken for a broken app.
+function readyFailText(e) {
+  if (e && e.setup) return 'Could not get your drafts: this phone has no access code saved. Add it under More.';
+  if (e && (e.status === 401 || e.status === 403)) return 'Could not get your drafts: the access code on this phone is wrong or old. Paste it again under More.';
+  if (e && e.status) return 'Could not get your drafts: the server said ' + e.status + '.';
+  return 'Could not get your drafts: no connection. Try again.';
 }
 function renderReady() {
   const list = $('ready-list'); list.innerHTML = '';

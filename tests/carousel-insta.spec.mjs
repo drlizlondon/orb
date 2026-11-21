@@ -356,7 +356,7 @@ await check('Nothing ready: "Nothing ready yet."; and a failed list call shows "
   st = defaults(); st.albumOk = true;
   st.listFail = true; // a broken server
   o = await open(PH, { noWait: true });
-  await o.page.waitForFunction(() => document.getElementById('ready-status').textContent === 'Could not get your drafts.');
+  await o.page.waitForFunction(() => document.getElementById('ready-status').textContent === 'Could not get your drafts: the server said 500.');
   assert.ok(await o.page.locator('#ready-retry').isVisible()); assert.equal(await o.page.textContent('#ready-retry'), 'Try again');
   st.listFail = false; await o.page.click('#ready-retry'); await o.page.waitForSelector('.ready-item');
   await o.ctx.close();
@@ -992,6 +992,31 @@ await check('SOC-24 a look change after a refused approve publishes new images (
   await page.click('#approve-btn'); await approvedMsg(page);
   assert.equal(st.published.length, 2, 'the plain images were published, not the earlier photo ones');
   await ctx.close();
+});
+
+await check('Drafts list failure says why: no access code, wrong code, server error, no connection', async () => {
+  const text = page => page.locator('#ready-status').textContent();
+  const waitFail = page => page.waitForFunction(() => /Could not get your drafts/.test(document.getElementById('ready-status').textContent), null, { timeout: 15000 });
+  // (a) no access code saved on this phone
+  const a = await open(PH, { connected: false, noWait: true });
+  await a.page.waitForSelector('#ready-retry', { state: 'attached' });
+  await a.page.evaluate(() => refreshReady());
+  await waitFail(a.page);
+  assert.ok((await text(a.page)).includes('no access code saved'), 'a: ' + await text(a.page));
+  await a.ctx.close();
+  // (b) 401, (c) network failure, (d) 500: load fine, then break the list and retry
+  for (const [label, handler, want] of [
+    ['b', r => r.fulfill({ status: 401, headers: cors, contentType: 'application/json', body: '{"ok":false}' }), 'wrong or old'],
+    ['c', r => r.abort(), 'no connection'],
+    ['d', r => r.fulfill({ status: 500, headers: cors, contentType: 'application/json', body: '{"ok":false}' }), 'server said 500']
+  ]) {
+    const o = await open(PH);
+    await o.ctx.route(u => /\/api\/concepts\?status=/.test(u.href), handler);
+    await o.page.evaluate(() => refreshReady());
+    await waitFail(o.page);
+    assert.ok((await text(o.page)).includes(want), label + ': ' + await text(o.page));
+    await o.ctx.close();
+  }
 });
 
 await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain path, no token in the source, only the spec\'d Worker routes', async () => {
