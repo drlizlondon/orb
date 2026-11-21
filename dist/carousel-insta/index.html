@@ -73,6 +73,9 @@
   .reel-open { word-break: break-word; }
   #narrator-box { margin-top: 12px; }
   #reel-script { min-height: 120px; }
+  .second-look { font-size: 14px; opacity: 0.8; margin: 6px 0; overflow-wrap: anywhere; }
+  .second-look .look-orig { margin-left: 8px; }
+  #orig-deck { font-size: 14px; opacity: 0.9; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   #nr-video { display: block; margin: 0 auto 8px; height: min(60vh, 640px); aspect-ratio: 9 / 16; max-width: 100%; background: #5a2578; border-radius: 10px; }
   #nr-status { text-align: center; font-size: 15px; font-weight: 700; margin: 6px 0; }
   #nr-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #3a1150; border-top: 2px solid #f9c9e6; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); z-index: 50; }
@@ -189,6 +192,8 @@
   </div>
   <div id="review-strip" tabindex="-1"></div>
   <div id="review-count">1 / 1</div>
+  <p id="second-look" class="second-look" hidden></p>
+  <div id="orig-deck" role="region" aria-label="The original words" hidden></div>
   <label for="caption">Caption</label>
   <textarea id="caption" rows="3"></textarea>
   <button id="caption-slides" class="quiet-btn" type="button">Slides from caption</button>
@@ -678,6 +683,31 @@ $('caption-slides').addEventListener('click', async () => {
   m.appendChild(u);
 });
 
+// ---------- SOC-22: the second look (a words-only read by Gemini on the Mac; it never blocks Approve, the final yes is hers) ----------
+function secondLookLine(rv) {
+  if (!rv || typeof rv !== 'object') return 'Second look: not checked yet.';
+  const note = typeof rv.note === 'string' && rv.note ? ' ' + rv.note : '';
+  if (rv.round >= 1) return 'Second look: reworked once.' + note;
+  if (rv.verdict === 'rework') return 'Second look: needs work.' + note;
+  return 'Second look: looks good.' + note;
+}
+function showSecondLook(c) {
+  const p = $('second-look'), od = $('orig-deck');
+  od.hidden = true; od.textContent = '';
+  if (!c) { p.hidden = true; p.textContent = ''; return; }
+  p.textContent = secondLookLine(c.review);
+  const before = c.deckBefore && Array.isArray(c.deckBefore.slides) ? c.deckBefore : null;
+  if (before) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'look-orig'; b.className = 'quiet-btn small-btn look-orig'; b.textContent = 'See the original';
+    b.addEventListener('click', () => {
+      if (!od.hidden) { od.hidden = true; return; }
+      od.textContent = before.slides.map((s, i) => (i + 1) + '. ' + [s.kicker, s.title, s.sub, s.swipe].filter(Boolean).join(' / ')).join('\n') + (before.caption ? '\n\n' + before.caption : '');
+      od.hidden = false;
+    });
+    p.appendChild(b);
+  }
+  p.hidden = false;
+}
 function reviewTitle() { return type === 'series' ? 'Series ' + OneLook.pad3(currentN()) : 'Words over my photos'; }
 async function drawReview() {
   const tok = ++reviewTok, strip = $('review-strip');
@@ -703,6 +733,7 @@ function openDraft(c) {
   $('caption').value = (c.deck && c.deck.caption) || '';
   meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id };
   setType(isSeries(c) ? 'series' : 'words');
+  showSecondLook(c);
   syncStrap(); persist(); openReview();
 }
 $('review-back').addEventListener('click', () => show('ready'));
@@ -889,6 +920,7 @@ $('album-all').addEventListener('click', () => { if (!albumPick) return; cards.f
 function startBlank(t) {
   cards = defaultDeck().map(norm); $('caption').value = '';
   meta = { evidence: '', pending: null, conceptId: null };
+  showSecondLook(null);
   setType(t); persist(); closeSheets(); renderEdit(); show('edit');
 }
 $('blank-btn').addEventListener('click', () => startBlank('words'));
@@ -1054,6 +1086,7 @@ function reelRow(r) {
   const t = document.createElement('span'); t.className = 'reel-title'; t.textContent = reelTitle(r);
   const st = document.createElement('span'); st.className = 'reel-status'; st.textContent = reelStatusLine(r);
   open.append(t, st);
+  if (r.status === 'ready' || r.status === 'approved' || r.status === 'saved') { const lk = document.createElement('span'); lk.className = 'reel-look second-look'; lk.textContent = secondLookLine(r.review); open.appendChild(lk); }
   const playable = (r.status === 'ready' || r.status === 'approved' || r.status === 'saved') && !r.videoGone;
   if (playable) open.addEventListener('click', () => openReel(r)); else open.disabled = true;
   row.appendChild(open);

@@ -81,6 +81,7 @@ const worker = http.createServer((req, res) => {
       if (s === 'failed') return j(200, { ok: true, concepts: st.failed });
       return j(200, { ok: true, concepts: [] });
     }
+    if (p === '/api/reels' && m === 'GET') return j(200, { ok: true, reels: st.reels || [] });
     if (p === '/api/run-now' && m === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
     if (p === '/api/album') return st.albumOk ? j(200, { ok: true, photos: ALBUM.map(a => ({ ...a, url: '/img-album/' + a.guid })) }) : j(502, { ok: false, error: 'album unavailable' });
     if (p === '/api/series' && m === 'GET') return j(200, { ok: true, last: st.series.last, next: st.series.next, assigned: [] });
@@ -151,7 +152,7 @@ const metrics = page => page.evaluate(() => {
   const ap = document.getElementById('approve-btn'), r = ap ? ap.getBoundingClientRect() : null;
   return { controls, words, height: document.documentElement.scrollHeight, vh: innerHeight, editable: document.querySelectorAll('[contenteditable]').length, approveInView: !!r && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
 });
-const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 5) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 15) v.push('words ' + m.words); if (m.height > 1.2 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
+const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 5) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 20) v.push('words ' + m.words); if (m.height > 1.2 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
 
 // ===== Simplicity caps =====
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
@@ -193,7 +194,7 @@ await check('Two taps to approved: one .ready-item, then #approve-btn, nothing e
 });
 
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
-  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 5 controls (Back, caption, Slides from caption, Approve, Edit), no editable text, <= 15 furniture words, <= 1.2 screens`, async () => {
+  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 5 controls (Back, caption, Slides from caption, Approve, Edit), no editable text, <= 20 furniture words (15 plus the five words of the SOC-22 line "Second look: not checked yet."), <= 1.2 screens`, async () => {
     const { page, ctx } = await open(vp);
     await page.click('.ready-item');
     const v = reviewViolations(await metrics(page));
@@ -844,6 +845,53 @@ await check('SOC-21 series: with type series a rebuilt card 0 title is drawn on 
   const txt = await page.evaluate(() => window.__txt.join('|'));
   assert.ok(txt.includes('I run several'), 'cover draws the rebuilt card 0 title (wrapped): ' + txt.slice(0, 200));
   assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0, 'no sideways scroll');
+  await ctx.close();
+});
+
+// ===== SOC-22: the Second look line (muted, above the caption, never blocks Approve) =====
+const SHOTS = path.join(process.env.HOME, 'soc22-shots'); fs.mkdirSync(SHOTS, { recursive: true });
+const LOOKS = [
+  ['not-checked', null, null, 'Second look: not checked yet.'],
+  ['looks-good', { verdict: 'pass', note: 'Clear and worth a stop.', round: 0 }, null, 'Second look: looks good. Clear and worth a stop.'],
+  ['reworked-once', { verdict: 'pass', note: 'Better now.', round: 1 }, 'before', 'Second look: reworked once. Better now.'],
+  ['needs-work', { verdict: 'rework', note: 'Too long for a quick read.', round: 0 }, null, 'Second look: needs work. Too long for a quick read.']
+];
+for (const [slug, review, orig, expected] of LOOKS) {
+  await check(`SOC-22 Second look (${slug}): the line reads "${expected}" at 390px, sits above the caption, does not block Approve, no sideways scroll`, async () => {
+    const c = st.drafted.find(x => x.id === 'c-alpha');
+    if (review) c.review = review;
+    if (orig) c.deckBefore = { slides: [{ kicker: 'Old kicker', num: '1', title: 'Old title one', sub: 'Old sub', swipe: 'Old swipe' }, { kicker: '', num: '2', title: 'Old title two', sub: '', swipe: '' }], caption: 'Old caption', claims: [], evidence: 'x' };
+    const { page, errors, ctx } = await open(PH);
+    await openItem(page, 'alpha'); await reviewReady(page);
+    const line = await page.evaluate(() => { const p = document.getElementById('second-look'); return { text: p.firstChild.textContent, hidden: p.hidden, y: p.getBoundingClientRect().bottom, capY: document.querySelector('label[for=caption]').getBoundingClientRect().top, btn: !!document.getElementById('look-orig') }; });
+    assert.equal(line.text, expected); assert.equal(line.hidden, false); assert.ok(line.y <= line.capY, 'above the caption');
+    assert.equal(line.btn, !!orig, 'See the original only when the deck was reworked');
+    assert.equal(await page.evaluate(() => document.getElementById('approve-btn').disabled), false, 'Approve is not blocked');
+    if (orig) {
+      assert.equal(await page.locator('#orig-deck').isHidden(), true);
+      await page.click('#look-orig');
+      assert.match(await page.textContent('#orig-deck'), /Old title one/);
+      assert.equal(await page.locator('#caption').inputValue() === 'Old caption', false, 'read only: the caption box is untouched');
+      await page.screenshot({ path: path.join(SHOTS, slug + '-original.png') });
+      await page.click('#look-orig'); assert.equal(await page.locator('#orig-deck').isHidden(), true);
+    }
+    assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0, 'no sideways scroll');
+    await page.screenshot({ path: path.join(SHOTS, slug + '.png') });
+    assert.deepEqual(errors, []);
+    await ctx.close();
+  });
+}
+await check('SOC-22 Second look on the Reels screen: a ready reel shows its line, a reel with no review says not checked yet', async () => {
+  st.reels = [
+    { id: 'r-20261121000000-aaaa', script: 'A checked reel', status: 'ready', durationMs: 9000, createdAt: '2026-11-21T00:00:00Z', review: { verdict: 'pass', note: 'Easy to follow.', round: 0 } },
+    { id: 'r-20261121000001-bbbb', script: 'An unchecked reel', status: 'ready', durationMs: 9000, createdAt: '2026-11-21T00:00:01Z' }
+  ];
+  const { page, errors, ctx } = await open(PH);
+  await page.click('#trial-btn'); await page.waitForSelector('.reel-item');
+  const lines = await page.locator('.reel-look').allTextContents();
+  assert.deepEqual(lines.sort(), ['Second look: looks good. Easy to follow.', 'Second look: not checked yet.']);
+  await page.screenshot({ path: path.join(SHOTS, 'reels.png') });
+  assert.deepEqual(errors, []);
   await ctx.close();
 });
 
