@@ -32,6 +32,8 @@ const MUT = [
   ['the old amber is back', rep('.small-btn {', '.small-btn { color: #ffd9a0;')],
   ['the number is added to the caption', rep("const draft = { id, caption, evidence", "const draft = { id, caption: caption + (type === 'series' ? ' ' + OneLook.pad3(n) : ''), evidence")],
   ['success message is hidden before the screen changes (no wait)', rep('await sleep(1500);', '')],
+  ['404 branch removed (wrong Worker address looks like a server error)', rep("if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under More, paste the address that ends in workers.dev.';", '')],
+  ['saved address is not reduced to its origin (path and missing https:// kept)', rep("try { return new URL(/^https?:\\/\\//i.test(raw) ? raw : 'https://' + raw).origin; }", "try { return raw.replace(/\\/+$/, ''); }")],
   // SOC-24
   ['plain look is not passed to the renderer (plain draws the photo look)', rep("  if (plain) opts.look = 'plain';", '')],
   ['the toggle redraws but never tells the Worker', rep("'/api/concepts/' + encodeURIComponent(meta.conceptId) + '/look'", "'/api/series'")],

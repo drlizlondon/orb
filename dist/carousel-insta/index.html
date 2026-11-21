@@ -383,7 +383,7 @@ let ready = { drafted: [], failed: [], queued: [] };
 const fontsP = OneLook.fontsReady();
 
 function connected() { return !!(workerBase() && workerToken()); }
-function workerBase() { return lsGet(LS_BASE).trim().replace(/\/+$/, ''); }
+function workerBase() { const raw = lsGet(LS_BASE).trim(); if (!raw) return ''; try { return new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).origin; } catch (e) { return raw.replace(/\/+$/, ''); } }
 function workerToken() { return lsGet(LS_TOKEN).trim(); }
 function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURIComponent(guid); }
 function guidOf(url) { const m = /\/img-album\/([^/?#]+)$/.exec(url || ''); return m ? decodeURIComponent(m[1]) : null; }
@@ -535,6 +535,7 @@ async function refreshReady() {
 function readyFailText(e) {
   if (e && e.setup) return 'Could not get your drafts: this phone has no access code saved. Add it under More.';
   if (e && (e.status === 401 || e.status === 403)) return 'Could not get your drafts: the access code on this phone is wrong or old. Paste it again under More.';
+  if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under More, paste the address that ends in workers.dev.';
   if (e && e.status) return 'Could not get your drafts: the server said ' + e.status + '.';
   return 'Could not get your drafts: no connection. Try again.';
 }

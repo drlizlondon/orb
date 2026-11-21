@@ -1008,7 +1008,8 @@ await check('Drafts list failure says why: no access code, wrong code, server er
   for (const [label, handler, want] of [
     ['b', r => r.fulfill({ status: 401, headers: cors, contentType: 'application/json', body: '{"ok":false}' }), 'wrong or old'],
     ['c', r => r.abort(), 'no connection'],
-    ['d', r => r.fulfill({ status: 500, headers: cors, contentType: 'application/json', body: '{"ok":false}' }), 'server said 500']
+    ['d', r => r.fulfill({ status: 500, headers: cors, contentType: 'application/json', body: '{"ok":false}' }), 'server said 500'],
+    ['e', r => r.fulfill({ status: 404, headers: cors, contentType: 'application/json', body: '{"ok":false}' }), 'Worker address on this phone is wrong']
   ]) {
     const o = await open(PH);
     await o.ctx.route(u => /\/api\/concepts\?status=/.test(u.href), handler);
@@ -1017,6 +1018,18 @@ await check('Drafts list failure says why: no access code, wrong code, server er
     assert.ok((await text(o.page)).includes(want), label + ': ' + await text(o.page));
     await o.ctx.close();
   }
+});
+
+await check('A saved Worker address with no https:// and a path is reduced to its origin', async () => {
+  const o = await open(PH);
+  const urls = [];
+  await o.ctx.route(u => /^https:\/\/drliz-draft-approval\.drlizlondon\.workers\.dev\//.test(u.href), r => { urls.push(r.request().url()); r.fulfill({ status: 401, headers: cors, contentType: 'application/json', body: '{"ok":false}' }); });
+  await o.page.evaluate(() => { localStorage.setItem('orb_worker_base', 'drliz-draft-approval.drlizlondon.workers.dev/some/path/'); return refreshReady(); });
+  await o.page.waitForFunction(() => /Could not get your drafts/.test(document.getElementById('ready-status').textContent), null, { timeout: 15000 });
+  const hit = urls.find(u => /\/api\/concepts/.test(u));
+  assert.ok(hit, 'no request reached the Worker host: ' + JSON.stringify(urls));
+  assert.ok(hit.startsWith('https://drliz-draft-approval.drlizlondon.workers.dev/api/concepts'), hit);
+  await o.ctx.close();
 });
 
 await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain path, no token in the source, only the spec\'d Worker routes', async () => {
