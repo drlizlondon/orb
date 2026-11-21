@@ -81,6 +81,8 @@ const worker = http.createServer((req, res) => {
       if (s === 'failed') return j(200, { ok: true, concepts: st.failed });
       return j(200, { ok: true, concepts: [] });
     }
+    const lk = /^\/api\/concepts\/([^/]+)\/look$/.exec(p);
+    if (lk && m === 'POST') { const c = st.drafted.find(x => x.id === decodeURIComponent(lk[1])); if (!c) return j(404, { ok: false, error: 'no such concept' }); c.look = JSON.parse(body).look; return j(200, { ok: true, concept: c }); }
     if (p === '/api/reels' && m === 'GET') return j(200, { ok: true, reels: st.reels || [] });
     if (p === '/api/run-now' && m === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
     if (p === '/api/album') return st.albumOk ? j(200, { ok: true, photos: ALBUM.map(a => ({ ...a, url: '/img-album/' + a.guid })) }) : j(502, { ok: false, error: 'album unavailable' });
@@ -152,7 +154,7 @@ const metrics = page => page.evaluate(() => {
   const ap = document.getElementById('approve-btn'), r = ap ? ap.getBoundingClientRect() : null;
   return { controls, words, height: document.documentElement.scrollHeight, vh: innerHeight, editable: document.querySelectorAll('[contenteditable]').length, approveInView: !!r && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
 });
-const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 5) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 20) v.push('words ' + m.words); if (m.height > 1.2 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
+const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 7) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 27) v.push('words ' + m.words); if (m.height > 1.3 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
 
 // ===== Simplicity caps =====
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
@@ -194,7 +196,7 @@ await check('Two taps to approved: one .ready-item, then #approve-btn, nothing e
 });
 
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
-  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 5 controls (Back, caption, Slides from caption, Approve, Edit), no editable text, <= 20 furniture words (15 plus the five words of the SOC-22 line "Second look: not checked yet."), <= 1.2 screens`, async () => {
+  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 7 controls (Back, Photo, Plain, caption, Slides from caption, Approve, Edit), no editable text, <= 27 furniture words (15 plus the five words of the SOC-22 line, plus Photo, Plain and the five-word series label of SOC-24 "Second look: not checked yet."), <= 1.3 screens (SOC-24 added the Photo/Plain row and the series line)`, async () => {
     const { page, ctx } = await open(vp);
     await page.click('.ready-item');
     const v = reviewViolations(await metrics(page));
@@ -910,13 +912,82 @@ await check('SOC-22 Second look on the Reels screen: a ready reel shows its line
   await ctx.close();
 });
 
+// ----- SOC-24: plain look, toggle, series label -----
+const SHOTS24 = path.join(process.env.HOME, 'soc24-shots'); fs.mkdirSync(SHOTS24, { recursive: true });
+const cornerPx = page => page.evaluate(() => [...document.querySelectorAll('#review-strip canvas')].map(cv => [...cv.getContext('2d').getImageData(3, 3, 1, 1).data]));
+const waitPlain = (page, on) => page.waitForFunction(on => { const c = [...document.querySelectorAll('#review-strip canvas')]; return c.length > 0 && c.every(cv => { const p = cv.getContext('2d').getImageData(3, 3, 1, 1).data; return (p[0] === 58 && p[1] === 17 && p[2] === 80) === on; }); }, on, { timeout: 15000 });
+const stripHash = page => page.evaluate(() => [...document.querySelectorAll('#review-strip canvas')].map(cv => cv.toDataURL().length + ':' + cv.toDataURL().slice(-60)));
+await check('SOC-24 plain look: every slide of a 4-slide deck is rgb(58,17,80) with no photo; the face check does not run; toggle Photo > Plain > Photo restores the same photo ids and the same pixels; the look is sent to the Worker', async () => {
+  st.drafted = [mk(4, 'idea', 'plain1', { createdAt: '2026-11-19T08:00:00Z' })];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await reviewReady(page);
+  const ids0 = await page.evaluate(() => cards.map(c => c.photo));
+  const h0 = await stripHash(page);
+  assert.ok((await cornerPx(page)).every(p => !(p[0] === 58 && p[1] === 17 && p[2] === 80)), 'photo look has a photo');
+  await page.screenshot({ path: path.join(SHOTS24, 'photo-390.png') });
+  await page.click('#look-plain'); await waitPlain(page, true); await reviewReady(page);
+  const px = await cornerPx(page);
+  assert.equal(px.length, 4); for (const p of px) assert.deepEqual(p, [58, 17, 80, 255]);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#review-strip')).backgroundImage), 'none');
+  assert.equal(await page.locator('#review-strip img').count(), 0);
+  assert.ok(await page.evaluate(() => lastRes.every(r => r && r.hasPhoto === false && r.faceClear === null)), 'no face check on plain');
+  assert.ok(!(await page.locator('#approve-btn').isDisabled()));
+  await page.screenshot({ path: path.join(SHOTS24, 'plain-390.png') });
+  assert.ok(calls.some(c => c.method === 'POST' && /\/api\/concepts\/c-plain1\/look$/.test(c.path) && JSON.parse(c.body).look === 'plain'), 'look sent to the Worker');
+  assert.equal(await page.evaluate(() => cards.map(c => c.photo).join()), ids0.join(), 'photos stay on the cards while plain');
+  await page.click('#look-photo'); await waitPlain(page, false); await reviewReady(page);
+  assert.equal(await page.evaluate(() => cards.map(c => c.photo).join()), ids0.join());
+  assert.deepEqual(await stripHash(page), h0, 'Photo again draws the same pixels as at the start');
+  assert.equal(calls.filter(c => /\/look$/.test(c.path)).length, 2);
+  await ctx.close();
+});
+await check('SOC-24 plain: a face-blocked photo deck is not blocked on plain (no photo, no face check) and is blocked again on Photo', async () => {
+  st.drafted = [faceDeck('blockedplain', 'gb')];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item');
+  await page.waitForFunction(() => /Words are over your face on slide 2/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  assert.ok(await page.locator('#approve-btn').isDisabled());
+  await page.click('#look-plain'); await reviewReady(page);
+  assert.ok(!/over your face/.test(await page.textContent('#msg')));
+  assert.ok(!(await page.locator('#approve-btn').isDisabled()));
+  await page.click('#look-photo');
+  await page.waitForFunction(() => /Words are over your face on slide 2/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  await ctx.close();
+});
+await check('SOC-24 plain: the fit check still runs and blocks Approve on an over-long slide', async () => {
+  const c = mk(3, 'idea', 'longplain', { createdAt: '2026-11-19T08:00:00Z' });
+  c.deck.slides[1].title = 'Fixture long words '.repeat(30);
+  st.drafted = [c];
+  const { page, ctx } = await open(PH);
+  await page.click('.ready-item'); await reviewReady(page).catch(() => {});
+  await page.click('#look-plain'); await waitPlain(page, true);
+  await page.waitForFunction(() => /Slide 2 has too many words to fit/.test(document.getElementById('msg').textContent), null, { timeout: 15000 });
+  assert.ok(await page.locator('#approve-btn').isDisabled());
+  await ctx.close();
+});
+await check('SOC-24 a concept whose look is plain opens plain; the series label shows for series, life and idea', async () => {
+  const t = i => `2026-11-19T07:0${i}:00Z`;
+  const life = mk(3, 'life', 'golf', { createdAt: t(1) }); life.look = 'plain';
+  st.drafted = [mk(3, 'series', 'sierra', { createdAt: t(2) }), life, mk(3, 'idea', 'india', { createdAt: t(3) })];
+  const { page, ctx } = await open(PH);
+  const want = { sierra: 'Series: Work less, do more', golf: 'Series: Life', india: 'One-off' };
+  for (const tag of Object.keys(want)) {
+    await openItem(page, tag); await reviewReady(page);
+    assert.equal(await page.textContent('#series-line'), want[tag]);
+    assert.equal(await page.evaluate(() => look), tag === 'golf' ? 'plain' : 'photo');
+    if (tag === 'golf') { assert.ok((await cornerPx(page)).every(p => p[0] === 58 && p[1] === 17 && p[2] === 80)); await page.screenshot({ path: path.join(SHOTS24, 'label-life-390.png') }); }
+    await page.click('#review-back'); await page.waitForSelector('.ready-item');
+  }
+  await ctx.close();
+});
+
 await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain path, no token in the source, only the spec\'d Worker routes', async () => {
   const src = fs.readFileSync(FILE, 'utf8');
   assert.ok(!/api\.buffer\.com|buffer-api|find-generic-password/i.test(src), 'buffer/credential path'); assert.ok(!src.includes(TOKEN));
   assert.ok(!/[–—]/.test(src), 'dash'); assert.ok(!/calm/i.test(src), 'calm');
   assert.ok(!(/function\s+renderDeck/.test(src) && /carousel_decks_v2/.test(src) && /syncDomToState/.test(src)));
   const routes = [...new Set([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)/g)].map(m => m[1]).concat([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)\?/g)].map(m => m[1])))].sort();
-  assert.deepEqual(routes, ['/api/album', '/api/concepts', '/api/drafts/', '/api/publish', '/api/reels', '/api/reels/', '/api/run-now', '/api/series', '/api/series/floor']);
+  assert.deepEqual(routes, ['/api/album', '/api/concepts', '/api/concepts/', '/api/drafts/', '/api/publish', '/api/reels', '/api/reels/', '/api/run-now', '/api/series', '/api/series/floor']);
   assert.ok(/'\/api\/drafts\/' \+ encodeURIComponent\(id\) \+ '\/approve'/.test(src));
   assert.ok(!/localStorage\.setItem\(\s*LS_TOKEN[^)]*\)\s*;?\s*\n[^]*fetch\(\s*['"]http/.test(src));
   execFileSync('node', ['/Users/lizzie/NightMode/scripts/no-stray-orb-tool.mjs'], { stdio: 'pipe' });

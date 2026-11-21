@@ -75,6 +75,8 @@
   #reel-script { min-height: 120px; }
   .second-look { font-size: 14px; opacity: 0.8; margin: 6px 0; overflow-wrap: anywhere; }
   .second-look .look-orig { margin-left: 8px; }
+  .look-row { display: flex; gap: 8px; margin: 10px 0 0; }
+  .look-row .quiet-btn[aria-pressed="true"] { font-weight: 700; border-color: currentColor; }
   .job-line { font-size: 14px; opacity: 0.6; margin: 6px 0 0; }
   #orig-deck { font-size: 14px; opacity: 0.9; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   #nr-video { display: block; margin: 0 auto 8px; height: min(60vh, 640px); aspect-ratio: 9 / 16; max-width: 100%; background: #5a2578; border-radius: 10px; }
@@ -193,9 +195,14 @@
   </div>
   <div id="review-strip" tabindex="-1"></div>
   <div id="review-count">1 / 1</div>
+  <p id="series-line" class="job-line" hidden></p>
   <p id="job-line" class="job-line" hidden></p>
   <p id="second-look" class="second-look" hidden></p>
   <div id="orig-deck" role="region" aria-label="The original words" hidden></div>
+  <div id="look-row" class="look-row" role="group" aria-label="Look">
+    <button id="look-photo" class="quiet-btn small-btn" type="button" aria-pressed="true">Photo</button>
+    <button id="look-plain" class="quiet-btn small-btn" type="button" aria-pressed="false">Plain</button>
+  </div>
   <label for="caption">Caption</label>
   <textarea id="caption" rows="3"></textarea>
   <button id="caption-slides" class="quiet-btn" type="button">Slides from caption</button>
@@ -361,6 +368,8 @@ let cards = loadDeck();
 let type = readType();
 let cover = readCover();
 let meta = { evidence: '', pending: null, conceptId: null };
+const LOOK_KEY = 'ig_look_v1'; // SOC-24: photo | plain for an item with no concept id (kept on this device)
+let look = lsGet(LOOK_KEY) === 'plain' ? 'plain' : 'photo';
 let current = 'ready';
 let seriesInfo = { last: null, next: null };
 let numTouched = false;
@@ -481,14 +490,17 @@ function slideFor(c) { return { handle: c.handle || HANDLE, kicker: c.kicker, nu
 async function drawInto(cv, i) {
   const tok = cv._tok = (cv._tok || 0) + 1;
   await fontsP;
-  const url = cards[i] ? cards[i].photo : '';
+  const plain = look === 'plain'; // SOC-24: no photo is loaded or drawn; the photos stay on the cards
+  const url = cards[i] && !plain ? cards[i].photo : '';
   const im = await loadImg(url);
   await albumReady;
   if (cv._tok !== tok || !cards[i]) return null;
   const c = cards[i];
-  if (c.photo !== url) return drawInto(cv, i);
-  const has = !!(c.photo && im);
+  if (!plain && c.photo !== url) return drawInto(cv, i);
+  if ((look === 'plain') !== plain) return drawInto(cv, i);
+  const has = !!(!plain && c.photo && im);
   const opts = { face: has ? faceOf(c) : null, frame: c.frame || null };
+  if (plain) opts.look = 'plain';
   const r = (type === 'series' && i === 0) ? OneLook.renderSeries(cv, coverFor(), i, cards.length, im, opts) : OneLook.renderSlide(cv, slideFor(c), i, cards.length, im, opts);
   return Object.assign({ hasPhoto: has }, r);
 }
@@ -695,6 +707,8 @@ function secondLookLine(rv) {
 }
 function showSecondLook(c) {
   const jl = $('job-line'), JOBS = ['go-to', 'buyers', 'right-people']; // SOC-23: the job the drafter gave this post, muted, above the Second look line
+  const sl = $('series-line'), SERIES = { series: 'Series: Work less, do more', life: 'Series: Life', idea: 'One-off' };
+  if (c && SERIES[c.kind]) { sl.textContent = SERIES[c.kind]; sl.hidden = false; } else { sl.textContent = ''; sl.hidden = true; }
   if (c && JOBS.includes(c.job)) { jl.textContent = 'Job: ' + c.job; jl.hidden = false; } else { jl.textContent = ''; jl.hidden = true; }
   const p = $('second-look'), od = $('orig-deck');
   od.hidden = true; od.textContent = '';
@@ -731,12 +745,24 @@ $('review-strip').addEventListener('scroll', () => {
   $('review-count').textContent = k + ' / ' + n;
 });
 function openReview() { show('review'); return drawReview(); }
+function syncLookButtons() { $('look-photo').setAttribute('aria-pressed', String(look === 'photo')); $('look-plain').setAttribute('aria-pressed', String(look === 'plain')); }
+async function setLook(next) {
+  if (look === next) return;
+  look = next; syncLookButtons(); meta.pending = null; if (meta.ref) meta.ref.look = next;
+  persist(); const drawn = drawReview();
+  if (meta.conceptId && connected()) { try { await api('/api/concepts/' + encodeURIComponent(meta.conceptId) + '/look', 'POST', { look: next }); } catch (e) {} } else lsSet(LOOK_KEY, look);
+  await drawn;
+}
+$('look-photo').addEventListener('click', () => setLook('photo'));
+$('look-plain').addEventListener('click', () => setLook('plain'));
 function openDraft(c) {
   const slides = Array.isArray(c.deck && c.deck.slides) ? c.deck.slides : [];
   cards = slides.map(s => norm({ kicker: s.kicker, num: s.num, title: s.title, sub: s.sub, swipe: s.swipe, photo: (typeof s.photo === 'string' && s.photo) ? albumUrl(s.photo) : '' }));
   $('caption').value = (c.deck && c.deck.caption) || '';
-  meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id };
+  meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id, ref: c };
   setType(isSeries(c) ? 'series' : 'words');
+  look = c.look === 'plain' ? 'plain' : 'photo';
+  syncLookButtons();
   showSecondLook(c);
   syncStrap(); persist(); openReview();
 }
@@ -1007,7 +1033,7 @@ function slideText(c, i, n) {
   if (type === 'series' && i === 0) return [cover.kicker, cover.h1, cover.h2, cover.h3, cover.h4, cover.h5, c.title, OneLook.pad3(n)].filter(x => x && String(x).trim()).join(' ');
   return [c.kicker, c.num, c.title, c.sub, c.swipe].filter(x => x && x.trim()).join(' ');
 }
-function deckSig(n) { return JSON.stringify([type, n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame, c.offsets])]); }
+function deckSig(n) { return JSON.stringify([type, look, n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame, c.offsets])]); }
 async function renderAllPngs() {
   await OneLook.fontsReady();
   for (const c of cards) if (c.photo && isRemote(c.photo) && !(await loadImg(c.photo))) throw new Error('A photo on this deck cannot be read for export (the server did not allow it). Pick it again from "Use my photos".');

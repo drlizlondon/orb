@@ -195,6 +195,61 @@ await t('No network, no storage, no write paths in look.js (G5)', async () => {
   for (const bad of ['fetch(', 'XMLHttpRequest', 'sendBeacon', 'localStorage', 'sessionStorage', 'Authorization', 'token', 'WebSocket', 'http://', 'https://']) assert.ok(!SRC.includes(bad), 'look.js contains ' + bad);
 });
 
+// ---- SOC-24: the plain look (opts.look === 'plain') ----
+await t('SOC-24 plain: purple ground (rgb 58,17,80) at 6 empty points even with a photo handed in; no scrim, no photo', async () => {
+  const px = await page.evaluate(({ S }) => {
+    const cv = document.createElement('canvas'), img = mkImg(1200, 1600);
+    const r = OneLook.renderSlide(cv, S, 3, 7, img, { look: 'plain', face: { x: 0.35, y: 0.15, w: 0.3, h: 0.22 } });
+    const x = cv.getContext('2d'); const at = (a, b) => [...x.getImageData(a, b, 1, 1).data];
+    return { r: { fits: r.fits, faceClear: r.faceClear }, pts: [at(2, 2), at(1076, 2), at(2, 700), at(1076, 700), at(540, 300), at(1076, 1346)] };
+  }, { S: SLIDES[3] });
+  for (const p of px.pts) assert.deepEqual(p, [58, 17, 80, 255]);
+  assert.equal(px.r.faceClear, null, 'no face check on plain');
+  assert.equal(px.r.fits, true);
+});
+await t('SOC-24 plain: title and sub drawn in #faf1e2, kicker, num and swipe in #f9c9e6, no pill behind the title', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const seen = {}; const ft = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (tx, ...a) { if (this.canvas === window.__cv) seen[tx] = this.fillStyle; return ft.call(this, tx, ...a); };
+    const cv = document.createElement('canvas'); window.__cv = cv;
+    const s = { ...S, swipe: 'Swipe' };
+    const r = OneLook.renderSlide(cv, s, 3, 7, null, { look: 'plain' });
+    CanvasRenderingContext2D.prototype.fillText = ft; window.__cv = null;
+    const b = r.blocks.title, x = cv.getContext('2d');
+    return { seen, corner: [...x.getImageData(Math.round(b.x) + 3, Math.round(b.y) + 3, 1, 1).data] };
+  }, { S: SLIDES[3] });
+  assert.equal(o.seen['Start with one'], '#faf1e2'); assert.equal(o.seen['question'], '#faf1e2'); // the title wraps in two lines
+  assert.equal(o.seen['Ask it one clear thing.'], '#faf1e2');
+  assert.equal(o.seen['Idea'], '#f9c9e6');
+  assert.equal(o.seen['1'], '#f9c9e6');
+  assert.equal(o.seen['Swipe  →'], '#f9c9e6');
+  assert.deepEqual(o.corner, [58, 17, 80, 255], 'a title pill would be cream here');
+});
+await t('SOC-24 plain: same layout and fit result as the photo look; the handle tag is still drawn; an over-long slide still reports fits:false', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const a = OneLook.renderSlide(document.createElement('canvas'), S, 3, 7, null, {}), b = OneLook.renderSlide(document.createElement('canvas'), S, 3, 7, null, { look: 'plain' });
+    const long = { ...S, title: (S.title + ' ').repeat(40) };
+    const c = OneLook.renderSlide(document.createElement('canvas'), long, 3, 7, null, { look: 'plain' });
+    return { ta: a.textTop, tb: b.textTop, ha: a.blocks.handle, hb: b.blocks.handle, fa: [a.titleSize, a.subSize], fits: c.fits };
+  }, { S: SLIDES[3] });
+  assert.equal(o.ta, o.tb); assert.deepEqual(o.ha, o.hb); assert.ok(o.hb && o.hb.w > 0);
+  assert.equal(o.fits, false);
+});
+await t('SOC-24 photo look is pixel-identical to before: look "photo" and no look give the same pixels, and both match the pre-SOC-24 golden hashes', async () => {
+  const o = await page.evaluate(({ S }) => {
+    const img = mkImg(1200, 1600), face = { x: 0.35, y: 0.15, w: 0.3, h: 0.22 };
+    const d = opts => { const c = document.createElement('canvas'); OneLook.renderSlide(c, S, 3, 4, img, opts); return c.toDataURL(); };
+    return { same: d({ face }) === d({ face, look: 'photo' }), plainDiffers: d({ face }) !== d({ face, look: 'plain' }) };
+  }, { S: SLIDES[3] });
+  assert.ok(o.same); assert.ok(o.plainDiffers);
+  const g = JSON.parse(fs.readFileSync(path.join(here, 'fixtures/look-golden.json'), 'utf8'));
+  const h = await page.evaluate(({ S }) => {
+    const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(16) + ':' + s.length; };
+    const c = document.createElement('canvas'); OneLook.renderSlide(c, S, 3, 7, null, { look: 'photo' }); return hash(c.toDataURL());
+  }, { S: SLIDES[3] });
+  assert.equal(h, g.slide3);
+});
+
 await t('No page errors', async () => { assert.deepEqual(errors, []); });
 
 await browser.close();

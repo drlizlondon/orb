@@ -24,6 +24,12 @@ const MUT = [
   ['offsets ignored', s => s.replace('const o = offsets && offsets[name],', 'const o = null,')],
   ['a default offset of 1 px in y', s => s.replace('dy: (o && +o.dy) || 0 };', 'dy: (o && +o.dy) || 1 };')],
   ['clamp removed', s => s.replace('dx = Math.max(-b.x0, Math.min(T.W - b.x1, want.dx)); dy = Math.max(-b.y0, Math.min(T.H - b.y1, want.dy));', 'dx = want.dx; dy = want.dy;')],
+  // SOC-24
+  ['plain look still draws the photo', s => s.replace('ctx.fillStyle = C.purple; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);', "drawPhoto(ctx, im, 0.5, 0.5, 1); draw(ctx);")],
+  ['plain title in the wrong colour', s => s.replace('color: C.cream, plainColor: C.cream,', 'color: C.cream, plainColor: C.soft,')],
+  ['plain keeps the title pill', s => s.replace('const bare = plainMode && !!o.plainColor;', 'const bare = false;')],
+  ['plain ground is the wrong purple', s => s.replace('ctx.fillStyle = C.purple; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);', "ctx.fillStyle = '#3a1151'; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);")],
+  ['plain look leaks into the photo look (plainMode left on)', s => s.replace('} finally { plainMode = false; }', '} finally { plainMode = true; }')],
   ['moved rects not reported to the face check', s => s.replace('rects.push({ x: r.x + dx - p, y: r.y + dy - p,', 'rects.push({ x: r.x - p, y: r.y - p,')]
 ];
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'look-mut-'));

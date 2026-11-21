@@ -37,13 +37,17 @@ function roughRect(ctx, x, y, w, h, rad, amp, seed, brush) {
 function fillRough(ctx, x, y, w, h, rad, amp, seed, brush, color) { roughRect(ctx, x, y, w, h, rad, amp, seed, brush); ctx.fillStyle = color; ctx.fill(); }
 
 // block with text; returns {x,y,w,h}
+// SOC-24: plainMode is true only while a plain-look slide is drawn (set in twoPass). A block with o.plainColor then draws its
+// text in that colour with no pill; every other block, and every photo-look draw, is exactly as before.
+let plainMode = false;
 function block(ctx, o) {
   ctx.font = o.font; ctx.textBaseline = 'alphabetic';
   const tw = ctx.measureText(o.text).width;
   const w = tw + o.padL + o.padR, h = o.size * (o.lh || 1) + o.padT + o.padB;
   const ins = o.ins || [0, 0, 0, 0];
-  fillRough(ctx, o.x - ins[3], o.y - ins[0], w + ins[1] + ins[3], h + ins[0] + ins[2], o.rad, o.amp, o.seed, o.brush, o.color);
-  ctx.fillStyle = C.purple;
+  const bare = plainMode && !!o.plainColor;
+  if (!bare) fillRough(ctx, o.x - ins[3], o.y - ins[0], w + ins[1] + ins[3], h + ins[0] + ins[2], o.rad, o.amp, o.seed, o.brush, o.color);
+  ctx.fillStyle = bare ? o.plainColor : C.purple;
   ctx.fillText(o.text, o.x + o.padL, o.y + o.padT + o.size * (o.base || 0.78));
   return { x: o.x, y: o.y, w, h };
 }
@@ -185,25 +189,25 @@ function drawText(ctx, s, i, total) {
   let y = T.H - T.bottom - L.h; const x = T.margin;
   if (s.num) {
     const y0 = y;
-    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: 40, padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
-    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); });
+    const nb = g('num', (c, R) => { const b = block(c, { x: x + 10, y: y0, text: s.num, font: '800 ' + T.numSize + 'px ' + BALOO, size: T.numSize, lh: 0.95, padL: 40, padR: 40, padT: 0, padB: 6, rad: 10, amp: 12, seed: 9, brush: true, color: C.pink, plainColor: C.soft, ins: [4, 8, 0, 8], base: 0.86 }); R(b, 8); return b; });
+    if (s.kicker) g('kicker', (c, R) => { const kb = block(c, { x: nb.x + nb.w + 16, y: y0 + nb.h - T.kickerSize - 44, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); });
     y += nb.h + 14;
   } else if (s.kicker) {
     const y0 = y;
-    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
+    g('kicker', (c, R) => { const kb = block(c, { x, y: y0, text: s.kicker, font: '700 italic ' + T.kickerSize + 'px ' + CAVEAT, size: T.kickerSize, padL: 28, padR: 28, padT: 4, padB: 14, rad: 10, amp: 10, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); R(kb, 8); }); y += T.kickerSize + 30 + 14;
   }
   const yT = y;
-  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? 18 : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: 28, padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
+  y = g('title', (c, R) => { let yy = yT; L.tl.forEach((line, k) => { const tb = block(c, { x: x + (k % 2 ? 18 : 0), y: yy, text: line, font: '800 ' + titleSize + 'px ' + BALOO, size: titleSize, padL: 28, padR: 28, padT: 6, padB: 12, rad: 22, amp: 3.5, seed: 4 + k * 5, color: C.cream, plainColor: C.cream, base: 0.86 }); R(tb, 6); yy += tb.h - 4; }); return yy; });
   if (L.tl.length) y += 14;
   if (L.sl.length) {
     ctx.font = '600 ' + subSize + 'px ' + BALOO; const lh = subSize * T.subLH, bw = Math.max(...L.sl.map(t => ctx.measureText(t).width)) + 68, bh = 24 + L.sl.length * lh + 26, ys = y;
     g('sub', (c, R) => {
-      fillRough(c, x - 14, ys, bw, bh, 40, 6, 5, false, C.purple); R({ x: x - 14, y: ys, w: bw, h: bh }, 6);
+      if (!plainMode) fillRough(c, x - 14, ys, bw, bh, 40, 6, 5, false, C.purple); R({ x: x - 14, y: ys, w: bw, h: bh }, 6);
       c.font = '600 ' + subSize + 'px ' + BALOO; c.fillStyle = C.cream; c.textBaseline = 'alphabetic'; L.sl.forEach((t, k) => c.fillText(t, x - 14 + 34, ys + 24 + subSize * 0.82 + k * lh));
     });
     y += bh;
   }
-  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: 26, padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, base: 0.84 }); R(sb, 6); }); }
+  if (s.swipe) { const ys = y; g('swipe', (c, R) => { const sb = block(c, { x, y: ys + 14, text: s.swipe + '  →', font: '700 italic ' + T.swipeSize + 'px ' + CAVEAT, size: T.swipeSize, padL: 26, padR: 26, padT: 4, padB: 12, rad: 10, amp: 8, seed: 51, brush: true, color: C.soft, plainColor: C.soft, base: 0.84 }); R(sb, 6); }); }
   return { rects, blocks, titleSize, subSize, fits, textTop: T.H - T.bottom - L.h };
 }
 // Series slide 1: the cover's own marks (kicker tag, headline blocks, purple arrow box, #NNN badge) in the shared positions.
@@ -228,7 +232,7 @@ function drawSeries(ctx, c0, i, total) {
     const ai = B({ x: 102, y, text: c.h2, font: '800 228px ' + BALOO, size: 228, lh: 0.95, padL: 62, padR: 62, padT: 0, padB: 6, rad: 10, amp: 16, seed: 9, brush: true, color: C.pink, ins: [6, 10, 0, 10], base: 0.86 }); sub.push(ai); y += ai.h + 2;
     const earn = B({ x: 50, y, text: c.h3, font: '800 76px ' + BALOO, size: 76, padL: 26, padR: 26, padT: 6, padB: 8, rad: 22, amp: 3.5, seed: 14, color: C.cream, base: 0.86 }); sub.push(earn); y += earn.h + 8;
     const and = B({ x: 50, y: y + 20, text: c.h4, font: '800 56px ' + BALOO, size: 56, padL: 20, padR: 20, padT: 10, padB: 12, rad: 20, amp: 3, seed: 17, color: C.cream, base: 0.86 });
-    const wk = B({ x: 50 + and.w - 2, y, text: c.h5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, base: 0.84 }); sub.push(and, wk);
+    const wk = B({ x: 50 + and.w - 2, y, text: c.h5, font: '700 italic 104px ' + CAVEAT, size: 104, padL: 34, padR: 34, padT: 0, padB: 14, rad: 10, amp: 14, seed: 33, brush: true, color: C.yellow, plainColor: C.soft, base: 0.84 }); sub.push(and, wk);
     if (wk.w) underline(cx, wk.x + 46, wk.x + wk.w - 50, wk.y + wk.h - 2, C.hot, -3);
     cx.restore();
     sub.forEach(r => R({ x: T.margin - 50 * K + r.x * K, y: hy + r.y * K, w: r.w * K, h: r.h * K }, 8));
@@ -277,6 +281,15 @@ function drawPhoto(ctx, im, fx, fy, zoom) {
 }
 function twoPass(cv, draw, im, opts) {
   opts = opts || {}; cv.width = T.W; cv.height = T.H; const ctx = cv.getContext('2d');
+  if (opts.look === 'plain') { // SOC-24: no photo, no scrim, no face check; the purple ground, the same layout
+    plainMode = true;
+    try {
+      const tmpP = document.createElement('canvas'); tmpP.width = T.W; tmpP.height = T.H;
+      const preP = draw(tmpP.getContext('2d'));
+      ctx.fillStyle = C.purple; ctx.fillRect(0, 0, T.W, T.H); draw(ctx);
+      return { rects: preP.rects, blocks: preP.blocks, textTop: Math.round(preP.textTop), fits: preP.fits, faceClear: null, fx: 0.5, fy: 0.5, zoom: 1 };
+    } finally { plainMode = false; }
+  }
   const tmp = document.createElement('canvas'); tmp.width = T.W; tmp.height = T.H;
   const pre = draw(tmp.getContext('2d'));
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;

@@ -32,6 +32,12 @@ const MUT = [
   ['the old amber is back', rep('.small-btn {', '.small-btn { color: #ffd9a0;')],
   ['the number is added to the caption', rep("const draft = { id, caption, evidence", "const draft = { id, caption: caption + (type === 'series' ? ' ' + OneLook.pad3(n) : ''), evidence")],
   ['success message is hidden before the screen changes (no wait)', rep('await sleep(1500);', '')],
+  // SOC-24
+  ['plain look is not passed to the renderer (plain draws the photo look)', rep("  if (plain) opts.look = 'plain';", '')],
+  ['the toggle redraws but never tells the Worker', rep("'/api/concepts/' + encodeURIComponent(meta.conceptId) + '/look'", "'/api/series'")],
+  ['the series label is never shown', rep('if (c && SERIES[c.kind]) {', 'if (false) {')],
+  ['a concept with look plain opens as photo', rep("look = c.look === 'plain' ? 'plain' : 'photo';", "look = 'photo';")],
+  ['the look is not part of the approve signature (a stale publish can be reused)', rep('[type, look, n, cover,', '[type, n, cover,')],
   // SOC-18.10
   ['slideFor drops the offsets (preview and export ignore the move)', rep('sub: c.sub, swipe: c.swipe, offsets: c.offsets }; }', 'sub: c.sub, swipe: c.swipe }; }')],
   ['a drag is not saved with the slide (norm drops offsets)', rep('face: s.face, offsets: s.offsets || null };', 'face: s.face, offsets: null };')],
