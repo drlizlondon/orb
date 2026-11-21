@@ -151,7 +151,7 @@ const metrics = page => page.evaluate(() => {
   const ap = document.getElementById('approve-btn'), r = ap ? ap.getBoundingClientRect() : null;
   return { controls, words, height: document.documentElement.scrollHeight, vh: innerHeight, editable: document.querySelectorAll('[contenteditable]').length, approveInView: !!r && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
 });
-const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 4) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 15) v.push('words ' + m.words); if (m.height > 1.2 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
+const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 5) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 15) v.push('words ' + m.words); if (m.height > 1.2 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
 
 // ===== Simplicity caps =====
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
@@ -193,7 +193,7 @@ await check('Two taps to approved: one .ready-item, then #approve-btn, nothing e
 });
 
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
-  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 4 controls, no editable text, <= 15 furniture words, <= 1.2 screens`, async () => {
+  await check(`Check and approve at ${vpName}, right after the first tap, no scrolling: Approve inside the viewport, <= 5 controls (Back, caption, Slides from caption, Approve, Edit), no editable text, <= 15 furniture words, <= 1.2 screens`, async () => {
     const { page, ctx } = await open(vp);
     await page.click('.ready-item');
     const v = reviewViolations(await metrics(page));
@@ -749,6 +749,101 @@ await check('At 390px wide the page has no sideways overflow on each of the thre
     assert.ok((await ov()) <= 0, mode + ' edit ' + await ov());
   }
   assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+// ===== SOC-21: Slides from caption =====
+const SOC21_CAPTION = `I run several AI assistants at once. But I discovered that having more AI helpers doesn't necessarily make life easier.
+
+Someone needs to be in charge.
+
+So I gave one of them that job.
+
+It now coordinates the others, runs my daily routines on schedule, checks that things have actually been done, turns failures into tasks and makes sure my work is saved and shared safely.
+
+Essentially, I've given my AI assistants a manager.
+
+And the interesting thing? You don't need to be technical to set something like this up.
+
+You just need someone in charge.`;
+const SOC21_OLD = ['P1', 'P2', 'P3', 'P4', 'P5'].map((p, i) => ({ handle: '@fixture-handle', kicker: 'Old kicker ' + (i + 1), num: String(i + 1), title: 'Old title ' + (i + 1), sub: 'Old sub ' + (i + 1), swipe: ['Swipe to see how', 'Next', 'Next', 'Next', 'Save this'][i], photo: p, frame: { x: 1 }, offsets: { title: { dx: 3, dy: 4 } }, face: { x: 0.1, y: 0.1, w: 0.1, h: 0.1 } }));
+const SOC21_TITLES = ['I run several AI assistants at once.', 'Someone needs to be in charge.', 'So I gave one of them that job.', 'It now coordinates the others, runs my daily routines on schedule, checks that things have actually been done, turns failures into tasks and makes sure my work is saved and shared safely.', "Essentially, I've given my AI assistants a manager.", 'And the interesting thing?', 'You just need someone in charge.'];
+const SOC21_SUBS = ["But I discovered that having more AI helpers doesn't necessarily make life easier.", '', '', '', '', "You don't need to be technical to set something like this up.", ''];
+const slidesJs = (cap, old) => ({ cap, old });
+await check('SOC-21 T1 + G6: the worked example makes 7 slides, field by field; her words are untouched (title+sub joined = the caption)', async () => {
+  const { page, ctx } = await open(PH);
+  const out = await page.evaluate(({ cap, old }) => slidesFromCaption(cap, old), slidesJs(SOC21_CAPTION, SOC21_OLD));
+  assert.equal(out.length, 7);
+  assert.deepEqual(out.map(c => c.title), SOC21_TITLES);
+  assert.deepEqual(out.map(c => c.sub), SOC21_SUBS);
+  assert.deepEqual(out.map(c => c.photo), ['P1', 'P2', 'P3', 'P4', 'P5', 'P1', 'P2']);
+  assert.deepEqual(out.map(c => c.swipe), ['Swipe to see how', 'Next', 'Next', 'Next', 'Next', 'Next', 'Save this']);
+  assert.deepEqual(out.map(c => c.num), ['01', '02', '03', '04', '05', '06', '07']);
+  assert.ok(out.every(c => c.kicker === ''), 'every kicker is empty');
+  assert.ok(out.every(c => c.handle === '@fixture-handle' && c.frame === null && c.offsets === null && c.face === undefined), 'handle kept; frame, offsets, face reset');
+  // the same caption hard-wrapped (single line breaks inside paragraphs, rule 2) must give the identical slides
+  const wrapped = SOC21_CAPTION.replace('at once. But', 'at once.\nBut').replace('on schedule, checks', 'on schedule,\nchecks').replace('And the interesting thing? You', 'And the interesting thing?\nYou');
+  assert.notEqual(wrapped, SOC21_CAPTION);
+  assert.deepEqual(await page.evaluate(({ cap, old }) => slidesFromCaption(cap, old), slidesJs(wrapped, SOC21_OLD)), out, 'single line breaks are spaces, not slide breaks');
+  const norm = t => t.replace(/\s+/g, ' ').trim();
+  assert.equal(norm(out.map(c => c.title + ' ' + c.sub).join(' ')), norm(SOC21_CAPTION), 'G6: her words, in order, nothing added');
+  await ctx.close();
+});
+await check('SOC-21 G1 + T2: empty caption and 1 paragraph change nothing and show the blank-line message; 11 paragraphs change nothing and say N = 11', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'echo'); await reviewReady(page);
+  assert.equal(await page.evaluate(() => slidesFromCaption('', cards)), null);
+  const before = await page.evaluate(() => JSON.stringify(cards));
+  let confirms = 0; page.on('dialog', d => { confirms++; d.dismiss(); });
+  const msg = () => page.locator('#msg').innerText();
+  await page.fill('#caption', ''); await page.click('#caption-slides');
+  assert.match(await msg(), /Put a blank line between the parts you want on separate slides\./);
+  await page.fill('#caption', 'One paragraph only. With two sentences.'); await page.click('#caption-slides');
+  assert.match(await msg(), /Put a blank line between the parts you want on separate slides\./);
+  assert.equal(await page.evaluate(() => JSON.stringify(cards)), before, 'cards unchanged');
+  await page.fill('#caption', Array.from({ length: 11 }, (_, i) => 'Part ' + (i + 1) + '.').join('\n\n')); await page.click('#caption-slides');
+  assert.match(await msg(), /That makes 11 slides\. Instagram allows 10\. Join some parts and try again\./);
+  assert.equal(await page.evaluate(() => JSON.stringify(cards)), before, 'cards unchanged');
+  assert.equal(confirms, 0, 'no confirm for the refused cases');
+  await ctx.close();
+});
+await check('SOC-21 T3 + T4 + confirm: Cancel changes nothing; OK rebuilds with the confirm text; the caption box is untouched; Undo restores the exact previous cards', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'echo'); await reviewReady(page);
+  const photo = 'data:image/png;base64,' + PNG_34.toString('base64');
+  await page.evaluate(([old, ph]) => { cards = old.map(c => norm(Object.assign({}, c, { photo: ph }))); }, [SOC21_OLD, photo]);
+  await page.fill('#caption', SOC21_CAPTION);
+  const before = await page.evaluate(() => JSON.stringify(cards));
+  const texts = [];
+  page.once('dialog', d => { texts.push(d.message()); d.dismiss(); });
+  await page.click('#caption-slides'); await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => JSON.stringify(cards)), before, 'Cancel changes nothing');
+  page.once('dialog', d => { texts.push(d.message()); d.accept(); });
+  await page.click('#caption-slides');
+  await page.waitForSelector('#slides-undo');
+  assert.deepEqual(texts, Array(2).fill('Replace the 5 slides with 7 slides made from your caption? Photos stay in order.'));
+  assert.equal(await page.evaluate(() => cards.length), 7);
+  assert.equal(await page.inputValue('#caption'), SOC21_CAPTION, 'T4: caption unchanged');
+  assert.match(await page.locator('#msg').innerText(), /Slides rebuilt from your caption\./);
+  await page.click('#slides-undo');
+  await page.waitForFunction(() => cards.length === 5);
+  assert.equal(await page.evaluate(() => JSON.stringify(cards)), before, 'T3: Undo restores the exact previous cards');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem(STORE_KEY)).length), 5);
+  assert.equal(await page.inputValue('#caption'), SOC21_CAPTION);
+  await ctx.close();
+});
+await check('SOC-21 series: with type series a rebuilt card 0 title is drawn on the cover (as the strapline), and the 390px page does not scroll sideways', async () => {
+  const { page, ctx } = await open(PH);
+  await openItem(page, 'bravo'); await reviewReady(page);
+  assert.equal(await page.evaluate(() => type), 'series');
+  await page.fill('#caption', SOC21_CAPTION);
+  await page.evaluate(() => { window.__txt = []; });
+  page.once('dialog', d => d.accept());
+  await page.click('#caption-slides'); await page.waitForSelector('#slides-undo');
+  await page.waitForTimeout(500);
+  const txt = await page.evaluate(() => window.__txt.join('|'));
+  assert.ok(txt.includes('I run several'), 'cover draws the rebuilt card 0 title (wrapped): ' + txt.slice(0, 200));
+  assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0, 'no sideways scroll');
   await ctx.close();
 });
 

@@ -191,6 +191,7 @@
   <div id="review-count">1 / 1</div>
   <label for="caption">Caption</label>
   <textarea id="caption" rows="3"></textarea>
+  <button id="caption-slides" class="quiet-btn" type="button">Slides from caption</button>
   <div id="review-bar">
     <div class="bar-in">
       <div id="msg" class="msg" role="status" aria-live="polite"></div>
@@ -641,6 +642,42 @@ function applyChecks(results) {
   $('approve-btn').disabled = blocked;
   if (text) say(kind, text); else clearMsg($('msg'));
 }
+// ---------- SOC-21: slides from her caption (deterministic: her words only, no AI, no network) ----------
+let slidesUndo = null;
+function captionParagraphs(caption) {
+  return String(caption || '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n\s*/).map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+function slidesFromCaption(caption, oldCards) {
+  const paras = captionParagraphs(caption), old = Array.isArray(oldCards) ? oldCards : [];
+  if (paras.length < 2 || paras.length > 10) return null;
+  const n = paras.length;
+  return paras.map((p, i) => {
+    const m = /^(.*?[.?!])(?:\s+|$)/.exec(p);
+    const title = m ? m[1] : p, sub = m ? p.slice(m[0].length).trim() : '';
+    const swipe = i === 0 ? (old[0] ? old[0].swipe : '') : i === n - 1 ? (old.length ? old[old.length - 1].swipe : '') : 'Next';
+    return norm({ handle: old[0] ? old[0].handle : '', kicker: '', num: String(i + 1).padStart(2, '0'), title, sub, swipe, photo: old.length ? old[i % old.length].photo : '', frame: null, offsets: null });
+  });
+}
+$('caption-slides').addEventListener('click', async () => {
+  const paras = captionParagraphs($('caption').value);
+  if (paras.length < 2) { say('err', 'Put a blank line between the parts you want on separate slides.'); return; }
+  if (paras.length > 10) { say('err', 'That makes ' + paras.length + ' slides. Instagram allows 10. Join some parts and try again.'); return; }
+  const made = slidesFromCaption($('caption').value, cards);
+  if (!made) return;
+  if (!confirm('Replace the ' + cards.length + ' slides with ' + made.length + ' slides made from your caption? Photos stay in order.')) return;
+  const prev = JSON.parse(JSON.stringify(cards));
+  slidesUndo = prev; cards = made; persist();
+  await drawReview();
+  const m = $('msg'), check = m.textContent, kind = /\berr\b/.test(m.className) ? 'err' : /\bwarn\b/.test(m.className) ? 'warn' : 'ok';
+  say(kind, 'Slides rebuilt from your caption.', check ? [check] : null);
+  const u = document.createElement('button'); u.type = 'button'; u.className = 'quiet-btn small-btn'; u.id = 'slides-undo'; u.textContent = 'Undo';
+  u.addEventListener('click', async () => {
+    if (!slidesUndo) return;
+    cards = JSON.parse(JSON.stringify(slidesUndo)).map(norm); slidesUndo = null; persist(); await drawReview();
+  });
+  m.appendChild(u);
+});
+
 function reviewTitle() { return type === 'series' ? 'Series ' + OneLook.pad3(currentN()) : 'Words over my photos'; }
 async function drawReview() {
   const tok = ++reviewTok, strip = $('review-strip');
