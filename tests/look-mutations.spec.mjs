@@ -39,7 +39,7 @@ const MUT = [
   ['dark left margin changed', s => s.replace('box: { left: 34,', 'box: { left: 40,')],
   ['dark fit never reported', s => s.replace('const fits = L.h <= avail;', 'const fits = true;')],
   ['dark look leaks into the photo look (every slide drawn dark)', s => s.replace("const dk = !!opts && opts.look === 'dark';", 'const dk = true;')],
-  ['dark look drops the photo (never drawn)', s => s.replace("drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark); if (dark)", "drawPhoto(ctx, null, pl.fx, pl.fy, pl.zoom, dark); if (dark)")],
+  ['dark look drops the photo (never drawn)', s => s.replace("drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish);", "drawPhoto(ctx, null, pl.fx, pl.fy, pl.zoom, dark, opts.finish);")],
   // SOC-26 finish
   ['finish disabled', s => s.replace('if (finish !== false) applyFinish(ctx);', 'if (false) applyFinish(ctx);')],
   ['finish gain not clamped (a flat photo explodes)', s => s.replace('maxGain: 1.4,', 'maxGain: 9,')],
