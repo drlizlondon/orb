@@ -389,11 +389,11 @@ function isSeries(c) { return c.kind === 'series'; }
 // One topic tag per post, from the post's kind. A Life post is Life, never a words-over-photos tag.
 const TOPICS = { series: 'Work less, do more', life: 'Life', idea: 'One-off' };
 function topicOf(c) { return (c && TOPICS[c.kind]) || (isSeries(c || {}) ? TOPICS.series : TOPICS.idea); }
-// The number a numbered (series) post carries: the one on the record if the Worker sent it, else the next shared number
-// (the same one the review screen prints). Never on Life or One-off posts.
+// The number a numbered (series) post carries: only the one on its own record. Never the shared "next" number (several cards
+// would show the same one), and never on Life or One-off posts. The review screen still shows next.
 function numberOf(c) {
   if (!isSeries(c)) return null;
-  const n = c.series && Number.isInteger(c.series.n) ? c.series.n : (Number.isInteger(c.seriesNumber) ? c.seriesNumber : seriesInfo.next);
+  const n = c.series && Number.isInteger(c.series.n) ? c.series.n : (Number.isInteger(c.seriesNumber) ? c.seriesNumber : null);
   return Number.isInteger(n) && n >= 1 ? n : null;
 }
 // Cover quality: only what a real check computed on this post's slide 1 photo (the SOC-25 size guard and the face-under-words

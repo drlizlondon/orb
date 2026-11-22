@@ -39,6 +39,7 @@ const MUT = [
   ['the Words over my photos switch label is back in the page', rep('<div id="series-box" hidden>', '<p>Words over my photos</p><div id="series-box" hidden>')],
   ['the page is called Insta Creator again', rep('<title>Instagram</title>', '<title>Insta Creator</title>')],
   ['#NNN on every post, not only numbered ones', rep("if (!isSeries(c)) return null;", '')],
+  ['a card falls back to the shared next number', rep('Number.isInteger(c.seriesNumber) ? c.seriesNumber : null);', 'Number.isInteger(c.seriesNumber) ? c.seriesNumber : seriesInfo.next);')],
   ['a fake quality line when no check ran', rep("if (!chk) return '';", "if (!chk) return 'Cover: sharp';")],
   ['sharp claimed without the size check', rep("if (chk.lowRes === false) parts.push('sharp');", "parts.push('sharp');")],
   ['the Carousels tab label is back', rep('aria-current="page">Posts</button>', 'aria-current="page">Carousels</button>')],

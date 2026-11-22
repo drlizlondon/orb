@@ -1107,12 +1107,20 @@ await check('TIDY two tabs Posts and Reels, buttons New post and Settings (no Ca
   const txt = await page.locator('#screen-ready').innerText(); assert.ok(!/Carousels|New idea|\bMore\b/.test(txt), txt);
   await ctx.close();
 });
-await check('TIDY #NNN shows only on numbered (series) posts, never on Life or One-off', async () => {
-  st.drafted = [mk(3, 'series', 'sx', { createdAt: TD(1) }), mk(3, 'life', 'lx', { createdAt: TD(2) }), mk(3, 'idea', 'ix', { createdAt: TD(3) })];
+await check('TIDY #NNN shows only when a series record carries its own number, never on Life or One-off', async () => {
+  st.drafted = [{ ...mk(3, 'series', 'sx', { createdAt: TD(1) }), series: { n: 12 } }, mk(3, 'life', 'lx', { createdAt: TD(2) }), mk(3, 'idea', 'ix', { createdAt: TD(3) })];
   const { page, ctx } = await open(PH);
   await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 3 && document.querySelectorAll('.ready-num').length > 0, null, { timeout: 15000 });
   const numOf = t => page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-num').allTextContents();
-  assert.deepEqual(await numOf('sx'), ['#007']); assert.deepEqual(await numOf('lx'), []); assert.deepEqual(await numOf('ix'), []);
+  assert.deepEqual(await numOf('sx'), ['#012']); assert.deepEqual(await numOf('lx'), []); assert.deepEqual(await numOf('ix'), []);
+  await ctx.close();
+});
+await check('TIDY two series drafts with no number on the record show no #NNN on either card (never the shared next number)', async () => {
+  st.drafted = [mk(3, 'series', 'sa', { createdAt: TD(1) }), mk(3, 'series', 'sb', { createdAt: TD(2) })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 2);
+  await page.waitForFunction(() => seriesInfo.next === 7);
+  assert.equal(await page.locator('.ready-num').count(), 0); assert.ok(!/#0\d\d/.test(await page.locator('#ready-list').innerText()));
   await ctx.close();
 });
 await check('TIDY cover quality line is computed (G6): small photo says too small; a big photo says sharp; no photo or no check shows no line and never "sharp" / "face clear"', async () => {
@@ -1147,7 +1155,7 @@ await check('TIDY 390px: Ready has no sideways scroll and no en/em dash or "calm
 });
 
 if (process.env.TIDY_SHOT_DIR) await check('TIDY pictures at 390px for the founder (stub data: gradient photos and Fixture titles, not her drafts)', async () => {
-  st.drafted = [mk(3, 'series', 'sx', { createdAt: TD(1), photoFor: i => i === 0 ? 'gc0' : 'gc1' }), mk(3, 'life', 'lx', { createdAt: TD(2), photoFor: i => i === 0 ? 'gc1' : 'gc2' }), mk(3, 'idea', 'ix', { createdAt: TD(3), photoFor: i => i === 0 ? 'gs' : 'gc0' }), mk(3, 'idea', 'nophoto', { createdAt: TD(4), photoFor: () => '' })];
+  st.drafted = [{ ...mk(3, 'series', 'sx', { createdAt: TD(1), photoFor: i => i === 0 ? 'gc0' : 'gc1' }), series: { n: 12 } }, mk(3, 'life', 'lx', { createdAt: TD(2), photoFor: i => i === 0 ? 'gc1' : 'gc2' }), mk(3, 'idea', 'ix', { createdAt: TD(3), photoFor: i => i === 0 ? 'gs' : 'gc0' }), mk(3, 'idea', 'nophoto', { createdAt: TD(4), photoFor: () => '' })];
   const { page, ctx } = await open(PH);
   await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 4);
   await page.waitForFunction(() => document.querySelectorAll('.ready-quality:not([hidden])').length >= 3, null, { timeout: 20000 });
