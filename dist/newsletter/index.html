@@ -20,6 +20,8 @@
   .main-btn:disabled, .quiet-btn:disabled { opacity: .4; cursor: default; }
   .link-btn { background: none; border: none; color: #f9c9e6; text-decoration: underline; font-size: 15px; padding: 6px 0; }
   input[type=text], input[type=password], input[type=date], textarea { width: 100%; background: #faf1e2; color: #3a1150; border: 2px solid #f9c9e6; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 16px; margin: 4px 0 8px; }
+  select { background: #faf1e2; color: #3a1150; border: 2px solid #f9c9e6; border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 16px; max-width: 100%; }
+  .filter { margin: 0 0 12px; }
   textarea { min-height: 110px; resize: vertical; }
   label { display: block; font-size: 14px; font-weight: 700; margin-top: 8px; }
   .hint { font-size: 14px; opacity: .85; margin: 4px 0 8px; }
@@ -62,6 +64,11 @@
     <button class="tab" role="tab" id="tab-add" data-tab="add" aria-selected="false">Add</button>
   </div>
 
+  <div class="filter">
+    <label for="cat-filter">Category</label>
+    <select id="cat-filter"><option value="">All categories</option><option value="news">News</option><option value="event">Event</option><option value="opportunity">Opportunity</option><option value="resource">Resources</option></select>
+  </div>
+
   <section id="pane-week">
     <p class="hint" id="week-note">Take out removes it from this week only. It comes back next week while it is still open. Never use stops it for good. Nothing is ever deleted.</p>
     <div class="actions"><button class="quiet-btn" id="copy-issue" type="button">Copy this week's issue</button></div>
@@ -99,6 +106,8 @@ const LS_TOKEN = 'orb_approve_token';
 const SIGNIN = '(link needs sign-in)';
 const STATUS_TEXT = { this_week: 'This week', found: 'Found', not_using: 'Not using', closed: 'Closed', needs_date: 'Needs a date' };
 const TYPE_TEXT = { news: 'News', event: 'Event', opportunity: 'Opportunity', resource: 'Resources' };
+const TYPES = ['news', 'event', 'opportunity', 'resource'];
+const LS_FILTER = 'orb_newsletter_category';
 const $ = id => document.getElementById(id);
 function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -142,6 +151,7 @@ function effective(row) {
   const mine = data.pending_ops.filter(o => o.id === row.id).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   for (const o of mine) {
     if (o.kind === 'status') out.shown = o.to;
+    else if (o.kind === 'type') out.type = o.to;
     else if (o.kind === 'end') { out.end_date = o.end; if (out.shown === 'needs_date') out.shown = 'found'; }
   }
   return out;
@@ -166,6 +176,14 @@ function card(r) {
   el.appendChild(chips);
   for (const t of [r.when_text, r.place]) if (t) { const p = document.createElement('div'); p.className = 'meta'; p.textContent = t; el.appendChild(p); }
   const acts = document.createElement('div'); acts.className = 'actions';
+  if (r.shown !== 'closed') {
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Category');
+    for (const t of TYPES) { const o = document.createElement('option'); o.value = t; o.textContent = TYPE_TEXT[t]; sel.appendChild(o); }
+    sel.value = r.type;
+    sel.addEventListener('change', () => sendType(r, sel.value));
+    acts.appendChild(sel);
+  }
   const set = (to, label, cls) => acts.appendChild(btn(label, cls, () => sendStatus(r, to)));
   if (r.shown === 'this_week') { set('found', 'Take out', 'main-btn'); set('not_using', 'Never use', 'quiet-btn'); }
   else if (r.shown === 'found') { set('this_week', 'Put in', 'main-btn'); set('not_using', 'Never use', 'quiet-btn'); }
@@ -181,7 +199,8 @@ function card(r) {
 }
 
 function render() {
-  const rows = data.rows.map(effective);
+  const want = $('cat-filter').value;
+  const rows = data.rows.map(effective).filter(r => !want || r.type === want);
   const week = rows.filter(r => r.shown === 'this_week');
   const all = rows.slice().sort((a, b) => ORDER.indexOf(a.shown) - ORDER.indexOf(b.shown));
   const fill = (id, list, empty) => {
@@ -217,7 +236,7 @@ $('toast-undo').addEventListener('click', () => { const f = undoFn; $('toast').h
 
 async function sendOp(body, quiet) {
   const tmp = Object.assign({ op_id: 'tmp-' + (++seq), at: new Date().toISOString() }, body);
-  const shows = body.kind === 'status' || body.kind === 'end';
+  const shows = body.kind === 'status' || body.kind === 'type' || body.kind === 'end';
   if (shows) { data.pending_ops.push(tmp); render(); }   // shows at once
   let r;
   try { r = await api('/api/newsletter/op', 'POST', body); } catch (e) { r = { status: 0, ok: false, data: { error: e.message } }; }
@@ -236,6 +255,12 @@ async function sendStatus(row, to) {
   const r = await sendOp({ kind: 'status', id: row.id, to });
   if (r.ok) toast(row.title, () => sendOp({ kind: 'status', id: row.id, to: was }));   // undo sends the opposite op
 }
+async function sendType(row, to) {
+  const was = row.type;
+  if (to === was) return;
+  const r = await sendOp({ kind: 'type', id: row.id, to });
+  if (r.ok) toast(row.title, () => sendOp({ kind: 'type', id: row.id, to: was }));   // undo sends the old category
+}
 async function sendEnd(row, end) { await sendOp({ kind: 'end', id: row.id, end }); }
 
 async function load() {
@@ -247,6 +272,10 @@ async function load() {
   say('', '');
   render();
 }
+
+// ---------- category filter: display only, sends nothing ----------
+{ const f = lsGet(LS_FILTER); if (TYPES.includes(f)) $('cat-filter').value = f; }
+$('cat-filter').addEventListener('change', () => { lsSet(LS_FILTER, $('cat-filter').value); render(); });
 
 // ---------- tabs ----------
 function showTab(t) {
