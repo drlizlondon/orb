@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Instagram</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Instagram">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Caveat:wght@700&display=swap" rel="stylesheet">
@@ -383,6 +386,7 @@ function connected() { return !!(workerBase() && workerToken()); }
 function workerBase() { const raw = lsGet(LS_BASE).trim(); if (!raw) return ''; try { return new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).origin; } catch (e) { return raw.replace(/\/+$/, ''); } }
 function workerToken() { return lsGet(LS_TOKEN).trim(); }
 function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURIComponent(guid); }
+function albumThumbUrl(guid) { return albumUrl(guid) + '?size=thumb'; } // small, long-cached copy for lists and tiles; full size stays for rendering
 function guidOf(url) { const m = /\/img-album\/([^/?#]+)$/.exec(url || ''); return m ? decodeURIComponent(m[1]) : null; }
 function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
 function isSeries(c) { return c.kind === 'series'; }
@@ -408,13 +412,27 @@ function coverLine(chk) {
   if (chk.faceClear === true) parts.push('face clear');
   return parts.length ? 'Cover: ' + parts.join(', ') : '';
 }
+let coverActive = 0; const coverWaiting = [];
+async function coverSlot(fn) {
+  if (coverActive >= 2) await new Promise(r => coverWaiting.push(r));
+  coverActive++;
+  try { return await fn(); } finally { coverActive--; const n = coverWaiting.shift(); if (n) n(); }
+}
 async function checkCover(c) {
   if (coverChecks.has(c.id)) return coverChecks.get(c.id);
   const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
   let chk = null;
   if (s1.photo && connected()) {
     try {
-      const im = await loadImg(albumUrl(s1.photo));
+      await albumReady;
+      const ap = albumPhotos.find(p => p.guid === s1.photo);
+      if (ap && ap.width > 0 && ap.height > 0) { // dimensions came with /api/album: no image download for the list note
+        const pl = OneLook.place(ap.width, ap.height, null, [], null);
+        chk = { lowRes: pl.lowRes === true || pl.lowRes === false ? pl.lowRes : null, faceClear: null }; // face check needs pixels: it runs when the draft is opened and at approve
+        coverChecks.set(c.id, chk);
+        return chk;
+      }
+      const im = await coverSlot(() => loadImg(albumUrl(s1.photo))); // old pixel check, only when dimensions are missing: two at a time
       if (im) {
         await albumReady;
         const face = Object.prototype.hasOwnProperty.call(albumFaces, s1.photo) ? albumFaces[s1.photo] : null;
@@ -490,6 +508,7 @@ $('set-save').addEventListener('click', () => {
   const b = $('set-base').value.trim(), t = $('set-token').value.trim();
   if (b) lsSet(LS_BASE, b);
   if (t) lsSet(LS_TOKEN, t);
+  try { if (connected() && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {} // ask the browser not to evict the saved connection
   showSettingsState();
   say('ok', 'Saved.');
   if (connected()) { applyConnection(); loadAll(); }
@@ -589,7 +608,7 @@ function renderReady() {
     const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ready-item';
     const pic = document.createElement('span'); pic.className = 'ready-pic';
-    if (s1.photo) { const im = document.createElement('img'); im.alt = ''; im.src = albumUrl(s1.photo); im.addEventListener('error', () => im.remove()); pic.appendChild(im); }
+    if (s1.photo) { const im = document.createElement('img'); im.alt = ''; im.src = albumThumbUrl(s1.photo); im.addEventListener('error', () => im.remove()); pic.appendChild(im); }
     const tx = document.createElement('span'); tx.className = 'ready-text';
     const t = document.createElement('span'); t.className = 'ready-title'; t.textContent = s1.title || previewLine(c);
     const g = document.createElement('span'); g.className = 'ready-tag'; g.textContent = topicOf(c);
@@ -987,7 +1006,7 @@ $('album-load').addEventListener('click', async () => {
     const grid = $('album-grid'); grid.innerHTML = '';
     albumPhotos.forEach(p => {
       const b = document.createElement('button'); b.type = 'button'; b.dataset.guid = p.guid; b.setAttribute('aria-label', p.caption || 'Album photo');
-      const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = albumUrl(p.guid);
+      const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = albumThumbUrl(p.guid);
       b.appendChild(im);
       b.addEventListener('click', () => { albumPick = p.guid; grid.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); $('album-actions').hidden = false; fillAlbumSlides(); });
       grid.appendChild(b);

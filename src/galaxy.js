@@ -61,7 +61,10 @@ const detail={get open(){return selected>=0;}}, index=$('#project-index');
 const mood=createMoods(THREE,gsap,reduced,()=>detail.open||index.open);const planetColor=new THREE.Color();
 const labels=[],labelTextNodes=[];
 const labelSizes=new Map();const labelResize=new ResizeObserver(entries=>{for(const entry of entries){const box=entry.borderBoxSize?.[0];if(box?.inlineSize>0)labelSizes.set(entry.target,{width:box.inlineSize,height:box.blockSize});}});
-function activate(i,trigger){if(mine){lsSet('orbit.introSeen','1');window.open(worlds[i].url,'_blank','noopener');}else openProject(i,trigger);}
+const standalone=()=>{try{return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}catch(e){return false;}};
+// Installed as a Home Screen app: stay in the app window (a new window would land in Safari, a different storage). Otherwise unchanged.
+function openOut(url){if(standalone())window.location.assign(url);else window.open(url,'_blank','noopener');}
+function activate(i,trigger){if(mine){lsSet('orbit.introSeen','1');openOut(worlds[i].url);}else openProject(i,trigger);}
 function buildLabels(){
  for(const node of labelTextNodes){labelResize.unobserve(node);labelSizes.delete(node);}
  for(const b of labels)b.remove();
@@ -148,7 +151,7 @@ profiler.endLayout();updateChapters(p);profiler.beginRender();if(composer){bloom
 try{init();}catch(e){console.error('Galaxy initialization failed',e);$('#fallback').hidden=false;}
 
 // Directory (List view) and the personal-mode extras.
-const directory=createDirectory({mine,getTools:()=>allTools,openUrl:url=>window.open(url,'_blank','noopener'),onChange:next=>{allTools=next;saveTools(store,next);worlds=makeWorlds();if(planetGroup)buildPlanets();buildLabels();directory.render();}});
+const directory=createDirectory({mine,getTools:()=>allTools,openUrl:openOut,onChange:next=>{allTools=next;saveTools(store,next);worlds=makeWorlds();if(planetGroup)buildPlanets();buildLabels();directory.render();}});
 function setView(list){viewList=list;document.body.classList.toggle('view-list',list);$('#directory').hidden=!list;$('#projects-nav').hidden=list;const t=$('#view-toggle');t.textContent=list?'Galaxy':'List';t.setAttribute('aria-pressed',String(list));if(mine)lsSet('orbit.view',list?'list':'galaxy');if(list)directory.render();else frameClock.reset();}
 $('#view-toggle').onclick=()=>setView(!viewList);
 {const savedView=lsGet('orbit.view');if(mine&&(savedView==='list'||(!savedView&&mobile())))setView(true);}
