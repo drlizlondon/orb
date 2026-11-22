@@ -30,6 +30,7 @@ const SEED_ICONS = {
   da: 'https://webuildforgood.com/departure-alarm/icon.svg',
   cards: 'https://drlizlondon.github.io/orb/carousel/icon.svg',
   igc: 'https://drlizlondon.github.io/orb/carousel-insta/icon.svg',
+  nl: 'https://drlizlondon.github.io/orb/newsletter/icon.svg',
 };
 
 export function seedTools(now = Date.now()) {

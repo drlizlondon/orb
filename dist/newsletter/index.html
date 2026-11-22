@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Newsletter</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Newsletter">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body { font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #3a1150; color: #faf1e2; padding: 16px; line-height: 1.4; padding-bottom: 90px; }
+  .col { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 24px; font-weight: 800; margin: 4px 0 12px; }
+  h2 { font-size: 18px; font-weight: 800; margin: 14px 0 8px; }
+  button { font: inherit; cursor: pointer; }
+  .main-btn { background: #f29bd0; color: #3a1150; border: 2px solid #f29bd0; border-radius: 14px; padding: 12px 18px; font-size: 16px; font-weight: 800; }
+  .quiet-btn { background: transparent; color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 700; }
+  .main-btn:disabled, .quiet-btn:disabled { opacity: .4; cursor: default; }
+  .link-btn { background: none; border: none; color: #f9c9e6; text-decoration: underline; font-size: 15px; padding: 6px 0; }
+  input[type=text], input[type=password], input[type=date], textarea { width: 100%; background: #faf1e2; color: #3a1150; border: 2px solid #f9c9e6; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 16px; margin: 4px 0 8px; }
+  textarea { min-height: 110px; resize: vertical; }
+  label { display: block; font-size: 14px; font-weight: 700; margin-top: 8px; }
+  .hint { font-size: 14px; opacity: .85; margin: 4px 0 8px; }
+  .tabs { display: flex; gap: 8px; margin: 6px 0 12px; }
+  .tab { flex: 1; background: transparent; color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 12px; padding: 10px 6px; font-size: 16px; font-weight: 800; }
+  .tab[aria-selected=true] { background: #f29bd0; color: #3a1150; border-color: #f29bd0; }
+  .msg { padding: 10px 14px; border-radius: 12px; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .msg.ok { background: #faf1e2; color: #3a1150; }
+  .msg.err { background: #ee3f9a; color: #faf1e2; }
+  .card { background: rgba(250,241,226,.1); border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px; margin: 0 0 10px; }
+  .card.closed { opacity: .5; }
+  .card a.title { color: #faf1e2; font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .chip { background: #faf1e2; color: #3a1150; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 800; }
+  .chip.status { background: #f9c9e6; }
+  .meta { font-size: 14px; opacity: .92; overflow-wrap: anywhere; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .box { background: rgba(250,241,226,.08); border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px; margin: 10px 0; }
+  .review { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; background: #faf1e2; color: #3a1150; border-radius: 10px; padding: 8px 10px; margin: 4px 0 8px; }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 528px; margin: 0 auto; background: #faf1e2; color: #3a1150; border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 800; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+  #toast button { background: #3a1150; color: #faf1e2; border: none; border-radius: 10px; padding: 8px 14px; font-weight: 800; }
+</style>
+</head>
+<body>
+<div class="col">
+  <h1>Newsletter</h1>
+  <div id="say" hidden></div>
+
+  <div id="conn" class="box" hidden>
+    <label for="set-base">Worker address</label>
+    <input type="text" id="set-base" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label for="set-token">Access code</label>
+    <input type="password" id="set-token" autocomplete="off" placeholder="Paste it again only if it is wrong or missing">
+    <div class="actions"><button class="main-btn" id="set-save" type="button">Save</button><span id="set-state" class="hint"></span></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-week" data-tab="week" aria-selected="true">This week</button>
+    <button class="tab" role="tab" id="tab-all" data-tab="all" aria-selected="false">Everything</button>
+    <button class="tab" role="tab" id="tab-add" data-tab="add" aria-selected="false">Add</button>
+  </div>
+
+  <section id="pane-week">
+    <p class="hint" id="week-note">Take out removes it from this week only. It comes back next week while it is still open. Never use stops it for good. Nothing is ever deleted.</p>
+    <div class="actions"><button class="quiet-btn" id="copy-issue" type="button">Copy this week's issue</button></div>
+    <div id="intro-review"></div>
+    <div id="list-week"></div>
+  </section>
+
+  <section id="pane-all" hidden>
+    <div id="list-all"></div>
+  </section>
+
+  <section id="pane-add" hidden>
+    <label for="paste-box">Paste from a newsletter</label>
+    <textarea id="paste-box"></textarea>
+    <button class="main-btn" id="paste-send" type="button">Add to list</button>
+
+    <label for="thoughts-box" style="margin-top:18px">My thoughts this week</label>
+    <p class="hint">Rough notes are fine. Only your notes are used.</p>
+    <textarea id="thoughts-box"></textarea>
+    <button class="main-btn" id="thoughts-send" type="button">Save thoughts</button>
+    <div id="thoughts-review"></div>
+
+    <h2>Latest results</h2>
+    <div id="results"></div>
+  </section>
+
+  <p style="margin-top:18px"><button class="link-btn" id="open-settings" type="button">Settings</button></p>
+</div>
+<div id="toast" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
+
+<script>
+'use strict';
+const LS_BASE = 'orb_worker_base';     // the same keys the Instagram page uses, so one saved connection serves both
+const LS_TOKEN = 'orb_approve_token';
+const SIGNIN = '(link needs sign-in)';
+const STATUS_TEXT = { this_week: 'This week', found: 'Found', not_using: 'Not using', closed: 'Closed', needs_date: 'Needs a date' };
+const TYPE_TEXT = { news: 'News', event: 'Event', opportunity: 'Opportunity' };
+const $ = id => document.getElementById(id);
+function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function workerBase() { const raw = lsGet(LS_BASE).trim(); if (!raw) return ''; try { return new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).origin; } catch (e) { return raw.replace(/\/+$/, ''); } }
+function workerToken() { return lsGet(LS_TOKEN).trim(); }
+function connected() { return !!(workerBase() && workerToken()); }
+
+async function api(path, method, body) {
+  const base = workerBase(), token = workerToken();
+  if (!base || !token) { const e = new Error('This phone has no access code saved. Add it under Settings.'); e.setup = true; throw e; }
+  const res = await fetch(base + path, {
+    method: method || 'GET',
+    headers: Object.assign({ 'Authorization': 'Bearer ' + token }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  return { status: res.status, ok: res.ok, data: data || {} };
+}
+function failText(r) {
+  if (r.status === 401 || r.status === 403) return 'The access code on this phone is wrong or old. Paste it again under Settings.';
+  if (r.status === 413) return 'That is too long: 50,000 characters at most.';
+  return (r.data && (r.data.error || r.data.message)) || ('The server said ' + r.status);
+}
+
+let data = { meta: { issue_date: '', generated_at: '', messages: [], issue_html: '' }, rows: [], pending_ops: [] };
+let tab = 'week';
+let seq = 0;
+let notesTouched = false;
+
+function say(kind, text) {
+  const el = $('say');
+  if (!text) { el.hidden = true; return; }
+  el.className = 'msg ' + kind; el.textContent = text; el.hidden = false;
+}
+
+// ---------- the view: the snapshot with her unapplied ops laid on top ----------
+function effective(row) {
+  const out = Object.assign({}, row, { shown: row.shown_status });
+  if (row.shown_status === 'closed') return out;   // closed rows are read-only
+  const mine = data.pending_ops.filter(o => o.id === row.id).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  for (const o of mine) {
+    if (o.kind === 'status') out.shown = o.to;
+    else if (o.kind === 'end') { out.end_date = o.end; if (out.shown === 'needs_date') out.shown = 'found'; }
+  }
+  return out;
+}
+const ORDER = ['this_week', 'found', 'needs_date', 'not_using', 'closed'];
+
+function chip(text, cls) { const s = document.createElement('span'); s.className = 'chip' + (cls ? ' ' + cls : ''); s.textContent = text; return s; }
+function btn(text, cls, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = text; b.addEventListener('click', fn); return b; }
+
+function card(r) {
+  const el = document.createElement('div');
+  el.className = 'card' + (r.shown === 'closed' ? ' closed' : '');
+  el.dataset.id = r.id;
+  const a = document.createElement('a');
+  a.className = 'title'; a.textContent = r.title;
+  if (/^https?:\/\//i.test(r.link)) { a.href = r.link; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+  el.appendChild(a);
+  const chips = document.createElement('div'); chips.className = 'chips';
+  chips.appendChild(chip(TYPE_TEXT[r.type] || r.type));
+  chips.appendChild(chip(STATUS_TEXT[r.shown] || r.shown, 'status'));
+  if ((r.source || '').endsWith(SIGNIN)) chips.appendChild(chip('Needs sign-in'));
+  el.appendChild(chips);
+  for (const t of [r.when_text, r.place]) if (t) { const p = document.createElement('div'); p.className = 'meta'; p.textContent = t; el.appendChild(p); }
+  const acts = document.createElement('div'); acts.className = 'actions';
+  const set = (to, label, cls) => acts.appendChild(btn(label, cls, () => sendStatus(r, to)));
+  if (r.shown === 'this_week') { set('found', 'Take out', 'main-btn'); set('not_using', 'Never use', 'quiet-btn'); }
+  else if (r.shown === 'found') { set('this_week', 'Put in', 'main-btn'); set('not_using', 'Never use', 'quiet-btn'); }
+  else if (r.shown === 'not_using') { set('found', 'Use again', 'main-btn'); }
+  else if (r.shown === 'needs_date') {
+    acts.appendChild(btn('No end date', 'main-btn', () => sendEnd(r, 'evergreen')));
+    const d = document.createElement('input'); d.type = 'date'; d.style.width = 'auto'; d.style.margin = '0';
+    const save = btn('Set date', 'quiet-btn', () => { if (d.value) sendEnd(r, d.value); });
+    acts.appendChild(d); acts.appendChild(save);
+  }
+  if (acts.children.length) el.appendChild(acts);
+  return el;
+}
+
+function render() {
+  const rows = data.rows.map(effective);
+  const week = rows.filter(r => r.shown === 'this_week');
+  const all = rows.slice().sort((a, b) => ORDER.indexOf(a.shown) - ORDER.indexOf(b.shown));
+  const fill = (id, list, empty) => {
+    const box = $(id); box.textContent = '';
+    if (!list.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = empty; box.appendChild(p); }
+    for (const r of list) box.appendChild(card(r));
+  };
+  fill('list-week', week, 'Nothing is in this week\'s issue yet.');
+  fill('list-all', all, 'No items yet.');
+  // her notes and the intro made from them, side by side, so she reviews them before anything reaches beehiiv
+  const intro = data.meta.intro;
+  for (const id of ['intro-review', 'thoughts-review']) {
+    const box = $(id); box.textContent = '';
+    if (!intro || (!intro.notes && !intro.intro)) continue;
+    const mk = (label, text) => { const l = document.createElement('label'); l.textContent = label; const d = document.createElement('div'); d.className = 'review'; d.textContent = text; box.appendChild(l); box.appendChild(d); };
+    mk('Your notes', intro.notes);
+    mk(intro.generated ? 'Intro made from your notes' : 'Intro (your notes as written)', intro.intro);
+  }
+  if (!notesTouched && data.meta.intro) $('thoughts-box').value = data.meta.intro.notes || '';
+  const res = $('results'); res.textContent = '';
+  for (const m of data.meta.messages || []) { const d = document.createElement('div'); d.className = 'msg ok'; d.textContent = m; res.appendChild(d); }
+}
+
+// ---------- sending ----------
+let toastTimer = null, undoFn = null;
+function toast(text, undo) {
+  clearTimeout(toastTimer);
+  $('toast-text').textContent = text; $('toast').hidden = false; undoFn = undo;
+  $('toast-undo').hidden = !undo;
+  toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, 6000);
+}
+$('toast-undo').addEventListener('click', () => { const f = undoFn; $('toast').hidden = true; undoFn = null; clearTimeout(toastTimer); if (f) f(); });
+
+async function sendOp(body, quiet) {
+  const tmp = Object.assign({ op_id: 'tmp-' + (++seq), at: new Date().toISOString() }, body);
+  const shows = body.kind === 'status' || body.kind === 'end';
+  if (shows) { data.pending_ops.push(tmp); render(); }   // shows at once
+  let r;
+  try { r = await api('/api/newsletter/op', 'POST', body); } catch (e) { r = { status: 0, ok: false, data: { error: e.message } }; }
+  if (shows) {
+    const i = data.pending_ops.indexOf(tmp);
+    if (r.ok && r.data.op) { if (i >= 0) data.pending_ops[i] = Object.assign({}, r.data.op, { at: tmp.at }); }
+    else if (i >= 0) data.pending_ops.splice(i, 1);
+    render();
+  }
+  if (!r.ok && !quiet) say('err', 'That did not save. ' + failText(r));
+  else say('', '');
+  return r;
+}
+async function sendStatus(row, to) {
+  const was = row.shown;
+  const r = await sendOp({ kind: 'status', id: row.id, to });
+  if (r.ok) toast(row.title, () => sendOp({ kind: 'status', id: row.id, to: was }));   // undo sends the opposite op
+}
+async function sendEnd(row, end) { await sendOp({ kind: 'end', id: row.id, end }); }
+
+async function load() {
+  if (!connected()) { $('conn').hidden = false; $('set-state').textContent = 'Not connected yet.'; return; }
+  let r;
+  try { r = await api('/api/newsletter'); } catch (e) { say('err', 'Could not get the list. ' + e.message); return; }
+  if (!r.ok) { say('err', 'Could not get the list. ' + failText(r)); return; }
+  data = { meta: r.data.meta || data.meta, rows: r.data.rows || [], pending_ops: r.data.pending_ops || [] };
+  say('', '');
+  render();
+}
+
+// ---------- tabs ----------
+function showTab(t) {
+  tab = t;
+  for (const k of ['week', 'all', 'add']) { $('pane-' + k).hidden = k !== t; $('tab-' + k).setAttribute('aria-selected', k === t ? 'true' : 'false'); }
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+// ---------- copy this week's issue (text/html, so beehiiv keeps the links) ----------
+$('copy-issue').addEventListener('click', async () => {
+  const html = data.meta.issue_html || '';
+  if (!html) { say('err', 'No built issue to copy yet.'); return; }
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([html], { type: 'text/plain' }) })]);
+    say('ok', 'Copied. Paste it into a beehiiv draft.');
+  } catch (e) { say('err', 'Could not copy on this phone.'); }
+});
+
+// ---------- paste and thoughts ----------
+let pasted = { html: '', text: '' };
+$('paste-box').addEventListener('paste', e => {
+  const cd = e.clipboardData;
+  pasted = { html: cd ? cd.getData('text/html') : '', text: cd ? cd.getData('text/plain') : '' };   // both, so links survive an email copy
+});
+$('paste-send').addEventListener('click', async () => {
+  const text = $('paste-box').value;
+  if (!text.trim() && !pasted.html) return;
+  const html = pasted.html && text.trim() === pasted.text.trim() ? pasted.html : '';
+  const r = await sendOp({ kind: 'paste', html, text }, true);
+  if (r.ok) { $('paste-box').value = ''; pasted = { html: '', text: '' }; say('ok', 'Sent. The Mac adds it within 15 minutes; the result shows under Latest results.'); }
+  else say('err', 'That did not send. ' + failText(r));
+});
+$('thoughts-box').addEventListener('input', () => { notesTouched = true; });
+$('thoughts-send').addEventListener('click', async () => {
+  if (!data.meta.issue_date) { say('err', 'There is no issue to attach these to yet.'); return; }
+  const r = await sendOp({ kind: 'thoughts', text: $('thoughts-box').value, issue_date: data.meta.issue_date }, true);
+  if (r.ok) say('ok', 'Saved. The Mac reads it within 15 minutes.');
+  else say('err', 'That did not save. ' + failText(r));
+});
+
+// ---------- settings ----------
+$('open-settings').addEventListener('click', () => { $('conn').hidden = !$('conn').hidden; $('set-base').value = workerBase(); $('set-state').textContent = connected() ? 'Saved in this browser.' : 'Not connected yet.'; });
+$('set-save').addEventListener('click', () => {
+  const b = $('set-base').value.trim(), t = $('set-token').value.trim();
+  if (b) lsSet(LS_BASE, b);
+  if (t) lsSet(LS_TOKEN, t);
+  try { if (connected() && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
+  $('set-token').value = '';
+  if (connected()) { $('conn').hidden = true; load(); }
+});
+
+render();
+load();
+setInterval(() => { if (!document.hidden && connected()) load(); }, 30000);
+</script>
+</body>
+</html>
