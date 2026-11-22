@@ -98,7 +98,7 @@ const LS_BASE = 'orb_worker_base';     // the same keys the Instagram page uses,
 const LS_TOKEN = 'orb_approve_token';
 const SIGNIN = '(link needs sign-in)';
 const STATUS_TEXT = { this_week: 'This week', found: 'Found', not_using: 'Not using', closed: 'Closed', needs_date: 'Needs a date' };
-const TYPE_TEXT = { news: 'News', event: 'Event', opportunity: 'Opportunity' };
+const TYPE_TEXT = { news: 'News', event: 'Event', opportunity: 'Opportunity', resource: 'Resources' };
 const $ = id => document.getElementById(id);
 function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
