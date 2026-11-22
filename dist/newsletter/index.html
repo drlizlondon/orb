@@ -49,6 +49,7 @@
 <div class="col">
   <h1>Newsletter</h1>
   <div id="say" hidden></div>
+  <div id="update-bar" class="actions" hidden><button class="main-btn" id="update-now" type="button">Update now</button><span id="update-state" class="hint"></span></div>
 
   <div id="conn" class="box" hidden>
     <label for="set-base">Worker address</label>
@@ -133,6 +134,27 @@ function failText(r) {
   return (r.data && (r.data.error || r.data.message)) || ('The server said ' + r.status);
 }
 
+let updateInfo = { requested_at: '', last_synced_at: '' };
+function ukTime(iso) {   // "Sun 14:05", UK time
+  const d = new Date(iso); if (isNaN(d)) return '';
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' }).format(d).replace(',', '');
+}
+function renderUpdate(note) {
+  $('update-bar').hidden = false;
+  const u = updateInfo, waiting = !!u.requested_at && u.requested_at > (u.last_synced_at || '');
+  const parts = [];
+  if (note) parts.push(note);
+  if (waiting) parts.push('Waiting for your Mac.');
+  if (u.last_synced_at) parts.push('Last updated ' + ukTime(u.last_synced_at));
+  $('update-state').textContent = parts.join(' ');
+}
+$('update-now').addEventListener('click', async () => {
+  let r;
+  try { r = await api('/api/newsletter/update-now', 'POST', {}); } catch (e) { say('err', 'Could not ask for an update. ' + e.message); return; }
+  if (!r.ok) { say('err', 'Could not ask for an update. ' + failText(r)); return; }
+  updateInfo = { requested_at: r.data.requested_at || new Date().toISOString(), last_synced_at: r.data.last_synced_at || updateInfo.last_synced_at };
+  renderUpdate("Update asked for. Your Mac applies it within 5 minutes while it's on.");
+});
 let data = { meta: { issue_date: '', generated_at: '', messages: [], issue_html: '' }, rows: [], pending_ops: [] };
 let tab = 'week';
 let seq = 0;
@@ -269,8 +291,10 @@ async function load() {
   try { r = await api('/api/newsletter'); } catch (e) { say('err', 'Could not get the list. ' + e.message); return; }
   if (!r.ok) { say('err', 'Could not get the list. ' + failText(r)); return; }
   data = { meta: r.data.meta || data.meta, rows: r.data.rows || [], pending_ops: r.data.pending_ops || [] };
+  updateInfo = { requested_at: r.data.requested_at || '', last_synced_at: r.data.last_synced_at || '' };
   say('', '');
   render();
+  renderUpdate('');
 }
 
 // ---------- category filter: display only, sends nothing ----------
