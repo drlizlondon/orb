@@ -92,6 +92,25 @@ function saveSeen(storage, seen) {
   try { storage?.setItem(SEEN_KEY, JSON.stringify(seen)); } catch { /* storage unavailable */ }
 }
 
+// Tools that no longer exist as their own tile. Cover Series is now part of Instagram (dist/cover-series/ only redirects).
+// A returning visitor's saved list may still hold them, so they are dropped on load.
+export const RETIRED_IDS = ['cover'];
+// Old default titles that were renamed, so a saved list shows the new name. Only an untouched default title is replaced.
+const RENAMED = {igc: ['Instagram Carousel', 'Instagram'], cards: ['LinkedIn Carousel', 'LinkedIn posts']};
+
+// Pure. Drops retired tiles and renames untouched old default titles. Returns the same array when nothing changed.
+export function migrateSaved(saved) {
+  let changed = false;
+  const out = [];
+  for (const t of saved) {
+    if (RETIRED_IDS.includes(t.id)) { changed = true; continue; }
+    const r = RENAMED[t.id];
+    if (r && t.title === r[0]) { changed = true; out.push({...t, title: r[1]}); continue; }
+    out.push(t);
+  }
+  return changed ? out : saved;
+}
+
 export function loadTools(storage, now = Date.now()) {
   let saved = null;
   try {
@@ -99,6 +118,8 @@ export function loadTools(storage, now = Date.now()) {
     if (raw != null) saved = parseList(raw);
   } catch { /* fall through to the seed */ }
   if (saved) {
+    const migrated = migrateSaved(saved);
+    if (migrated !== saved) { saved = migrated; saveTools(storage, saved); }
     const merged = mergeDefaults(saved, seedTools(now), readSeen(storage) ?? LEGACY_SEEN);
     if (merged.added) saveTools(storage, merged.tools);
     saveSeen(storage, merged.seen);

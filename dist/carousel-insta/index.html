@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Insta Creator</title>
+<title>Instagram</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Caveat:wght@700&display=swap" rel="stylesheet">
@@ -52,12 +52,15 @@
   .ready-pic img { width: 72px; height: 90px; object-fit: cover; display: block; }
   .ready-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
   .ready-title { font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .ready-tags { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ready-num { font-size: 13px; font-weight: 700; opacity: 0.85; }
+  .ready-quality { font-size: 13px; font-weight: 700; opacity: 0.9; overflow-wrap: anywhere; }
   .ready-tag { font-size: 13px; font-weight: 700; color: #3a1150; background: #f9c9e6; border-radius: 8px; padding: 2px 8px; align-self: flex-start; }
   .ready-actions { display: flex; gap: 10px; margin-top: 14px; }
   .ready-actions button { flex: 1 1 0; }
   #ready-waiting { font-size: 15px; opacity: 0.85; margin: 6px 0; }
 
-  /* home choice: Carousels and Reels, two equal buttons */
+  /* home choice: Posts and Reels, two equal tabs */
   #home-choice { display: flex; gap: 10px; margin: 6px 0 14px; }
   #home-choice button { flex: 1 1 0; }
   #home-choice button[aria-current="page"] { box-shadow: 0 0 0 3px #faf1e2; }
@@ -99,8 +102,6 @@
 
   /* screen 3: edit */
   .panel { background: rgba(250,241,226,0.08); border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
-  .type-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .type-row button.on { background: #f29bd0; color: #3a1150; border-color: #f29bd0; }
   .slide-edit { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 16px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 2px solid rgba(249,201,230,0.3); }
   .slide-canvas { width: 100%; max-width: 460px; height: auto; aspect-ratio: 4 / 5; background: #5a2578; border-radius: 10px; display: block; }
   .frame-box { margin-top: 8px; }
@@ -131,12 +132,12 @@
 <body>
 
 <section id="screen-ready" class="col">
-  <h1>Insta Creator</h1>
+  <h1>Instagram</h1>
   <div id="conn-slot-ready"></div>
   <div id="ready-msg" class="msg" role="status" aria-live="polite"></div>
   <div id="ready-main">
     <div id="home-choice">
-      <button id="carousels-btn" class="main-btn" type="button" aria-current="page">Carousels</button>
+      <button id="carousels-btn" class="main-btn" type="button" aria-current="page">Posts</button>
       <button id="trial-btn" class="main-btn" type="button">Reels</button>
     </div>
     <p id="ready-status" class="hint"></p>
@@ -146,8 +147,8 @@
     <p id="ready-waiting" hidden></p>
     <button id="ready-failed" class="link-btn" type="button" hidden></button>
     <div class="ready-actions">
-      <button id="new-idea-btn" class="main-btn" type="button">New idea</button>
-      <button id="more-btn" class="quiet-btn" type="button">More</button>
+      <button id="new-idea-btn" class="main-btn" type="button">New post</button>
+      <button id="more-btn" class="quiet-btn" type="button">Settings</button>
     </div>
   </div>
 </section>
@@ -199,7 +200,7 @@
   <p id="job-line" class="job-line" hidden></p>
   <p id="second-look" class="second-look" hidden></p>
   <div id="orig-deck" role="region" aria-label="The original words" hidden></div>
-  <div id="look-row" class="look-row" role="group" aria-label="Look">
+  <div id="look-row" class="look-row" role="group" aria-label="Style">
     <button id="look-photo" class="quiet-btn small-btn" type="button" aria-pressed="true">Photo</button>
     <button id="look-dark" class="quiet-btn small-btn" type="button" aria-pressed="false">Dark</button>
   </div>
@@ -219,13 +220,8 @@
 
 <section id="screen-edit" class="col-wide" hidden>
   <div class="panel" id="type-panel">
-    <h2>What are you making?</h2>
-    <div class="type-row">
-      <button id="type-series" class="quiet-btn" type="button">Series</button>
-      <button id="type-words" class="quiet-btn" type="button">Words over my photos</button>
-    </div>
     <div id="series-box" hidden>
-      <p id="series-next" class="hint" style="margin-top:10px"></p>
+      <p id="series-next" class="hint"></p>
       <div id="legacy-count" hidden>
         <p id="legacy-text" class="hint"></p>
         <button id="legacy-carry" class="quiet-btn small-btn" type="button"></button>
@@ -390,6 +386,50 @@ function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURICompone
 function guidOf(url) { const m = /\/img-album\/([^/?#]+)$/.exec(url || ''); return m ? decodeURIComponent(m[1]) : null; }
 function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
 function isSeries(c) { return c.kind === 'series'; }
+// One topic tag per post, from the post's kind. A Life post is Life, never a words-over-photos tag.
+const TOPICS = { series: 'Work less, do more', life: 'Life', idea: 'One-off' };
+function topicOf(c) { return (c && TOPICS[c.kind]) || (isSeries(c || {}) ? TOPICS.series : TOPICS.idea); }
+// The number a numbered (series) post carries: the one on the record if the Worker sent it, else the next shared number
+// (the same one the review screen prints). Never on Life or One-off posts.
+function numberOf(c) {
+  if (!isSeries(c)) return null;
+  const n = c.series && Number.isInteger(c.series.n) ? c.series.n : (Number.isInteger(c.seriesNumber) ? c.seriesNumber : seriesInfo.next);
+  return Number.isInteger(n) && n >= 1 ? n : null;
+}
+// Cover quality: only what a real check computed on this post's slide 1 photo (the SOC-25 size guard and the face-under-words
+// check in OneLook). Nothing computed = no line. Nothing here is ever assumed.
+const coverChecks = new Map();
+function coverLine(chk) {
+  if (!chk) return '';
+  if (chk.lowRes === true) return 'Cover: photo too small. Pick another';
+  if (chk.faceClear === false) return 'Cover: words over your face. Pick another';
+  const parts = [];
+  if (chk.lowRes === false) parts.push('sharp');
+  if (chk.faceClear === true) parts.push('face clear');
+  return parts.length ? 'Cover: ' + parts.join(', ') : '';
+}
+async function checkCover(c) {
+  if (coverChecks.has(c.id)) return coverChecks.get(c.id);
+  const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
+  let chk = null;
+  if (s1.photo && connected()) {
+    try {
+      const im = await loadImg(albumUrl(s1.photo));
+      if (im) {
+        await albumReady;
+        const face = Object.prototype.hasOwnProperty.call(albumFaces, s1.photo) ? albumFaces[s1.photo] : null;
+        const dark = (c.look ? lookOf(c.look) : (c.kind === 'life' ? 'dark' : 'photo')) === 'dark';
+        const opts = { face }; if (dark) opts.look = 'dark';
+        const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350;
+        const slide = { handle: HANDLE, kicker: s1.kicker, num: s1.num, title: s1.title, sub: s1.sub, swipe: s1.swipe };
+        const r = (isSeries(c) && !dark) ? OneLook.renderSeries(cv, Object.assign({}, OneLook.coverDefaults(), { strap: s1.title || '', num: numberOf(c) || 1 }), 0, (c.deck.slides || []).length, im, opts) : OneLook.renderSlide(cv, slide, 0, (c.deck.slides || []).length, im, opts);
+        chk = { lowRes: r.lowRes === true || r.lowRes === false ? r.lowRes : null, faceClear: r.faceClear === true || r.faceClear === false ? r.faceClear : null };
+      }
+    } catch (e) { chk = null; }
+  }
+  coverChecks.set(c.id, chk);
+  return chk;
+}
 function previewLine(c) { return ((c.concept || '').split('\n')[0] || '').slice(0, 120); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -533,9 +573,9 @@ async function refreshReady() {
 }
 // Say why the list failed, so a lost access code is not mistaken for a broken app.
 function readyFailText(e) {
-  if (e && e.setup) return 'Could not get your drafts: this phone has no access code saved. Add it under More.';
-  if (e && (e.status === 401 || e.status === 403)) return 'Could not get your drafts: the access code on this phone is wrong or old. Paste it again under More.';
-  if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under More, paste the address that ends in workers.dev.';
+  if (e && e.setup) return 'Could not get your drafts: this phone has no access code saved. Add it under Settings.';
+  if (e && (e.status === 401 || e.status === 403)) return 'Could not get your drafts: the access code on this phone is wrong or old. Paste it again under Settings.';
+  if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under Settings, paste the address that ends in workers.dev.';
   if (e && e.status) return 'Could not get your drafts: the server said ' + e.status + '.';
   return 'Could not get your drafts: no connection. Try again.';
 }
@@ -552,8 +592,13 @@ function renderReady() {
     if (s1.photo) { const im = document.createElement('img'); im.alt = ''; im.src = albumUrl(s1.photo); im.addEventListener('error', () => im.remove()); pic.appendChild(im); }
     const tx = document.createElement('span'); tx.className = 'ready-text';
     const t = document.createElement('span'); t.className = 'ready-title'; t.textContent = s1.title || previewLine(c);
-    const g = document.createElement('span'); g.className = 'ready-tag'; g.textContent = isSeries(c) ? 'Series' : 'Words over my photos';
-    tx.append(t, g); b.append(pic, tx);
+    const g = document.createElement('span'); g.className = 'ready-tag'; g.textContent = topicOf(c);
+    const tags = document.createElement('span'); tags.className = 'ready-tags'; tags.appendChild(g);
+    const num = numberOf(c);
+    if (num) { const nn = document.createElement('span'); nn.className = 'ready-num'; nn.textContent = OneLook.pad3(num); tags.appendChild(nn); }
+    const q = document.createElement('span'); q.className = 'ready-quality'; q.hidden = true;
+    tx.append(t, tags, q); b.append(pic, tx);
+    checkCover(c).then(chk => { const line = coverLine(chk); if (line) { q.textContent = line; q.hidden = false; } });
     b.addEventListener('click', () => openDraft(c));
     list.appendChild(b);
   });
@@ -607,7 +652,7 @@ $('draft-now').addEventListener('click', async () => {
 
 // ---------- series count, album ----------
 function showSeriesNext() {
-  $('series-next').textContent = seriesInfo.next != null ? 'Next in the series: ' + OneLook.pad3(seriesInfo.next) : 'Connect in More to see your series number.';
+  $('series-next').textContent = seriesInfo.next != null ? 'Next in the series: ' + OneLook.pad3(seriesInfo.next) : 'Connect in Settings to see your series number.';
 }
 async function refreshSeries() {
   try {
@@ -616,6 +661,7 @@ async function refreshSeries() {
     seriesInfo = { last: r.data.last, next: r.data.next };
     if (!numTouched) $('series-num').value = String(r.data.next);
     showSeriesNext(); checkLegacy();
+    if (ready.drafted.length) renderReady();
   } catch (e) { showSeriesNext(); }
 }
 function legacyLast() { const v = parseInt(lsGet(LEGACY_KEY), 10); return v >= 0 ? v : null; }
@@ -717,8 +763,8 @@ function secondLookLine(rv) {
 }
 function showSecondLook(c) {
   const jl = $('job-line'), JOBS = ['go-to', 'buyers', 'right-people']; // SOC-23: the job the drafter gave this post, muted, above the Second look line
-  const sl = $('series-line'), SERIES = { series: 'Series: Work less, do more', life: 'Series: Life', idea: 'One-off' };
-  if (c && SERIES[c.kind]) { sl.textContent = SERIES[c.kind]; sl.hidden = false; } else { sl.textContent = ''; sl.hidden = true; }
+  const sl = $('series-line');
+  if (c && TOPICS[c.kind]) { sl.textContent = TOPICS[c.kind]; sl.hidden = false; } else { sl.textContent = ''; sl.hidden = true; }
   if (c && JOBS.includes(c.job)) { jl.textContent = 'Job: ' + c.job; jl.hidden = false; } else { jl.textContent = ''; jl.hidden = true; }
   const p = $('second-look'), od = $('orig-deck');
   od.hidden = true; od.textContent = '';
@@ -736,7 +782,7 @@ function showSecondLook(c) {
   }
   p.hidden = false;
 }
-function reviewTitle() { return type === 'series' ? 'Series ' + OneLook.pad3(currentN()) : 'Words over my photos'; }
+function reviewTitle() { return type === 'series' ? 'Post ' + OneLook.pad3(currentN()) : (meta.ref ? topicOf(meta.ref) : 'New post'); }
 async function drawReview() {
   const tok = ++reviewTok, strip = $('review-strip');
   strip.innerHTML = '';
@@ -829,15 +875,11 @@ function makeHandle(i, name, cv, wrap) {
 }
 function setType(t) {
   type = t; lsSet(TYPE_KEY, t);
-  $('type-series').classList.toggle('on', t === 'series');
-  $('type-words').classList.toggle('on', t === 'words');
   $('series-box').hidden = t !== 'series';
   showSeriesNext();
 }
 function syncStrap() { $('cv-strap').value = cards[0] ? cards[0].title : ''; }
 function syncCoverFields() { ['kicker', 'h1', 'h2', 'h3', 'h4', 'h5'].forEach(k => { $('cv-' + k).value = cover[k] || ''; }); syncStrap(); }
-$('type-series').addEventListener('click', () => { setType('series'); renderEdit(); });
-$('type-words').addEventListener('click', () => { setType('words'); renderEdit(); });
 ['kicker', 'h1', 'h2', 'h3', 'h4', 'h5'].forEach(k => $('cv-' + k).addEventListener('input', e => { cover[k] = e.target.value; saveCover(); queueDraw(0); }));
 $('cv-strap').addEventListener('input', e => {
   if (!cards[0]) return;

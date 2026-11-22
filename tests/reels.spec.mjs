@@ -92,10 +92,10 @@ const reelCalls = (m, re) => calls.filter(c => c.method === m && re.test(c.path)
 const posts = () => calls.filter(c => c.method === 'POST');
 const SHOT = process.env.SHOT_DIR;
 
-await check('A-home: first screen at 390x844 shows Carousels and Reels as two equal buttons; each goes to its own screen; #reels and #series load directly', async () => {
+await check('A-home: first screen at 390x844 shows Posts and Reels as two equal tabs; each goes to its own screen; #reels and #series load directly', async () => {
   const { page, errors, ctx } = await open();
   await settle(page);
-  assert.equal((await page.textContent('#carousels-btn')).trim(), 'Carousels');
+  assert.equal((await page.textContent('#carousels-btn')).trim(), 'Posts');
   assert.equal((await page.textContent('#trial-btn')).trim(), 'Reels');
   const a = await page.locator('#carousels-btn').boundingBox(), b = await page.locator('#trial-btn').boundingBox();
   assert.ok(Math.abs(a.width - b.width) <= 1 && Math.abs(a.height - b.height) <= 1 && Math.abs(a.y - b.y) <= 1, 'equal size and row');

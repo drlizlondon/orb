@@ -6,18 +6,18 @@ import {iconCandidates} from '../src/icons.js';
 import {publicTools} from '../src/public-tools.js';
 import {projects} from '../dist/projects.js';
 const memory=(initial)=>{const m=new Map(initial?Object.entries(initial):[]);return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),m};};
-test('T3 empty storage loads the eight-tool seed and persists it',()=>{
+test('T3 empty storage loads the seven-tool seed and persists it',()=>{
  const s=memory();const tools=loadTools(s,1000);
- assert.equal(tools.length,8);
- assert.deepEqual(tools.map(t=>t.id),['bpp','gp','sms','ppd','da','cards','igc','cover']);
+ assert.equal(tools.length,7);
+ assert.deepEqual(tools.map(t=>t.id),['bpp','gp','sms','ppd','da','cards','igc']);
  assert.deepEqual(tools.map(t=>t.url),projects.map(p=>p.url));
  assert.deepEqual(tools.map(t=>t.desc),projects.map(p=>p.description));
  assert.ok(s.m.has(TOOLS_KEY));
  assert.equal(loadTools(s,2000)[0].addedAt,1000);
 });
 test('T3 corrupt storage falls back to the seed',()=>{
- assert.equal(loadTools(memory({[TOOLS_KEY]:'{oops'})).length,8);
- assert.equal(loadTools(memory({[TOOLS_KEY]:'{"version":2}'})).length,8);
+ assert.equal(loadTools(memory({[TOOLS_KEY]:'{oops'})).length,7);
+ assert.equal(loadTools(memory({[TOOLS_KEY]:'{"version":2}'})).length,7);
 });
 test('T3 addTool rejects non-URLs, dedupes by hostname, defaults the title',()=>{
  assert.throws(()=>addTool([],{url:'not a url'}));
@@ -52,8 +52,8 @@ test('T3 export then import round-trips; bad files throw and never merge',()=>{
  assert.deepEqual(importTools(exportTools([])),[]);
 });
 test('removeTool and saveTools',()=>{
- const t=seedTools(0);assert.equal(removeTool(t,'gp').length,7);
- const s=memory();assert.equal(saveTools(s,t),true);assert.equal(loadTools(s).length,8);
+ const t=seedTools(0);assert.equal(removeTool(t,'gp').length,6);
+ const s=memory();assert.equal(saveTools(s,t),true);assert.equal(loadTools(s).length,7);
  assert.equal(saveTools({setItem(){throw new Error('full');}},t),false);
 });
 test('domainOf and titleFromDomain match galaxycloud',()=>{
@@ -83,9 +83,9 @@ const ids=l=>l.map(t=>t.id);
 test('A1 mergeDefaults: a saved list missing a new default gains it',()=>{
  const defaults=seedTools(9);const saved=defaults.slice(0,6);
  const m=mergeDefaults(saved,defaults,LEGACY_SEEN);
- assert.deepEqual(ids(m.tools),['bpp','gp','sms','ppd','da','cards','igc','cover']);
- assert.equal(m.added,2);
- assert.ok(['igc','cover'].every(id=>m.seen.includes(id)));
+ assert.deepEqual(ids(m.tools),['bpp','gp','sms','ppd','da','cards','igc']);
+ assert.equal(m.added,1);
+ assert.ok(m.seen.includes('igc'));
 });
 test('A1 mergeDefaults: a default the user removed is NOT re-added',()=>{
  const defaults=seedTools(9);
@@ -104,7 +104,7 @@ test('A1 mergeDefaults: user-added tools, order and customisations are preserved
  assert.deepEqual(m.tools.slice(0,4),saved,'existing entries keep order and edits');
  assert.equal(m.tools[1].id,defaults[3].id);
  assert.equal(m.tools[2].title,'Renamed');
- assert.deepEqual(ids(m.tools).slice(4),['gp','da','cards','igc','cover']);
+ assert.deepEqual(ids(m.tools).slice(4),['gp','da','cards','igc']);
  assert.equal(m.tools.filter(t=>t.id===custom.id).length,1);
 });
 test('A1 loadTools: stale 6-tool list upgrades once; a removal survives later loads',()=>{
@@ -112,14 +112,35 @@ test('A1 loadTools: stale 6-tool list upgrades once; a removal survives later lo
  const s=memory({[TOOLS_KEY]:exportTools(defaults.slice(0,6))});
  assert.deepEqual(ids(loadTools(s,5)),ids(defaults));
  assert.deepEqual(ids(JSON.parse(s.m.get(TOOLS_KEY)).tools),ids(defaults),'merged list persisted');
- assert.ok(JSON.parse(s.m.get(SEEN_KEY)).includes('cover'));
+ assert.ok(JSON.parse(s.m.get(SEEN_KEY)).includes('igc'));
  s.setItem(TOOLS_KEY,exportTools(removeTool(loadTools(s,6),'igc')));
  assert.ok(!ids(loadTools(s,7)).includes('igc'),'removed default stays removed');
- assert.equal(ids(loadTools(s,8)).length,7);
+ assert.equal(ids(loadTools(s,8)).length,6);
 });
 test('A1 loadTools: fresh seed records every default as seen; corrupt seen key falls back safely',()=>{
  const s=memory();loadTools(s,1);
  assert.deepEqual(JSON.parse(s.m.get(SEEN_KEY)).sort(),ids(projects).sort());
  const bad=memory({[TOOLS_KEY]:exportTools(seedTools(0).slice(0,6)),[SEEN_KEY]:'{oops'});
- assert.equal(loadTools(bad,2).length,8);
+ assert.equal(loadTools(bad,2).length,7);
+});
+
+// Orb Instagram tidy-up: shared asserts (tests/tidy-checks.mjs); tests/tidy-mutations.test.mjs proves they can fail.
+import {runToolChecks} from './tidy-checks.mjs';
+test('TIDY launcher has no Cover Series tile, one Instagram name, and a stored cover-series tile is dropped on load',()=>{
+ runToolChecks({loadTools,seedTools,projects,TOOLS_KEY,SEEN_KEY,exportTools});
+});
+test('TIDY a title the user changed is not overwritten by the rename',()=>{
+ const defaults=seedTools(1).map(t=>t.id==='igc'?{...t,title:'My Insta'}:t);
+ const s=memory({[TOOLS_KEY]:exportTools(defaults)});
+ assert.equal(loadTools(s,2).find(t=>t.id==='igc').title,'My Insta');
+});
+test('TIDY the built pages carry no Cover Series label, and the old URL still redirects to Instagram',()=>{
+ for(const f of ['dist/index.html','dist/app/index.html','dist/projects.js','dist/app.js'])assert.ok(!/cover\s*series/i.test(readFileSync(new URL('../'+f,import.meta.url),'utf8')),f);
+ const r=readFileSync(new URL('../dist/cover-series/index.html',import.meta.url),'utf8');
+ assert.ok(r.includes('url=../carousel-insta/#series')&&!/<script/i.test(r));
+});
+test('TIDY LinkedIn editor says first card, not cover',()=>{
+ const src=readFileSync(new URL('../dist/carousel/index.html',import.meta.url),'utf8');
+ assert.ok(!/\bcover\b/i.test(src.replace(/object-fit:\s*cover/g,'')),'the word cover is still in the LinkedIn editor');
+ assert.ok(/first-card/.test(src));
 });

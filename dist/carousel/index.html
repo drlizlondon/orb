@@ -188,7 +188,7 @@
     outline: none;
   }
   h1 { font-size: calc(34px * var(--fit, 1)); }
-  h1.cover { font-size: calc(42px * var(--fit, 1)); }
+  h1.first-card { font-size: calc(42px * var(--fit, 1)); }
   .subtitle {
     font-size: calc(21px * var(--fit, 1));
     line-height: 1.45;
@@ -335,7 +335,7 @@
       box-shadow: 14px 14px 0px #1E1E2F !important;
       padding: 64px 68px !important;
     }
-    h1, h1.cover { font-size: calc(46px * var(--fit, 1)) !important; }
+    h1, h1.first-card { font-size: calc(46px * var(--fit, 1)) !important; }
     .subtitle { font-size: calc(27px * var(--fit, 1)) !important; }
     .body-text { font-size: calc(26px * var(--fit, 1)) !important; }
     .rule-box { font-size: calc(22px * var(--fit, 1)) !important; }
@@ -396,7 +396,7 @@ const decks = {
         tapeRot: "-2deg",
         title: "How to make AI-generated designs look human.",
         subtitle: "A 4-step polish guide for non-designers using Claude, ChatGPT, or Lovable.",
-        isCover: true
+        isFirstCard: true
       },
       {
         step: "STEP 1",
@@ -408,7 +408,7 @@ const decks = {
         title: "Quiet the background",
         body: "AI defaults to neon gradients, glowing borders, and harsh contrast that strains the eye.<br><br>Tone it down. Use soft, warm neutrals so the reader's eye knows where to rest.",
         rule: "Rule: When everything glows, nothing is important.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 2",
@@ -420,7 +420,7 @@ const decks = {
         title: "Choose a single focal point",
         body: "AI interfaces tend to cram multiple badges, charts, and cards onto one screen.<br><br>Pick <b>one element</b> to carry the visual weight, and let the surrounding layout support it quietly.",
         rule: "Rule: One screen, one focal point.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 3",
@@ -432,7 +432,7 @@ const decks = {
         title: "Write like a thoughtful adult",
         body: "Cut the AI corporate dialect:<br>• 'Revolutionary solution'<br>• 'Seamless end-to-end experience'<br>• 'Supercharge your potential'<br><br>State plainly what the product does and why it matters.",
         rule: "Rule: If you would not say it to a colleague, delete it.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 4 & THE GOLDEN RULE",
@@ -444,7 +444,7 @@ const decks = {
         title: "Give the content room to breathe",
         body: "Dense, cluttered layouts are the clearest tell of an unedited AI prompt.<br><br>Increase margins and whitespace. Generous spacing gives an interface quiet authority.",
         rule: "The Golden Rule: Craft is not about adding decoration. It is knowing what to remove.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "ACTION STEP",
@@ -457,7 +457,7 @@ const decks = {
         subtitle: "Paste this into Claude, ChatGPT, Lovable, or v0 alongside your screen or code:",
         body: "<i>\"Please redesign this interface with a quiet, editorial craft feel. Strip out all purple neon gradients, glowing borders, and harsh dark contrast in favor of warm, restful neutrals and a single accent color. Choose one clear hero element to carry the visual weight, give the entire layout generous margins and breathing room, and rewrite all headings and copy in plain, confident English without corporate buzzwords or decorative emojis.\"</i>",
         rule: "Tip: Bookmark this post or save this card for your next build.",
-        isCover: false
+        isFirstCard: false
       }
     ]
   },
@@ -473,7 +473,7 @@ const decks = {
         tapeRot: "-2deg",
         title: "The 10-Minute Rule before you build anything with AI.",
         subtitle: "How to stop spending weeks building tools that already exist for free.",
-        isCover: true
+        isFirstCard: true
       },
       {
         step: "STEP 1",
@@ -485,7 +485,7 @@ const decks = {
         title: "Search before you prompt",
         body: "AI loves saying <i>'Let's build this!'</i> and immediately generating 500 lines of code.<br><br>Pause. Spend ten minutes looking for pre-built templates, free tools, and existing libraries.<br><br>Most problems have already been solved by someone else.",
         rule: "Rule: A ten-minute search saves three weeks of rebuilding the wheel.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 2",
@@ -497,7 +497,7 @@ const decks = {
         title: "Check if it is alive and safe",
         body: "If you find an existing tool, do a 60-second health check:<br><br>• Was it updated recently, or abandoned years ago?<br>• Are real people actually using it?<br>• Is it free and safe for commercial use?<br><br>A tested foundation is worth months of custom code.",
         rule: "Rule: A proven foundation beats writing code from zero.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 3",
@@ -509,7 +509,7 @@ const decks = {
         title: "The Three Smart Paths",
         body: "Before you write a single line of code, pick one:<br><br><b>1. Use it as-is:</b> The fastest route. Plug it in and start using it.<br><b>2. Borrow the engine:</b> Take the existing tool and put your own simple front door on it.<br><b>3. Build from scratch:</b> The last resort. Only do this if nobody on earth has built it yet.",
         rule: "Rule: Building from scratch is an expensive decision, not a default.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 4",
@@ -521,7 +521,7 @@ const decks = {
         title: "Save your energy for what makes you unique",
         body: "Nobody buys your product for the login box, the database settings, or the buttons. Those are commodities.<br><br>Borrow the boring parts so you can spend 100% of your energy on your unique idea.",
         rule: "The Golden Rule: The smartest builder is the one who wrote the least new code.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "ACTION STEP",
@@ -534,7 +534,7 @@ const decks = {
         subtitle: "Paste this into Claude or ChatGPT before starting any new build:",
         body: "<i>\"Before writing any code or architecture plans for this idea, act as an adversarial researcher. Search for existing open-source projects, free libraries, and established tools that already solve this problem. Evaluate the top two alternatives for active maintenance and real-world adoption, compare the cost of maintaining custom code versus using an existing base, and give me a clear verdict: should we adopt an existing tool, build a thin layer on top of a proven foundation, or build from scratch?\"</i>",
         rule: "Tip: Bookmark this post or screenshot this card before your next build.",
-        isCover: false
+        isFirstCard: false
       }
     ]
   },
@@ -550,7 +550,7 @@ const decks = {
         tapeRot: "-2deg",
         title: "3 things to do when coding with AI (before a real developer sees it).",
         subtitle: "How to stop AI from writing bloated, messy files that make human developers want to quit.",
-        isCover: true
+        isFirstCard: true
       },
       {
         step: "STEP 1",
@@ -562,7 +562,7 @@ const decks = {
         title: "Turn on Prettier (The Auto-Iron)",
         body: "AI writes sloppy spacing and weird indentation by default. A human developer opening your project will immediately spot unformatted AI slop.<br><br>Turn on <b>Prettier</b> (or check 'Format on Save' in your editor). It presses every line flat and clean so your code looks like a professional engineer wrote it.",
         rule: "Rule: Clean formatting earns instant respect from real coders.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 2",
@@ -574,7 +574,7 @@ const decks = {
         title: "Cap your files at 400 lines",
         body: "AI loves dumping an entire app into a single, 2,000-line monster file. It creates tangled bloat that human reviewers dread untangling.<br><br>Force the AI to split your app into modular files under 400 lines. When you hire an engineer later, they can review and fix things in hours instead of days.",
         rule: "Rule: Small files save you thousands in developer audit fees.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 3",
@@ -586,7 +586,7 @@ const decks = {
         title: "Test your rules with real smoke",
         body: "AI will cheerfully tell you <i>'All features are complete and working!'</i> But when a real coder inspects the logic, half the edge cases are hollow.<br><br>Never trust a test that always passes. Deliberately feed the AI a broken scenario to prove your checks actually catch mistakes.",
         rule: "Rule: If a test cannot fail, it proves nothing.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "STEP 4",
@@ -598,7 +598,7 @@ const decks = {
         title: "Build like someone has to review it",
         body: "You might build your first prototype with AI, but eventually you will want a human engineer to audit security, connect payments, or scale it.<br><br>If your codebase is neat, modular, and formatted, they will happily build on top of it instead of telling you to rewrite everything from scratch.",
         rule: "The Golden Rule: A clean codebase today stops an expensive rewrite tomorrow.",
-        isCover: false
+        isFirstCard: false
       },
       {
         step: "ACTION STEP",
@@ -611,7 +611,7 @@ const decks = {
         subtitle: "Paste this into Claude, Cursor, or ChatGPT before building:",
         body: "<i>\"Please act as a disciplined software engineer building clean code for a non-technical founder. Format all code with standard Prettier on every save, split large components so no single file exceeds 400 lines, and avoid bloated one-file shortcuts. Build modularly so that any senior human developer reviewing this repository later can easily read, test, and maintain it without having to rewrite it from scratch.\"</i>",
         rule: "Tip: Bookmark this post or screenshot this card before your next build.",
-        isCover: false
+        isFirstCard: false
       }
     ]
   }
@@ -645,7 +645,7 @@ function renderDeck() {
         </div>
 
         <div class="content">
-          <h1 class="${card.isCover ? 'cover' : ''}" contenteditable="true">${card.title}</h1>
+          <h1 class="${(card.isFirstCard ?? card.isCover) ? 'first-card' : ''}" contenteditable="true">${card.title}</h1>
           ${card.subtitle ? `<div class="subtitle" contenteditable="true">${card.subtitle}</div>` : ''}
           ${card.body ? `<div class="body-text" contenteditable="true">${card.body}</div>` : ''}
           ${card.rule ? `<div class="rule-box" contenteditable="true">✨ ${card.rule}</div>` : ''}
@@ -832,7 +832,7 @@ function newCard() {
     title: "New slide title",
     body: "Write this slide.",
     rule: "",
-    isCover: false
+    isFirstCard: false
   };
 }
 
@@ -928,7 +928,7 @@ const STYLE_PALETTE = [
 ];
 function defaultStyleFor(i){
   const p = STYLE_PALETTE[i % STYLE_PALETTE.length];
-  return {step:'', tag:'', title:'', bg:p.bg, tagBg:p.tagBg, tapeColor:p.tapeColor, tapeRot:p.tapeRot, isCover:i===0};
+  return {step:'', tag:'', title:'', bg:p.bg, tagBg:p.tagBg, tapeColor:p.tapeColor, tapeRot:p.tapeRot, isFirstCard:i===0};
 }
 
 // Card HTML (e.g. body with <br>/<b>/<i>) -> readable text with markdown emphasis.

@@ -156,7 +156,7 @@ const metrics = page => page.evaluate(() => {
   const vis = e => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   const controls = [...document.querySelectorAll('button, input, select, textarea')].filter(vis).length;
   let words = 0; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let t;
-  while ((t = w.nextNode())) { const el = t.parentElement; if (!el || ['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'TITLE'].includes(el.tagName) || el.closest('.ready-title') || !el.checkVisibility()) continue; words += t.nodeValue.split(/\s+/).filter(Boolean).length; }
+  while ((t = w.nextNode())) { const el = t.parentElement; if (!el || ['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'TITLE'].includes(el.tagName) || el.closest('.ready-title, .ready-tag, .ready-num, .ready-quality') || !el.checkVisibility()) continue; words += t.nodeValue.split(/\s+/).filter(Boolean).length; }
   const ap = document.getElementById('approve-btn'), r = ap ? ap.getBoundingClientRect() : null;
   return { controls, words, height: document.documentElement.scrollHeight, vh: innerHeight, editable: document.querySelectorAll('[contenteditable]').length, approveInView: !!r && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
 });
@@ -164,7 +164,7 @@ const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('appr
 
 // ===== Simplicity caps =====
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
-  await check(`Ready at ${vpName}: 6 drafts with pictures, controls <= drafts + 4 (two buttons, Carousels and Reels, join New idea and More), <= 2 screens, <= 27 furniture words (25 plus the two new button words), no "Check for drafts"; an injected button trips the cap`, async () => {
+  await check(`Ready at ${vpName}: 6 drafts with pictures, controls <= drafts + 4 (two buttons, Posts and Reels, join New post and Settings), <= 2 screens, <= 27 furniture words (25 plus the two new button words), no "Check for drafts"; an injected button trips the cap`, async () => {
     const { page, errors, ctx } = await open(vp);
     assert.equal(await page.locator('.ready-item:visible').count(), 6);
     await page.waitForFunction(() => [...document.querySelectorAll('.ready-item img')].length === 6 && [...document.querySelectorAll('.ready-item img')].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
@@ -175,8 +175,8 @@ for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
     assert.ok(m.words <= 27, 'furniture words ' + m.words);
     assert.equal(await page.getByText('Check for drafts').count(), 0);
     assert.equal(await page.getByText('Refresh').count(), 0);
-    assert.equal(await page.textContent('h1'), 'Insta Creator');
-    const tags = await page.locator('.ready-tag').allTextContents(); assert.equal(tags.filter(x => x === 'Series').length, 4); assert.equal(tags.filter(x => x === 'Words over my photos').length, 2);
+    assert.equal(await page.textContent('h1'), 'Instagram');
+    const tags = await page.locator('.ready-tag').allTextContents(); assert.equal(tags.filter(x => x === 'Work less, do more').length, 4); assert.equal(tags.filter(x => x === 'One-off').length, 2);
     // newest first
     assert.match(await page.locator('.ready-title').first().textContent(), /foxtrot/);
     // must-fail: one more visible button breaks the very assert above
@@ -491,19 +491,19 @@ await check('No face data: a photo with no face key shows "Could not check" and 
 });
 
 // ===== Series and merge =====
-await check('Title and header read Insta Creator; Edit has both type buttons; Series shows series-box, Words hides it; flipping keeps 4 canvases in both modes', async () => {
+await check('Title and header read Instagram; Edit has no Series / Words switch; Series shows series-box, a One-off hides it; flipping keeps 4 canvases in both modes', async () => {
   const { page, ctx } = await open(PH);
-  assert.equal(await page.title(), 'Insta Creator');
+  assert.equal(await page.title(), 'Instagram');
   await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn');
-  assert.equal(await page.textContent('#type-series'), 'Series'); assert.equal(await page.textContent('#type-words'), 'Words over my photos');
-  assert.equal(await page.textContent('#type-panel h2'), 'What are you making?');
-  assert.ok(await page.locator('#type-words.on').count() === 1); assert.ok(!(await page.locator('#series-box').isVisible()));
-  assert.equal(await page.locator('.slide-edit canvas').count(), 4);
-  await page.click('#type-series');
-  assert.ok(await page.locator('#type-series.on').count() === 1); assert.ok(await page.locator('#series-box').isVisible());
+  assert.equal(await page.locator('#type-series, #type-words, .type-row').count(), 0, 'the switch is gone');
+  assert.ok(!(await page.locator('body').innerText()).includes('Words over my photos'));
+  assert.ok(!(await page.locator('#series-box').isVisible()));
+assert.equal(await page.locator('.slide-edit canvas').count(), 4);
+  await page.evaluate(() => { setType('series'); renderEdit(); });
+  assert.ok(await page.locator('#series-box').isVisible());
   assert.equal(await page.locator('.slide-edit canvas').count(), 4);
   await page.click('#edit-done'); await reviewReady(page); assert.equal(await page.locator('#review-strip canvas').count(), 4); assert.equal(await page.textContent('#review-count'), '1 / 4');
-  assert.equal(await page.textContent('#review-title'), 'Series #007');
+  assert.equal(await page.textContent('#review-title'), 'Post #007');
   assert.equal(await page.evaluate(() => localStorage.getItem('ig_post_type_v1')), 'series');
   await ctx.close();
 });
@@ -547,7 +547,7 @@ await check('Series approve of a 4-slide draft sends one PUT with series.n 7, 4 
 await check('Words approve of the same draft sends 4 slides, 4 images and no series key; slide 1 draws @drlizlondon and never #007', async () => {
   const { page, ctx } = await open(PH);
   await openItem(page, 'bravo'); await reviewReady(page); await page.click('#edit-btn');
-  await page.click('#type-words'); await page.evaluate(() => { window.__txt = []; });
+  await page.evaluate(() => { setType('words'); renderEdit(); window.__txt = []; });
   await page.click('#edit-done'); await reviewReady(page);
   const txt = await page.evaluate(() => window.__txt);
   assert.ok(txt.includes('@drlizlondon')); assert.ok(!txt.includes('#007'), 'no series number in a words post');
@@ -565,7 +565,7 @@ await check('A 409 "series number taken": the #007 message, series-num becomes 8
   await page.click('#approve-btn');
   await page.waitForFunction(() => document.getElementById('msg').textContent === '#007 was just used. The next free number is #008. Tap approve again.', null, { timeout: 30000 });
   assert.ok(await inView(page, '#msg'));
-  assert.equal(await page.inputValue('#series-num'), '8'); assert.equal(await page.textContent('#review-title'), 'Series #008');
+  assert.equal(await page.inputValue('#series-num'), '8'); assert.equal(await page.textContent('#review-title'), 'Post #008');
   const firstId = lastPub().drafts[0].id;
   st.approveMode = 'ok';
   await reviewReady(page); await page.click('#approve-btn'); await approvedMsg(page);
@@ -606,10 +606,10 @@ await check('Opening kind series switches to Series and sets cv-strap to slide 1
   await openItem(page, 'charlie'); await reviewReady(page);
   assert.equal(await page.evaluate(() => document.getElementById('caption').value), 'Fixture caption charlie.');
   await page.click('#edit-btn');
-  assert.ok(await page.locator('#type-series.on').count() === 1); assert.equal(await page.inputValue('#cv-strap'), 'Fixture charlie');
+  assert.equal(await page.evaluate(() => type), 'series'); assert.equal(await page.inputValue('#cv-strap'), 'Fixture charlie');
   await page.click('#edit-done'); await reviewReady(page); await page.click('#review-back');
   await openItem(page, 'echo'); await reviewReady(page); await page.click('#edit-btn');
-  assert.ok(await page.locator('#type-words.on').count() === 1);
+  assert.equal(await page.evaluate(() => type), 'words');
   await ctx.close();
 });
 
@@ -617,7 +617,7 @@ await check('Start from blank: Edit opens with the 3-slide starter deck, type Wo
   const { page, ctx } = await open(PH);
   await page.click('#more-btn'); await page.click('#blank-btn');
   assert.ok(await page.locator('#screen-edit').isVisible()); assert.equal(await page.locator('.slide-edit').count(), 3);
-  assert.ok(await page.locator('#type-words.on').count() === 1);
+  assert.equal(await page.evaluate(() => type), 'words');
   assert.equal(await page.locator('.slide-edit').first().locator('[data-f="title"]').inputValue(), 'Your bold first line goes here.');
   assert.equal(await page.locator('.slide-edit').nth(2).locator('[data-f="title"]').inputValue(), 'The honest limit.');
   await page.click('#edit-done'); await reviewReady(page);
@@ -657,11 +657,11 @@ await check('D5: old key 2 and Worker last 3 shows nothing, makes no floor call,
 
 await check('dist/cover-series forwards: refresh to ../carousel-insta/#series, the link, no script; loading the creator with #series selects Series', async () => {
   const src = fs.readFileSync(COVER, 'utf8');
-  assert.ok(src.includes('<meta http-equiv="refresh" content="0; url=../carousel-insta/#series">')); assert.ok(src.includes('<title>Insta Creator</title>'));
-  assert.ok(src.includes('Cover Series now lives in Insta Creator.')); assert.ok(/<a href="\.\.\/carousel-insta\/#series">Open Insta Creator<\/a>/.test(src)); assert.ok(!/<script/i.test(src));
+  assert.ok(src.includes('<meta http-equiv="refresh" content="0; url=../carousel-insta/#series">')); assert.ok(src.includes('<title>Instagram</title>'));
+  assert.ok(src.includes('This page has moved into Instagram.')); assert.ok(/<a href="\.\.\/carousel-insta\/#series">Open Instagram<\/a>/.test(src)); assert.ok(!/<script/i.test(src));
   assert.ok(fs.existsSync(path.join(root, 'dist/cover-series/icon.svg')));
   const { page, ctx } = await open(PH, { hash: '#series' });
-  assert.ok(await page.locator('#screen-edit').isVisible()); assert.ok(await page.locator('#type-series.on').count() === 1); assert.ok(await page.locator('#series-box').isVisible());
+  assert.ok(await page.locator('#screen-edit').isVisible()); assert.equal(await page.evaluate(() => type), 'series'); assert.ok(await page.locator('#series-box').isVisible());
   assert.equal(await page.locator('.slide-edit').count(), 3);
   await ctx.close();
 });
@@ -1005,7 +1005,7 @@ await check('SOC-26 a concept whose look is the old "plain" opens dark; a life c
   const life2 = mk(3, 'life', 'hotel', { createdAt: t(4) }); delete life2.look;
   st.drafted = [mk(3, 'series', 'sierra', { createdAt: t(2) }), life, mk(3, 'idea', 'india', { createdAt: t(3) }), life2];
   const { page, ctx } = await open(PH);
-  const want = { sierra: 'Series: Work less, do more', golf: 'Series: Life', india: 'One-off', hotel: 'Series: Life' };
+  const want = { sierra: 'Work less, do more', golf: 'Life', india: 'One-off', hotel: 'Life' };
   for (const tag of Object.keys(want)) {
     await openItem(page, tag); await reviewReady(page);
     assert.equal(await page.textContent('#series-line'), want[tag]);
@@ -1073,6 +1073,88 @@ await check('A saved Worker address with no https:// and a path is reduced to it
   assert.ok(hit, 'no request reached the Worker host: ' + JSON.stringify(urls));
   assert.ok(hit.startsWith('https://drliz-draft-approval.drlizlondon.workers.dev/api/concepts'), hit);
   await o.ctx.close();
+});
+
+// ===== Orb Instagram tidy-up (2026-11-22): one name, one topic tag, #NNN only on numbered posts, a quality line only from a real check =====
+const TD = i => `2026-11-19T07:0${i}:00Z`;
+await check('TIDY topic tag: a Life draft is tagged Life (never "Words over my photos"); series and one-off keep their own topic', async () => {
+  st.drafted = [mk(3, 'series', 'sx', { createdAt: TD(1) }), mk(3, 'life', 'lx', { createdAt: TD(2) }), mk(3, 'idea', 'ix', { createdAt: TD(3) })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 3);
+  const tagOf = async t => (await page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-tag').allTextContents());
+  assert.deepEqual(await tagOf('lx'), ['Life']); assert.deepEqual(await tagOf('sx'), ['Work less, do more']); assert.deepEqual(await tagOf('ix'), ['One-off']);
+  for (const t of ['sx', 'lx', 'ix']) assert.equal((await page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-tag').count()), 1, 'exactly one topic tag');
+  await ctx.close();
+});
+await check('TIDY no "Words over my photos" and no "Cover Series" label anywhere a person can see it (Ready, review, edit, source)', async () => {
+  st.drafted = [mk(3, 'life', 'lx', { createdAt: TD(2) }), mk(3, 'idea', 'ix', { createdAt: TD(3) })];
+  const { page, ctx } = await open(PH);
+  const bad = /Words over my photos|Cover Series|Insta Creator/i;
+  assert.ok(!bad.test(await page.locator('body').innerText()), 'Ready');
+  for (const t of ['lx', 'ix']) {
+    await openItem(page, t); await reviewReady(page); assert.ok(!bad.test(await page.locator('body').innerText()), 'review ' + t);
+    await page.click('#edit-btn'); assert.ok(!bad.test(await page.locator('body').innerText()), 'edit ' + t);
+    await page.click('#edit-done'); await reviewReady(page); await page.click('#review-back'); await page.waitForSelector('.ready-item');
+  }
+  assert.ok(!/Words over my photos|Insta Creator/.test(fs.readFileSync(FILE, 'utf8')), 'source');
+  assert.equal(await page.title(), 'Instagram');
+  await ctx.close();
+});
+await check('TIDY two tabs Posts and Reels, buttons New post and Settings (no Carousels / New idea / More)', async () => {
+  const { page, ctx } = await open(PH);
+  assert.equal((await page.textContent('#carousels-btn')).trim(), 'Posts'); assert.equal((await page.textContent('#trial-btn')).trim(), 'Reels');
+  assert.equal((await page.textContent('#new-idea-btn')).trim(), 'New post'); assert.equal((await page.textContent('#more-btn')).trim(), 'Settings');
+  const txt = await page.locator('#screen-ready').innerText(); assert.ok(!/Carousels|New idea|\bMore\b/.test(txt), txt);
+  await ctx.close();
+});
+await check('TIDY #NNN shows only on numbered (series) posts, never on Life or One-off', async () => {
+  st.drafted = [mk(3, 'series', 'sx', { createdAt: TD(1) }), mk(3, 'life', 'lx', { createdAt: TD(2) }), mk(3, 'idea', 'ix', { createdAt: TD(3) })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 3 && document.querySelectorAll('.ready-num').length > 0, null, { timeout: 15000 });
+  const numOf = t => page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-num').allTextContents();
+  assert.deepEqual(await numOf('sx'), ['#007']); assert.deepEqual(await numOf('lx'), []); assert.deepEqual(await numOf('ix'), []);
+  await ctx.close();
+});
+await check('TIDY cover quality line is computed (G6): small photo says too small; a big photo says sharp; no photo or no check shows no line and never "sharp" / "face clear"', async () => {
+  st.drafted = [mk(3, 'idea', 'small', { createdAt: TD(1), photoFor: i => i === 0 ? 'gs' : 'gc0' }), mk(3, 'idea', 'big', { createdAt: TD(2), photoFor: i => i === 0 ? 'gc0' : 'gc1' }), mk(3, 'idea', 'nophoto', { createdAt: TD(3), photoFor: () => '' })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-quality:not([hidden])').length >= 2, null, { timeout: 20000 });
+  const q = t => page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-quality');
+  assert.equal(await q('small').textContent(), 'Cover: photo too small. Pick another');
+  assert.match(await q('big').textContent(), /^Cover: sharp/);
+  assert.ok(!(await q('nophoto').isVisible()), 'no check ran, no line');
+  assert.equal((await q('nophoto').textContent()), '');
+  await ctx.close();
+});
+await check('TIDY G6 with no album connection no draft shows a quality line', async () => {
+  st.drafted = [mk(3, 'idea', 'big', { createdAt: TD(2), photoFor: i => i === 0 ? 'gc0' : 'gc1' })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 1);
+  await page.evaluate(() => { localStorage.removeItem('orb_worker_base'); localStorage.removeItem('orb_approve_token'); coverChecks.clear(); });
+  assert.equal(await page.evaluate(() => coverLine(null)), '');
+  assert.equal(await page.evaluate(() => coverLine({ lowRes: null, faceClear: null })), '');
+  assert.equal(await page.evaluate(() => checkCover({ id: 'zz', deck: { slides: [{ photo: 'gc0' }] } }).then(x => x)), null);
+  await ctx.close();
+});
+await check('TIDY 390px: Ready has no sideways scroll and no en/em dash or "calm" in visible text', async () => {
+  st.drafted = [mk(3, 'series', 'sx', { createdAt: TD(1) }), mk(3, 'life', 'lx', { createdAt: TD(2) })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-quality:not([hidden])').length >= 1, null, { timeout: 20000 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'horizontal overflow');
+  const txt = await page.locator('body').innerText(); assert.ok(!/[–—]/.test(txt) && !/calm/i.test(txt));
+  await ctx.close();
+});
+
+if (process.env.TIDY_SHOT_DIR) await check('TIDY pictures at 390px for the founder (stub data: gradient photos and Fixture titles, not her drafts)', async () => {
+  st.drafted = [mk(3, 'series', 'sx', { createdAt: TD(1), photoFor: i => i === 0 ? 'gc0' : 'gc1' }), mk(3, 'life', 'lx', { createdAt: TD(2), photoFor: i => i === 0 ? 'gc1' : 'gc2' }), mk(3, 'idea', 'ix', { createdAt: TD(3), photoFor: i => i === 0 ? 'gs' : 'gc0' }), mk(3, 'idea', 'nophoto', { createdAt: TD(4), photoFor: () => '' })];
+  const { page, ctx } = await open(PH);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 4);
+  await page.waitForFunction(() => document.querySelectorAll('.ready-quality:not([hidden])').length >= 3, null, { timeout: 20000 });
+  await page.screenshot({ path: path.join(process.env.TIDY_SHOT_DIR, 'orb-tidy-posts.png'), fullPage: true });
+  await page.click('#trial-btn'); await page.waitForSelector('#screen-trial:not([hidden])');
+  await page.screenshot({ path: path.join(process.env.TIDY_SHOT_DIR, 'orb-tidy-reels.png'), fullPage: true });
+  await ctx.close();
 });
 
 await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain path, no token in the source, only the spec\'d Worker routes', async () => {

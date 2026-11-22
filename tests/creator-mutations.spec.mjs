@@ -12,7 +12,7 @@ const SRC = fs.readFileSync(path.join(here, '../dist/carousel-insta/index.html')
 const rep = (a, b) => s => s.replace(a, b);
 const MUT = [
   ['review bar not fixed (Approve and messages scroll away)', rep('#review-bar, #edit-bar { position: fixed;', '#review-bar, #edit-bar { position: static;')],
-  ['one more visible button on Ready (Check for drafts is back)', rep('<button id="more-btn" class="quiet-btn" type="button">More</button>', '<button id="more-btn" class="quiet-btn" type="button">More</button><button type="button">Check for drafts</button>')],
+  ['one more visible button on Ready (Check for drafts is back)', rep('<button id="more-btn" class="quiet-btn" type="button">Settings</button>', '<button id="more-btn" class="quiet-btn" type="button">Settings</button><button type="button">Check for drafts</button>')],
   ['Ready ignores postState (approved posts stay listed)', rep(".filter(x => (x[0].postState || 'none') === 'none')", '')],
   ['review strip is a vertical stack, no snap', rep('#review-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory;', '#review-strip { display: block; scroll-snap-type: none;')],
   ['a fifth slide appears in a series publish', rep('const slides = cards.map((c, i) =>', 'const slides = cards.concat(type === \'series\' ? [cards[0]] : []).map((c, i) =>')],
@@ -28,12 +28,20 @@ const MUT = [
   ['Edit opens an empty editor', rep("$('edit-btn').addEventListener('click', () => { renderEdit(); show('edit'); });", "$('edit-btn').addEventListener('click', () => { show('edit'); });")],
   ['queued line always shown', rep("$('ready-waiting').hidden = !q;", "$('ready-waiting').hidden = false;")],
   ['arrow box and slide 1 title drift apart', rep("if (f === 'title' && i === 0) $('cv-strap').value = inp.value;", '')],
-  ['an en dash in the page', rep('<title>Insta Creator</title>', '<title>Insta Creator</title><!-- a – b -->')],
+  ['an en dash in the page', rep('<title>Instagram</title>', '<title>Instagram</title><!-- a – b -->')],
   ['the old amber is back', rep('.small-btn {', '.small-btn { color: #ffd9a0;')],
   ['the number is added to the caption', rep("const draft = { id, caption, evidence", "const draft = { id, caption: caption + (type === 'series' ? ' ' + OneLook.pad3(n) : ''), evidence")],
   ['success message is hidden before the screen changes (no wait)', rep('await sleep(1500);', '')],
-  ['404 branch removed (wrong Worker address looks like a server error)', rep("if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under More, paste the address that ends in workers.dev.';", '')],
+  ['404 branch removed (wrong Worker address looks like a server error)', rep("if (e && e.status === 404) return 'Could not get your drafts: the Worker address on this phone is wrong. Under Settings, paste the address that ends in workers.dev.';", '')],
   ['saved address is not reduced to its origin (path and missing https:// kept)', rep("try { return new URL(/^https?:\\/\\//i.test(raw) ? raw : 'https://' + raw).origin; }", "try { return raw.replace(/\\/+$/, ''); }")],
+  // Orb Instagram tidy-up
+  ['a Life draft is tagged Words over my photos again', rep("g.textContent = topicOf(c);", "g.textContent = isSeries(c) ? 'Work less, do more' : 'Words over my photos';")],
+  ['the Words over my photos switch label is back in the page', rep('<div id="series-box" hidden>', '<p>Words over my photos</p><div id="series-box" hidden>')],
+  ['the page is called Insta Creator again', rep('<title>Instagram</title>', '<title>Insta Creator</title>')],
+  ['#NNN on every post, not only numbered ones', rep("if (!isSeries(c)) return null;", '')],
+  ['a fake quality line when no check ran', rep("if (!chk) return '';", "if (!chk) return 'Cover: sharp';")],
+  ['sharp claimed without the size check', rep("if (chk.lowRes === false) parts.push('sharp');", "parts.push('sharp');")],
+  ['the Carousels tab label is back', rep('aria-current="page">Posts</button>', 'aria-current="page">Carousels</button>')],
   // SOC-25
   ['small photo no longer blocks Approve', rep("else if (sm >= 0) { blocked = true;", "else if (sm >= 0) { blocked = false;")],
   ['small photo check removed from the review checks', rep("const sm = results.findIndex(r => r && r.hasPhoto && r.lowRes === true);", "const sm = -1;")],
