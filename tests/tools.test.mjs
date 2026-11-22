@@ -6,18 +6,18 @@ import {iconCandidates} from '../src/icons.js';
 import {publicTools} from '../src/public-tools.js';
 import {projects} from '../dist/projects.js';
 const memory=(initial)=>{const m=new Map(initial?Object.entries(initial):[]);return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),m};};
-test('T3 empty storage loads the eight-tool seed and persists it',()=>{
+test('T3 empty storage loads the nine-tool seed and persists it',()=>{
  const s=memory();const tools=loadTools(s,1000);
- assert.equal(tools.length,8);
- assert.deepEqual(tools.map(t=>t.id),['bpp','gp','sms','ppd','da','cards','igc','nl']);
+ assert.equal(tools.length,9);
+ assert.deepEqual(tools.map(t=>t.id),['bpp','gp','sms','ppd','da','cards','igc','nl','ideas']);
  assert.deepEqual(tools.map(t=>t.url),projects.map(p=>p.url));
  assert.deepEqual(tools.map(t=>t.desc),projects.map(p=>p.description));
  assert.ok(s.m.has(TOOLS_KEY));
  assert.equal(loadTools(s,2000)[0].addedAt,1000);
 });
 test('T3 corrupt storage falls back to the seed',()=>{
- assert.equal(loadTools(memory({[TOOLS_KEY]:'{oops'})).length,8);
- assert.equal(loadTools(memory({[TOOLS_KEY]:'{"version":2}'})).length,8);
+ assert.equal(loadTools(memory({[TOOLS_KEY]:'{oops'})).length,9);
+ assert.equal(loadTools(memory({[TOOLS_KEY]:'{"version":2}'})).length,9);
 });
 test('T3 addTool rejects non-URLs, dedupes by hostname, defaults the title',()=>{
  assert.throws(()=>addTool([],{url:'not a url'}));
@@ -52,8 +52,8 @@ test('T3 export then import round-trips; bad files throw and never merge',()=>{
  assert.deepEqual(importTools(exportTools([])),[]);
 });
 test('removeTool and saveTools',()=>{
- const t=seedTools(0);assert.equal(removeTool(t,'gp').length,7);
- const s=memory();assert.equal(saveTools(s,t),true);assert.equal(loadTools(s).length,8);
+ const t=seedTools(0);assert.equal(removeTool(t,'gp').length,8);
+ const s=memory();assert.equal(saveTools(s,t),true);assert.equal(loadTools(s).length,9);
  assert.equal(saveTools({setItem(){throw new Error('full');}},t),false);
 });
 test('domainOf and titleFromDomain match galaxycloud',()=>{
@@ -83,8 +83,8 @@ const ids=l=>l.map(t=>t.id);
 test('A1 mergeDefaults: a saved list missing a new default gains it',()=>{
  const defaults=seedTools(9);const saved=defaults.slice(0,6);
  const m=mergeDefaults(saved,defaults,LEGACY_SEEN);
- assert.deepEqual(ids(m.tools),['bpp','gp','sms','ppd','da','cards','igc','nl']);
- assert.equal(m.added,2);
+ assert.deepEqual(ids(m.tools),['bpp','gp','sms','ppd','da','cards','igc','nl','ideas']);
+ assert.equal(m.added,3);
  assert.ok(m.seen.includes('igc'));
 });
 test('A1 mergeDefaults: a default the user removed is NOT re-added',()=>{
@@ -104,7 +104,7 @@ test('A1 mergeDefaults: user-added tools, order and customisations are preserved
  assert.deepEqual(m.tools.slice(0,4),saved,'existing entries keep order and edits');
  assert.equal(m.tools[1].id,defaults[3].id);
  assert.equal(m.tools[2].title,'Renamed');
- assert.deepEqual(ids(m.tools).slice(4),['gp','da','cards','igc','nl']);
+ assert.deepEqual(ids(m.tools).slice(4),['gp','da','cards','igc','nl','ideas']);
  assert.equal(m.tools.filter(t=>t.id===custom.id).length,1);
 });
 test('A1 loadTools: stale 6-tool list upgrades once; a removal survives later loads',()=>{
@@ -115,13 +115,13 @@ test('A1 loadTools: stale 6-tool list upgrades once; a removal survives later lo
  assert.ok(JSON.parse(s.m.get(SEEN_KEY)).includes('igc'));
  s.setItem(TOOLS_KEY,exportTools(removeTool(loadTools(s,6),'igc')));
  assert.ok(!ids(loadTools(s,7)).includes('igc'),'removed default stays removed');
- assert.equal(ids(loadTools(s,8)).length,7);
+ assert.equal(ids(loadTools(s,8)).length,8);
 });
 test('A1 loadTools: fresh seed records every default as seen; corrupt seen key falls back safely',()=>{
  const s=memory();loadTools(s,1);
  assert.deepEqual(JSON.parse(s.m.get(SEEN_KEY)).sort(),ids(projects).sort());
  const bad=memory({[TOOLS_KEY]:exportTools(seedTools(0).slice(0,6)),[SEEN_KEY]:'{oops'});
- assert.equal(loadTools(bad,2).length,8);
+ assert.equal(loadTools(bad,2).length,9);
 });
 
 // Orb Instagram tidy-up: shared asserts (tests/tidy-checks.mjs); tests/tidy-mutations.test.mjs proves they can fail.

@@ -12,10 +12,10 @@ test('the complete galaxy fits phone, tablet, desktop and ultrawide viewports',(
 });
 
 import {projects} from '../dist/projects.js';
-test('project destinations are the original Galaxy Cloud collection plus the LinkedIn, Instagram and Newsletter tools (the cover series tile is gone; its URL only redirects)',()=>{
- assert.deepEqual(projects.map(p=>p.url),['https://bigpictureplanner.app','https://girlplanner.lovable.app','https://savemysummary.lovable.app/','https://publishingdesk.lovable.app','https://webuildforgood.com/departure-alarm/','https://drlizlondon.github.io/orb/carousel/','https://drlizlondon.github.io/orb/carousel-insta/','https://drlizlondon.github.io/orb/newsletter/']);
+test('project destinations are the original Galaxy Cloud collection plus the LinkedIn, Instagram, Newsletter and Ideas tools (the cover series tile is gone; its URL only redirects)',()=>{
+ assert.deepEqual(projects.map(p=>p.url),['https://bigpictureplanner.app','https://girlplanner.lovable.app','https://savemysummary.lovable.app/','https://publishingdesk.lovable.app','https://webuildforgood.com/departure-alarm/','https://drlizlondon.github.io/orb/carousel/','https://drlizlondon.github.io/orb/carousel-insta/','https://drlizlondon.github.io/orb/newsletter/','https://drlizlondon.github.io/orb/ideas/']);
  const radii=projects.map(p=>Math.hypot(p.position[0],p.position[2]));
- assert.equal(new Set(radii.map(r=>r.toFixed(1))).size,8);
+ assert.equal(new Set(radii.map(r=>r.toFixed(1))).size,9);
  assert.ok(radii.every(r=>r>5&&r<8.5));
 });
 

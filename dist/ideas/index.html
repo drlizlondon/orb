@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideas</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ideas">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body { font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #3a1150; color: #faf1e2; padding: 16px; line-height: 1.4; padding-bottom: 90px; }
+  .col { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 24px; font-weight: 800; margin: 4px 0 12px; }
+  h2 { font-size: 18px; font-weight: 800; margin: 14px 0 8px; }
+  button { font: inherit; cursor: pointer; }
+  .main-btn { background: #f29bd0; color: #3a1150; border: 2px solid #f29bd0; border-radius: 14px; padding: 12px 18px; font-size: 16px; font-weight: 800; }
+  .quiet-btn { background: transparent; color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 700; }
+  .main-btn:disabled, .quiet-btn:disabled { opacity: .4; cursor: default; }
+  .link-btn { background: none; border: none; color: #f9c9e6; text-decoration: underline; font-size: 15px; padding: 6px 0; }
+  input[type=text], input[type=password], input[type=date], textarea { width: 100%; background: #faf1e2; color: #3a1150; border: 2px solid #f9c9e6; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 16px; margin: 4px 0 8px; }
+  textarea { min-height: 110px; resize: vertical; }
+  label { display: block; font-size: 14px; font-weight: 700; margin-top: 8px; }
+  .hint { font-size: 14px; opacity: .85; margin: 4px 0 8px; }
+  .tabs { display: flex; gap: 8px; margin: 6px 0 12px; }
+  .tab { flex: 1; background: transparent; color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 12px; padding: 10px 6px; font-size: 16px; font-weight: 800; }
+  .tab[aria-selected=true] { background: #f29bd0; color: #3a1150; border-color: #f29bd0; }
+  .msg { padding: 10px 14px; border-radius: 12px; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .msg.ok { background: #faf1e2; color: #3a1150; }
+  .msg.err { background: #ee3f9a; color: #faf1e2; }
+  .card { background: rgba(250,241,226,.1); border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px; margin: 0 0 10px; }
+  .card.closed { opacity: .5; }
+  .card a.title { color: #faf1e2; font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .chip { background: #faf1e2; color: #3a1150; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 800; }
+  .chip.status { background: #f9c9e6; }
+  .meta { font-size: 14px; opacity: .92; overflow-wrap: anywhere; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .box { background: rgba(250,241,226,.08); border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px; margin: 10px 0; }
+  .review { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; background: #faf1e2; color: #3a1150; border-radius: 10px; padding: 8px 10px; margin: 4px 0 8px; }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 528px; margin: 0 auto; background: #faf1e2; color: #3a1150; border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 800; box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+  #toast button { background: #3a1150; color: #faf1e2; border: none; border-radius: 10px; padding: 8px 14px; font-weight: 800; }
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 12px; }
+  .pick { background: transparent; color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 999px; padding: 8px 14px; font-size: 15px; font-weight: 800; }
+  .pick[aria-pressed=true] { background: #f29bd0; color: #3a1150; border-color: #f29bd0; }
+  .card h3 { font-size: 17px; font-weight: 800; overflow-wrap: anywhere; margin: 2px 0 4px; }
+  .lbl { font-size: 13px; font-weight: 800; opacity: .85; margin-top: 8px; }
+  .body-text { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .body-text.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  select { font: inherit; font-size: 15px; background: #faf1e2; color: #3a1150; border: 2px solid #f9c9e6; border-radius: 10px; padding: 8px 10px; }
+  textarea.short { min-height: 70px; }
+</style>
+</head>
+<body>
+<div class="col">
+  <h1>Ideas</h1>
+  <div id="say" hidden></div>
+
+  <div id="conn" class="box" hidden>
+    <label for="set-base">Worker address</label>
+    <input type="text" id="set-base" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label for="set-token">Access code</label>
+    <input type="password" id="set-token" autocomplete="off" placeholder="Paste it again only if it is wrong or missing">
+    <div class="actions"><button class="main-btn" id="set-save" type="button">Save</button><span id="set-state" class="hint"></span></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-list" data-tab="list" aria-selected="true">Ideas</button>
+    <button class="tab" role="tab" id="tab-add" data-tab="add" aria-selected="false">Add an idea</button>
+  </div>
+
+  <section id="pane-list">
+    <p class="hint">Newest first. Nothing is ever deleted: Dropped just tucks an idea away.</p>
+    <div class="chip-row" id="filters" role="group" aria-label="Filter by status"></div>
+    <div id="list"></div>
+  </section>
+
+  <section id="pane-add" hidden>
+    <label for="idea-text">The idea, or the text you tagged</label>
+    <textarea id="idea-text"></textarea>
+    <label for="idea-angle">My angle (optional)</label>
+    <textarea id="idea-angle" class="short"></textarea>
+    <label>Could be a</label>
+    <div class="chip-row" id="formats"></div>
+    <button class="main-btn" id="idea-save" type="button">Save idea</button>
+    <p class="hint">It is added to your ideas file within 15 minutes.</p>
+  </section>
+
+  <p style="margin-top:18px"><button class="link-btn" id="open-settings" type="button">Settings</button></p>
+</div>
+<div id="toast" hidden><span id="toast-text"></span><button type="button" id="toast-undo">Undo</button></div>
+
+<script>
+'use strict';
+const LS_BASE = 'orb_worker_base';     // the same keys the Instagram and Newsletter pages use, so one saved connection serves all
+const LS_TOKEN = 'orb_approve_token';
+const FORMATS = ['LinkedIn', 'Instagram', 'Newsletter', 'Reel'];
+const USED_WHERE = ['LinkedIn', 'Instagram', 'Newsletter', 'Reel', 'Other'];
+const FILTERS = [['all', 'All'], ['new', 'New'], ['drafting', 'Drafting'], ['used', 'Used'], ['dropped', 'Dropped']];
+const $ = id => document.getElementById(id);
+function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function workerBase() { const raw = lsGet(LS_BASE).trim(); if (!raw) return ''; try { return new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).origin; } catch (e) { return raw.replace(/\/+$/, ''); } }
+function workerToken() { return lsGet(LS_TOKEN).trim(); }
+function connected() { return !!(workerBase() && workerToken()); }
+
+async function api(path, method, body) {
+  const base = workerBase(), token = workerToken();
+  if (!base || !token) { const e = new Error('This phone has no access code saved. Add it under Settings.'); e.setup = true; throw e; }
+  const res = await fetch(base + path, {
+    method: method || 'GET',
+    headers: Object.assign({ 'Authorization': 'Bearer ' + token }, body ? { 'Content-Type': 'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  return { status: res.status, ok: res.ok, data: data || {} };
+}
+function failText(r) {
+  if (r.status === 401 || r.status === 403) return 'The access code on this phone is wrong or old. Paste it again under Settings.';
+  if (r.status === 413) return 'That is too long: 5,000 characters at most.';
+  if (r.status === 409) return 'You already added that idea today.';
+  return (r.data && (r.data.error || r.data.message)) || ('The server said ' + r.status);
+}
+
+let ideas = [];
+let filter = 'all';
+let picked = new Set();
+const open = new Set();   // cards whose full text is showing
+
+function say(kind, text) {
+  const el = $('say');
+  if (!text) { el.hidden = true; return; }
+  el.className = 'msg ' + kind; el.textContent = text; el.hidden = false;
+}
+const group = s => (s || '').split(' ')[0];
+function chip(text, cls) { const s = document.createElement('span'); s.className = 'chip' + (cls ? ' ' + cls : ''); s.textContent = text; return s; }
+function btn(text, cls, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.textContent = text; b.addEventListener('click', fn); return b; }
+function newest(a, b) { return a.date !== b.date ? (a.date < b.date ? 1 : -1) : ((b.created_at || '') < (a.created_at || '') ? -1 : (b.created_at || '') > (a.created_at || '') ? 1 : 0); }
+
+function card(i) {
+  const el = document.createElement('div');
+  el.className = 'card' + (group(i.status) === 'dropped' ? ' closed' : '');
+  el.dataset.id = i.id;
+  const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = i.date; el.appendChild(meta);
+  const h = document.createElement('h3'); h.textContent = i.title; el.appendChild(h);
+  const chips = document.createElement('div'); chips.className = 'chips';
+  chips.appendChild(chip(i.status, 'status'));
+  if (i.pending) chips.appendChild(chip('Going into your file'));
+  el.appendChild(chips);
+  const lt = document.createElement('div'); lt.className = 'lbl'; lt.textContent = 'Tagged text'; el.appendChild(lt);
+  const tx = document.createElement('div'); tx.className = 'body-text' + (open.has(i.id) || i.text.length < 220 ? '' : ' clamp'); tx.textContent = i.text; el.appendChild(tx);
+  if (i.text.length >= 220) el.appendChild(btn(open.has(i.id) ? 'Show less' : 'Show more', 'link-btn', () => { if (open.has(i.id)) open.delete(i.id); else open.add(i.id); render(); }));
+  if (i.angle) {
+    const la = document.createElement('div'); la.className = 'lbl'; la.textContent = 'My angle'; el.appendChild(la);
+    const an = document.createElement('div'); an.className = 'body-text'; an.textContent = i.angle; el.appendChild(an);
+  }
+  if (i.formats) { const lf = document.createElement('div'); lf.className = 'lbl'; lf.textContent = 'Formats'; el.appendChild(lf); const f = document.createElement('div'); f.className = 'body-text'; f.textContent = i.formats; el.appendChild(f); }
+  const acts = document.createElement('div'); acts.className = 'actions';
+  const g = group(i.status);
+  if (g === 'new') acts.appendChild(btn('Start drafting', 'main-btn', () => setStatus(i, 'drafting')));
+  if (g === 'drafting' || g === 'new') {
+    const sel = document.createElement('select'); sel.setAttribute('aria-label', 'Where it was used');
+    for (const w of USED_WHERE) { const o = document.createElement('option'); o.textContent = w; sel.appendChild(o); }
+    acts.appendChild(sel);
+    acts.appendChild(btn('Mark used', 'quiet-btn', () => setStatus(i, 'used ' + sel.value)));
+  }
+  if (g !== 'dropped') acts.appendChild(btn('Drop', 'quiet-btn', () => setStatus(i, 'dropped')));
+  else acts.appendChild(btn('Bring back', 'main-btn', () => setStatus(i, 'new')));
+  if (g === 'used' || g === 'drafting') acts.appendChild(btn('Back to new', 'link-btn', () => setStatus(i, 'new')));
+  el.appendChild(acts);
+  return el;
+}
+
+function render() {
+  const counts = { all: ideas.length, new: 0, drafting: 0, used: 0, dropped: 0 };
+  for (const i of ideas) counts[group(i.status)] = (counts[group(i.status)] || 0) + 1;
+  const fb = $('filters'); fb.textContent = '';
+  for (const [k, label] of FILTERS) {
+    const b = btn(label + ' ' + (counts[k] || 0), 'pick', () => { filter = k; render(); });
+    b.setAttribute('aria-pressed', k === filter ? 'true' : 'false'); b.dataset.filter = k; fb.appendChild(b);
+  }
+  const list = ideas.filter(i => filter === 'all' || group(i.status) === filter).sort(newest);
+  const box = $('list'); box.textContent = '';
+  if (!list.length) { const p = document.createElement('p'); p.className = 'hint'; p.textContent = ideas.length ? 'Nothing with that status.' : 'No ideas yet. Add one from the Add an idea tab.'; box.appendChild(p); }
+  for (const i of list) box.appendChild(card(i));
+}
+
+let toastTimer = null, undoFn = null;
+function toast(text, undo) {
+  clearTimeout(toastTimer);
+  $('toast-text').textContent = text; $('toast').hidden = false; undoFn = undo;
+  $('toast-undo').hidden = !undo;
+  toastTimer = setTimeout(() => { $('toast').hidden = true; undoFn = null; }, 6000);
+}
+$('toast-undo').addEventListener('click', () => { const f = undoFn; $('toast').hidden = true; undoFn = null; clearTimeout(toastTimer); if (f) f(); });
+
+async function setStatus(i, status) {
+  const was = i.status;
+  let r;
+  try { r = await api('/api/ideas/' + i.id, 'PATCH', { status }); } catch (e) { r = { status: 0, ok: false, data: { error: e.message } }; }
+  if (!r.ok) { say('err', 'That did not save. ' + failText(r)); return; }
+  say('', '');
+  const k = ideas.findIndex(x => x.id === i.id);
+  if (k >= 0 && r.data.idea) ideas[k] = r.data.idea;
+  render();
+  toast(i.title + ': ' + status, () => setStatus(r.data.idea || i, was));
+}
+
+async function load() {
+  if (!connected()) { $('conn').hidden = false; $('set-state').textContent = 'Not connected yet.'; return; }
+  let r;
+  try { r = await api('/api/ideas'); } catch (e) { say('err', 'Could not get the ideas. ' + e.message); return; }
+  if (!r.ok) { say('err', 'Could not get the ideas. ' + failText(r)); return; }
+  ideas = r.data.ideas || [];
+  say('', '');
+  render();
+}
+
+function showTab(t) {
+  for (const k of ['list', 'add']) { $('pane-' + k).hidden = k !== t; $('tab-' + k).setAttribute('aria-selected', k === t ? 'true' : 'false'); }
+}
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+for (const f of FORMATS) {
+  const b = btn(f, 'pick', () => { if (picked.has(f)) picked.delete(f); else picked.add(f); b.setAttribute('aria-pressed', picked.has(f) ? 'true' : 'false'); });
+  b.setAttribute('aria-pressed', 'false'); b.dataset.format = f; $('formats').appendChild(b);
+}
+$('idea-save').addEventListener('click', async () => {
+  const text = $('idea-text').value;
+  if (!text.trim()) { say('err', 'Write or paste the idea first.'); return; }
+  const body = { text, angle: $('idea-angle').value, formats: FORMATS.filter(f => picked.has(f)).join(', ') };
+  let r;
+  try { r = await api('/api/ideas', 'POST', body); } catch (e) { r = { status: 0, ok: false, data: { error: e.message } }; }
+  if (!r.ok) { say('err', 'That did not save. ' + failText(r)); return; }
+  $('idea-text').value = ''; $('idea-angle').value = ''; picked = new Set();
+  document.querySelectorAll('#formats .pick').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  ideas.push(r.data.idea); filter = 'all'; render(); showTab('list');
+  say('ok', 'Saved. It goes into your ideas file within 15 minutes.');
+});
+
+$('open-settings').addEventListener('click', () => { $('conn').hidden = !$('conn').hidden; $('set-base').value = workerBase(); $('set-state').textContent = connected() ? 'Saved in this browser.' : 'Not connected yet.'; });
+$('set-save').addEventListener('click', () => {
+  const b = $('set-base').value.trim(), t = $('set-token').value.trim();
+  if (b) lsSet(LS_BASE, b);
+  if (t) lsSet(LS_TOKEN, t);
+  try { if (connected() && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
+  $('set-token').value = '';
+  if (connected()) { $('conn').hidden = true; load(); }
+});
+
+render();
+load();
+setInterval(() => { if (!document.hidden && connected()) load(); }, 30000);
+</script>
+</body>
+</html>

@@ -31,6 +31,7 @@ const SEED_ICONS = {
   cards: 'https://drlizlondon.github.io/orb/carousel/icon.svg',
   igc: 'https://drlizlondon.github.io/orb/carousel-insta/icon.svg',
   nl: 'https://drlizlondon.github.io/orb/newsletter/icon.svg',
+  ideas: 'https://drlizlondon.github.io/orb/ideas/icon.svg',
 };
 
 export function seedTools(now = Date.now()) {
