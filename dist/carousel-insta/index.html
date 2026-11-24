@@ -160,7 +160,8 @@
   #words-list li:hover, #words-caption:hover { background: rgba(249,201,230,0.12); }
   #words-caption { cursor: pointer; border-radius: 8px; }
   #draft-words.no-edit #words-list li, #draft-words.no-edit #words-caption { cursor: default; }
-  .w-field { min-height: 56px; margin: 2px 0 4px; }
+  .w-field { display: block; min-height: 56px; margin: 2px 0 4px; }
+  #words-list li { display: list-item; }
   #words-edit-actions { margin: 4px 0 8px; }
   .approved-item { border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px; background: #faf1e2; color: #3a1150; display: flex; flex-direction: column; gap: 4px; }
   .approved-item .ready-title { color: #3a1150; }
@@ -226,6 +227,7 @@
       <label for="reel-script">Your script</label>
       <textarea id="reel-script" rows="5"></textarea>
       <p class="hint">Lewis reads it over your album videos. Your reels run about 10 seconds.</p>
+      <p id="reel-edit-note" class="hint" hidden>Change the words, then Make reel. The old reel stays until you hide it.</p>
       <button id="reel-make" class="main-btn" type="button" disabled>Make reel</button>
       <div id="reel-msg" class="msg" role="status" aria-live="polite"></div>
     </div>
@@ -244,6 +246,7 @@
   <div id="nr-bar">
     <div class="bar-in">
       <div id="nr-msg" class="msg" role="status" aria-live="polite"></div>
+      <button id="nr-edit-words" class="quiet-btn" type="button" hidden>Edit words</button>
       <button id="nr-approve" class="main-btn" type="button" hidden>Approve</button>
       <button id="nr-save" class="main-btn" type="button" disabled>Save to phone</button>
     </div>
@@ -1601,7 +1604,7 @@ function openCarousels() { show('ready'); try { history.replaceState(null, '', l
 $('trial-btn').addEventListener('click', openTrial);
 $('carousels-btn').addEventListener('click', openCarousels);
 $('trial-back').addEventListener('click', openCarousels);
-$('reel-script').addEventListener('input', () => { $('reel-make').disabled = !$('reel-script').value.trim(); });
+$('reel-script').addEventListener('input', () => { $('reel-edit-note').hidden = true; $('reel-make').disabled = !$('reel-script').value.trim(); });
 $('reel-make').addEventListener('click', async () => {
   const text = $('reel-script').value.trim(), msg = $('reel-msg');
   if (!text) return;
@@ -1641,6 +1644,13 @@ async function approveReel(id, btn) {
   msg.className = 'msg ' + out.cls; msg.textContent = out.text;
   loadReels();
 }
+// Edit words: back to the Reels screen with this reel's script in the box. Changes nothing, calls no API; the old reel stays.
+function editReelWords(r) {
+  openTrial(reelListScroll);
+  const box = $('reel-script'); box.value = r.script || '';
+  $('reel-edit-note').hidden = false; $('reel-make').disabled = !box.value.trim();
+  box.scrollIntoView({ block: 'center' }); box.focus();
+}
 // Approve on the open reel: back to the Reels list at the same place, the row showing "Approved".
 async function approveOpenReel(r) {
   const b = $('nr-approve'); b.disabled = true;
@@ -1663,6 +1673,7 @@ async function openReel(r) {
   const canSave = r.status === 'approved' || r.status === 'saved';
   save.hidden = !canSave;
   ap.hidden = r.status !== 'ready'; ap.disabled = false; ap.onclick = () => approveOpenReel(r);
+  const ew = $('nr-edit-words'); ew.hidden = !r.script; ew.onclick = () => editReelWords(r);
   status.textContent = 'Getting your reel...';
   let res;
   try { res = await fetch(workerBase() + '/api/reels/' + encodeURIComponent(r.id) + '/video', { headers: { Authorization: 'Bearer ' + workerToken() } }); } catch (e) { res = null; }

@@ -179,6 +179,9 @@ await check('Tap to edit: the hint is above the words; tap line 2, type, Save wo
   const f = page.locator('#words-list li:nth-child(2) textarea'); assert.equal(await f.count(), 1);
   await f.fill('I could have pressed delete all. Sorting it out felt impossible.');
   assert.equal(await page.locator('#words-save').isVisible(), true);
+  // The "2." marker sits on the li's first line box. An inline-block textarea made that line box start a strut above the field and put the marker on the field's bottom edge (it dropped below it), so the li ran taller than the field. Beside the field's first line means the li is no taller than the field.
+  const gap = await page.evaluate(() => { const li = document.querySelector('#words-list li:nth-child(2)'), ta = li.querySelector('textarea').getBoundingClientRect(), l = li.getBoundingClientRect(); return { top: ta.top - l.top, extra: l.height - ta.height, display: getComputedStyle(li.querySelector('textarea')).display }; });
+  assert.ok(gap.top <= 1 && gap.extra <= 4 && gap.display === 'block', 'the number must stay beside the open field: ' + JSON.stringify(gap));
   assert.ok(await inView(page, '#words-save'), 'Save words is not in view');
   await page.click('#words-save');
   await page.waitForFunction(() => /Saved/.test(document.getElementById('msg').textContent));
@@ -190,6 +193,22 @@ await check('Tap to edit: the hint is above the words; tap line 2, type, Save wo
   await page.reload(); await page.waitForSelector('.ready-item'); await page.click('.ready-item'); await reviewReady(page);
   assert.match(await page.textContent('#words-list'), /I could have pressed delete all\./);
   assert.deepEqual(errors, []);
+  await ctx.close();
+});
+
+await check('Edit words on an open reel: Reels screen shows the exact script in the box, Make reel enabled, the one-line note under it, and no write was made', async () => {
+  const { page, ctx } = await open(390, 844, '#reels');
+  await page.waitForSelector('.reel-item'); await page.click('.reel-open'); await page.waitForSelector('#nr-edit-words:not([hidden])');
+  assert.ok(await inView(page, '#nr-edit-words'));
+  await page.click('#nr-edit-words');
+  await page.waitForFunction(() => !document.getElementById('screen-trial').hidden);
+  assert.equal(await page.inputValue('#reel-script'), 'Fixture reel script one');
+  assert.equal(await page.locator('#reel-make').isDisabled(), false);
+  assert.equal((await page.textContent('#reel-edit-note')).trim(), 'Change the words, then Make reel. The old reel stays until you hide it.');
+  assert.ok(await page.evaluate(() => document.activeElement.id === 'reel-script'), 'box is focused');
+  assert.ok(await inView(page, '#reel-script'), 'box is in view');
+  assert.equal(writes().length, 0, 'no write');
+  assert.equal(st.reels[0].status, 'ready', 'old reel untouched');
   await ctx.close();
 });
 
@@ -280,6 +299,14 @@ if (process.env.SHOT_DIR) {
   }
 }
 
+if (process.env.SHOT_DIR) {
+  st = defaults();
+  const { page, ctx } = await open(390, 844, '#reels');
+  await page.waitForSelector('.reel-item'); await page.click('.reel-open'); await page.waitForSelector('#nr-edit-words:not([hidden])');
+  await page.click('#nr-edit-words'); await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(process.env.SHOT_DIR, 'review-flow-reel-edit-390.png') });
+  await ctx.close();
+}
 await browser.close(); worker.close(); site.close();
 let bad = 0;
 for (const [r, n] of results) { console.log(r + ' ' + n); if (r === 'FAIL') bad++; }
