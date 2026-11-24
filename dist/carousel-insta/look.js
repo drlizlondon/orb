@@ -452,6 +452,24 @@ function renderSeries(cv, cover, i, total, im, opts) { return twoPass(cv, ctx =>
 // ---------- the reel overlay (SOC-18.1) ----------
 // Transparent 1080x1920 layer: one handle tag at the safe-zone corner, one caption centred above the caption line.
 // Every word drawn comes from the input; empty input draws nothing. Caption look = the approved prototype: white, weight 900, black outline, soft shadow.
+const CAP_DEFAULT = 104, CAP_MIN = 40, CAP_FONT = n => '900 ' + n + 'px "Helvetica Neue", Helvetica, Arial, sans-serif';
+// Founder ruling 2026-11-24 [Dr Liz / reel captions one size]: every caption in a reel is ONE size; a long line wraps rather than shrinking.
+// Wrap at size n: the caption's lines and the block rect (last line centred on capY, earlier lines above it), or null when a word is wider than capW.
+function capLayout(ctx, caption, n) {
+  const S = T.SAFE; ctx.font = CAP_FONT(n);
+  const lines = wrapLines(ctx, caption, S.capW - 14), lh = n * 1.2;
+  const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 14, h = lines.length * lh;
+  const rect = { x: 540 - w / 2, y: S.capY - n * 0.6 - (lines.length - 1) * lh, w, h };
+  return { lines, lh, rect, fits: w <= S.capW && rect.y >= S.top && rect.y + rect.h <= S.capBottom };
+}
+// The ONE size for a whole reel: 104, or the largest even size down to 40 at which the longest wrapped caption still fits the safe area.
+function reelCaptionSize(captions) {
+  const ctx = document.createElement('canvas').getContext('2d'), list = (captions || []).filter(Boolean);
+  let size = CAP_DEFAULT;
+  while (size > CAP_MIN && !list.every(c => capLayout(ctx, c, size).fits)) size -= 2;
+  return size;
+}
+// o.size: the reel's shared size from reelCaptionSize (omitted: sized for this caption alone).
 function renderReelOverlay(cv, o) {
   o = o || {}; const handle = o.handle || '', caption = o.caption || '', S = T.SAFE;
   cv.width = 1080; cv.height = 1920; const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 1080, 1920);
@@ -466,18 +484,17 @@ function renderReelOverlay(cv, o) {
   }
   if (caption) {
     ctx.save();
-    const capFont = n => '900 ' + n + 'px "Helvetica Neue", Helvetica, Arial, sans-serif';
-    let size = 104; ctx.font = capFont(size);
-    while (size > 40 && ctx.measureText(caption).width + 14 > S.capW) { size -= 2; ctx.font = capFont(size); }
-    const w = ctx.measureText(caption).width + 14;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.shadowOffsetY = 6; ctx.shadowBlur = 18; ctx.shadowColor = 'rgba(0,0,0,.6)';
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 14; ctx.lineJoin = 'round'; ctx.strokeText(caption, 540, S.capY);
-    ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    ctx.fillStyle = '#fff'; ctx.fillText(caption, 540, S.capY);
+    const size = o.size || reelCaptionSize([caption]), L = capLayout(ctx, caption, size);
+    ctx.font = CAP_FONT(size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 14; ctx.lineJoin = 'round';
+    L.lines.forEach((line, k) => {
+      const y = S.capY - (L.lines.length - 1 - k) * L.lh;
+      ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowOffsetY = 6; ctx.shadowBlur = 18; ctx.strokeText(line, 540, y);
+      ctx.shadowColor = 'rgba(0,0,0,0)'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      ctx.fillStyle = '#fff'; ctx.fillText(line, 540, y);
+    });
     ctx.restore();
-    rects.caption = { x: 540 - w / 2, y: S.capY - size * 0.6, w, h: size * 1.2 };
-    captionSize = size; fits = w <= S.capW;
+    rects.caption = L.rect; captionSize = size; fits = L.fits;
   }
   const t = rects.tag, c = rects.caption;
   const safe = (!t || (t.x >= S.left && t.y >= S.top && t.x + t.w <= S.right)) &&
@@ -485,5 +502,5 @@ function renderReelOverlay(cv, o) {
   return { rects, captionSize, fits, safe };
 }
 
-window.OneLook = { T, C, pad3, coverDefaults, fontsReady, detectFace, placeFaceSafe, place, renderSlide, renderSeries, renderReelOverlay };
+window.OneLook = { T, C, pad3, coverDefaults, fontsReady, detectFace, placeFaceSafe, place, renderSlide, renderSeries, renderReelOverlay, reelCaptionSize };
 })();

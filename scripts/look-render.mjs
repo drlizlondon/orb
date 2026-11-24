@@ -40,10 +40,12 @@ let code = 0;
 if (mode === 'overlay') {
   fs.mkdirSync(outDir, { recursive: true });
   const ID = /^[a-z0-9-]{1,40}$/;
-  const draw = (handle, caption) => page.evaluate(({ handle, caption }) => {
-    const cv = document.createElement('canvas'); const r = OneLook.renderReelOverlay(cv, { handle, caption });
+  const draw = (handle, caption, size) => page.evaluate(({ handle, caption, size }) => {
+    const cv = document.createElement('canvas'); const r = OneLook.renderReelOverlay(cv, { handle, caption, size });
     return { r, png: cv.toDataURL('image/png').split(',')[1] };
-  }, { handle, caption });
+  }, { handle, caption, size });
+  // ruling 2026-11-24: ONE caption size for the whole reel (104, or the largest that fits the longest wrapped caption)
+  const reelSize = await page.evaluate(texts => OneLook.reelCaptionSize(texts), (input.captions || []).map(c => c.text || ''));
   const save = (f, b64) => fs.writeFileSync(path.join(outDir, f), Buffer.from(b64, 'base64'));
   const problems = [];
   const t = await draw(input.handle || '', ''); save('tag.png', t.png);
@@ -51,7 +53,7 @@ if (mode === 'overlay') {
   const caps = [];
   for (const c of input.captions || []) {
     if (!ID.test(c.id || '')) { problems.push('bad id: ' + c.id); continue; }
-    const d = await draw('', c.text || ''); save(c.id + '.png', d.png);
+    const d = await draw('', c.text || '', reelSize); save(c.id + '.png', d.png);
     if (!d.r.fits) problems.push('caption too wide: ' + c.id);
     if (!d.r.safe) problems.push('outside the safe zone: ' + c.id);
     caps.push({ id: c.id, file: c.id + '.png', rect: d.r.rects.caption, size: d.r.captionSize, fits: d.r.fits, safe: d.r.safe });

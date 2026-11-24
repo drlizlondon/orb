@@ -66,20 +66,27 @@ await t('Safe zone, tag, must-fail: SAFE.top patched to 48 puts the tag under 26
   assert.equal(r.rects.tag.y, 48); assert.equal(r.safe, false); await p2.close();
 });
 
-await t('Safe zone, caption: 20 characters shrink below 104, fit 800, inside x 140..940, bottom <= 1640', async () => {
+await t('Safe zone, caption: 20 characters stay at 104 (no shrink), fit 800, inside x 140..940, y 260..1640', async () => {
   const r = await page.evaluate(c => ov({ handle: '', caption: c }), CAP20);
-  assert.ok(r.captionSize < 104, 'size ' + r.captionSize); assert.equal(r.fits, true); assert.equal(r.safe, true);
-  const c = r.rects.caption; assert.ok(c.w <= 800, 'w ' + c.w); assert.ok(c.x >= 140 && c.x + c.w <= 940, JSON.stringify(c)); assert.ok(c.y + c.h <= 1640); assert.equal(r.rects.tag, null);
+  assert.equal(r.captionSize, 104); assert.equal(r.fits, true); assert.equal(r.safe, true);
+  const c = r.rects.caption; assert.ok(c.w <= 800, 'w ' + c.w);
+  assert.ok(c.x >= 140 && c.x + c.w <= 940, JSON.stringify(c)); assert.ok(c.y >= 260 && c.y + c.h <= 1640, JSON.stringify(c)); assert.equal(r.rects.tag, null);
 });
-await t('Safe zone, caption, must-fail: with the shrink loop removed the width is over 800 and fits:false', async () => {
-  const mut = SRC.replace('while (size > 40 &&', 'while (false &&'); assert.notEqual(mut, SRC, 'mutation not applied');
+await t('Safe zone, caption, must-fail: with wrapping removed the 120 character line is over 800 and fits:false', async () => {
+  const mut = SRC.replace("lines = wrapLines(ctx, caption, S.capW - 14)", "lines = [caption]"); assert.notEqual(mut, SRC, 'mutation not applied');
   const p2 = await openPage(mut);
-  const r = await p2.evaluate(c => ov({ handle: '', caption: c }), CAP20);
-  assert.equal(r.captionSize, 104); assert.ok(r.rects.caption.w > 800, 'w ' + r.rects.caption.w); assert.equal(r.fits, false); await p2.close();
+  const r = await p2.evaluate(c => ov({ handle: '', caption: c }), CAP120);
+  assert.ok(r.rects.caption.w > 800, 'w ' + r.rects.caption.w); assert.equal(r.fits, false); await p2.close();
 });
-await t('Too long is reported: 120 characters give size 40 and fits:false', async () => {
+await t('Long caption: 120 characters wrap inside the safe area at one size (multi-line rect within y 260..1640, right edge <= 940)', async () => {
   const r = await page.evaluate(c => ov({ handle: '', caption: c }), CAP120);
-  assert.equal(r.captionSize, 40); assert.equal(r.fits, false); assert.equal(r.safe, false);
+  assert.equal(r.captionSize, 104); assert.equal(r.fits, true); assert.equal(r.safe, true);
+  const c = r.rects.caption; assert.ok(c.y >= 260 && c.y + c.h <= 1640 && c.x + c.w <= 940 && c.x >= 140, JSON.stringify(c));
+});
+await t('Shared size: reelCaptionSize returns 104 when all fit, one smaller size for the whole reel when the longest cannot, and 104 for an empty list', async () => {
+  const r = await page.evaluate(() => ({ empty: OneLook.reelCaptionSize([]), short: OneLook.reelCaptionSize(['Doctor.', 'Meet Lizzie.']),
+    huge: OneLook.reelCaptionSize([('word ').repeat(200).trim(), 'Doctor.']), none: OneLook.reelCaptionSize(null) }));
+  assert.equal(r.empty, 104); assert.equal(r.none, 104); assert.equal(r.short, 104); assert.ok(r.huge < 104 && r.huge >= 40, 'huge ' + r.huge);
 });
 
 await t('Look of the caption: opaque black outline and white fill inside the caption rect', async () => {
@@ -87,7 +94,7 @@ await t('Look of the caption: opaque black outline and white fill inside the cap
   assert.ok(r.black > 200, 'black ' + r.black); assert.ok(r.white > 200, 'white ' + r.white);
 });
 await t('Look of the caption, must-fail: fill only (no outline) has no opaque black pixel', async () => {
-  const mut = SRC.replace('ctx.strokeText(caption, 540, S.capY);', ''); assert.notEqual(mut, SRC, 'mutation not applied');
+  const mut = SRC.replace('ctx.strokeText(line, 540, y);', ''); assert.notEqual(mut, SRC, 'mutation not applied');
   const p2 = await openPage(mut);
   const r = await p2.evaluate(c => { const o = ov({ handle: '', caption: c }); return count(window.__cv, o.rects.caption, [0, 0, 0], 12, 250); }, CAP20);
   assert.equal(r, 0); await p2.close();
@@ -101,7 +108,7 @@ await t('Empty stays empty (G1): blank input is fully transparent with null rect
     return { a, blank, b, blank2, rec };
   });
   assert.equal(r.blank, false); assert.equal(r.blank2, false); assert.equal(r.a.rects.tag, null); assert.equal(r.a.rects.caption, null); assert.equal(r.b.rects.caption, null);
-  assert.deepEqual(r.rec, ['@drlizlondon', CAP20]);
+  assert.equal(r.rec[0], '@drlizlondon'); assert.equal(r.rec.slice(1).join(' '), CAP20, 'the wrapped lines are exactly the caption words');
 });
 await t('Empty stays empty, must-fail: a default caption in the code is caught by the same assert', async () => {
   const mut = SRC.replace("caption = o.caption || ''", "caption = o.caption || 'Follow'"); assert.notEqual(mut, SRC);
@@ -150,10 +157,21 @@ await t('overlay: 3 captions write tag.png and 3 caption PNGs, 1080x1920 RGBA, a
   assert.equal(j.captions.length, 3); assert.match(j.lookSha, /^[0-9a-f]{40}$/); assert.equal(j.SAFE.top, 260); assert.ok(j.tag.y >= 260);
   assert.ok(j.captions.every(c => c.fits && c.safe && c.file === c.id + '.png'));
 });
-await t('overlay, must-fail: a 120 character caption exits 1 with "caption too wide: <id>"', async () => {
-  const f = wr('o2.json', { handle: '@drlizlondon', captions: [{ id: 'ok', text: 'Doctor.' }, { id: 'long-1', text: CAP120 }] });
+await t('overlay, must-fail: one short and one long caption render at the SAME captionSize (rects.json)', async () => {
+  const f = wr('o2.json', { handle: '@drlizlondon', captions: [{ id: 'short-1', text: 'Doctor.' }, { id: 'long-1', text: CAP120 }, { id: 'mid-1', text: CAP20 }] });
   const r = run(['overlay', f, path.join(tmp, 'o2')]);
-  assert.equal(r.status, 1); assert.ok(r.stderr.includes('caption too wide: long-1'), r.stderr); assert.ok(!r.stderr.includes('caption too wide: ok'));
+  assert.equal(r.status, 0, r.stderr);
+  const j = JSON.parse(fs.readFileSync(path.join(tmp, 'o2/rects.json'), 'utf8'));
+  assert.equal(j.captions.length, 3); assert.equal(new Set(j.captions.map(c => c.size)).size, 1, 'sizes ' + j.captions.map(c => c.size));
+  assert.ok(j.captions.every(c => c.fits && c.safe));
+});
+await t('overlay, G1: an empty caption list renders the tag only and exits 0', async () => {
+  const r = run(['overlay', wr('o3.json', { handle: '@drlizlondon', captions: [] }), path.join(tmp, 'o3')]);
+  assert.equal(r.status, 0, r.stderr); assert.deepEqual(JSON.parse(fs.readFileSync(path.join(tmp, 'o3/rects.json'), 'utf8')).captions, []);
+});
+await t('overlay: a caption with an unbreakable word wider than 800 exits 1 with "caption too wide: <id>"', async () => {
+  const r = run(['overlay', wr('o4.json', { handle: '@drlizlondon', captions: [{ id: 'ok', text: 'Doctor.' }, { id: 'wide-1', text: 'W'.repeat(60) }] }), path.join(tmp, 'o4')]);
+  assert.equal(r.status, 1); assert.ok(r.stderr.includes('caption too wide: wide-1'), r.stderr);
 });
 
 // PNG fixtures for the check mode (data URLs): the 13.4 face-clear (1200x1600) and face-blocked (1080x1350) images
