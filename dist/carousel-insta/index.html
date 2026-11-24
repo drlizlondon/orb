@@ -155,6 +155,16 @@
   #prev-version { margin: 8px 0; font-size: 14px; }
   #prev-version summary { cursor: pointer; font-weight: 700; }
   #prev-words ol { margin: 6px 0 6px 22px; }
+  #words-hint { margin: 0 0 4px; }
+  #words-list li { cursor: pointer; border-radius: 8px; }
+  #words-list li:hover, #words-caption:hover { background: rgba(249,201,230,0.12); }
+  #words-caption { cursor: pointer; border-radius: 8px; }
+  #draft-words.no-edit #words-list li, #draft-words.no-edit #words-caption { cursor: default; }
+  .w-field { min-height: 56px; margin: 2px 0 4px; }
+  #words-edit-actions { margin: 4px 0 8px; }
+  .approved-item { border: 2px solid #f9c9e6; border-radius: 14px; padding: 12px; background: #faf1e2; color: #3a1150; display: flex; flex-direction: column; gap: 4px; }
+  .approved-item .ready-title { color: #3a1150; }
+  #nr-bar .bar-row { display: flex; gap: 10px; }
   #rewrite-box { margin-top: 8px; }
   #rewrite-note { min-height: 96px; }
   #rewrite-scores button { min-width: 38px; padding: 6px 0; font-size: 14px; border-radius: 10px; }
@@ -234,6 +244,7 @@
   <div id="nr-bar">
     <div class="bar-in">
       <div id="nr-msg" class="msg" role="status" aria-live="polite"></div>
+      <button id="nr-approve" class="main-btn" type="button" hidden>Approve</button>
       <button id="nr-save" class="main-btn" type="button" disabled>Save to phone</button>
     </div>
   </div>
@@ -246,8 +257,15 @@
   </div>
   <div id="draft-words">
     <p id="editor-line" class="job-line" hidden></p>
+    <p id="words-hint" class="hint">Tap any line to change it.</p>
     <ol id="words-list"></ol>
     <p id="words-caption"></p>
+    <textarea id="words-caption-edit" class="w-field" aria-label="Caption" hidden></textarea>
+    <div class="row" id="words-edit-actions" hidden>
+      <button id="words-save" class="main-btn small-btn" type="button">Save words</button>
+      <button id="words-cancel" class="quiet-btn small-btn" type="button">Cancel</button>
+    </div>
+    <div id="words-msg" class="msg" role="status" aria-live="polite"></div>
     <div class="row" id="draft-actions">
       <button id="rewrite-btn" class="quiet-btn small-btn" type="button" aria-expanded="false" aria-controls="rewrite-box">Rewrite</button>
       <button id="draft-copy" class="quiet-btn small-btn" type="button">Copy text</button>
@@ -463,6 +481,7 @@ let albumReady = Promise.resolve();
 let lastRes = [];
 let reviewTok = 0;
 let ready = { drafted: [], failed: [], queued: [] };
+let approvedRows = []; // this visit only: a row that stands where an approved draft was, so the list shows it as approved
 const fontsP = OneLook.fontsReady();
 
 function connected() { return !!(workerBase() && workerToken()); }
@@ -563,7 +582,7 @@ function show(name, o) {
   document.body.classList.toggle('has-bar', name !== 'ready' && name !== 'trial');
   if (name !== 'reel') releaseReelVideo();
   if (name !== 'trial') clearTimeout(reelPoll);
-  window.scrollTo(0, o && o.restore ? readListScroll() : 0);
+  window.scrollTo(0, o && o.at != null ? o.at : o && o.restore ? readListScroll() : 0);
   if (name === 'ready') scheduleRewritePoll();
 }
 
@@ -725,7 +744,7 @@ function renderReady() {
   $('ready-status').textContent = items.length || rewriting.length ? '' : 'Nothing ready yet.';
   items.forEach(c => {
     const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'ready-item';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ready-item'; b.dataset.id = c.id;
     const pic = document.createElement('span'); pic.className = 'ready-pic';
     if (s1.photo) { const im = document.createElement('img'); im.alt = ''; im.src = albumThumbUrl(s1.photo); im.addEventListener('error', () => im.remove()); pic.appendChild(im); }
     const tx = document.createElement('span'); tx.className = 'ready-text';
@@ -739,6 +758,15 @@ function renderReady() {
     checkCover(c).then(chk => { const line = coverLine(chk); if (line) { q.textContent = line; q.hidden = false; } });
     b.addEventListener('click', () => openDraft(c));
     list.appendChild(b);
+  });
+  approvedRows.forEach(a => {
+    if (list.querySelector('.ready-item[data-id="' + a.id + '"]')) return;
+    const d = document.createElement('div'); d.className = 'approved-item'; d.dataset.id = a.id;
+    const t = document.createElement('span'); t.className = 'ready-title'; t.textContent = a.title;
+    const l = document.createElement('span'); l.className = 'rewriting-line'; l.textContent = a.text;
+    d.append(t, l);
+    const its = list.querySelectorAll('.ready-item');
+    if (a.at >= 0 && its[a.at]) list.insertBefore(d, its[a.at]); else list.appendChild(d);
   });
   const q = ready.queued.filter(c => !isRewriting(c)).length, f = ready.failed.length;
   $('ready-waiting').hidden = !q; $('ready-waiting').textContent = q + ' more being written';
@@ -899,7 +927,7 @@ function applyChecks(results) {
       if (n >= 0) { kind = 'warn'; text = 'Could not check slide ' + (n + 1) + ' for your face. Have a look before you approve.'; }
     }
   }
-  $('approve-btn').disabled = blocked;
+  $('approve-btn').disabled = blocked || wordsEditing();
   if (text) say(kind, text); else clearMsg($('msg'));
 }
 // ---------- SOC-21: slides from her caption (deterministic: her words only, no AI, no network) ----------
@@ -977,16 +1005,50 @@ function deckWords(deck) { // numbered words of a deck object { slides, caption 
   if (deck && deck.caption) { const p = document.createElement('p'); p.textContent = deck.caption; box.appendChild(p); }
   return box;
 }
+// SOC-34 B / ruling 2026-11-24: tap a line (or the caption) to change it in place. wEdit holds the open fields: 't2' = title of slide 3,
+// 's2' = its second line, 'c' = caption. Save words sends the whole set through PUT deck-text; Cancel drops the open fields.
+let wEdit = {};
+const wordsEditing = () => Object.keys(wEdit).length > 0;
+const wordsEditable = () => !!meta.conceptId;
+function wordField(key, value) {
+  const ta = document.createElement('textarea'); ta.className = 'w-field'; ta.value = value; ta.dataset.key = key;
+  ta.setAttribute('aria-label', key === 'c' ? 'Caption' : key[0] === 't' ? 'Slide ' + (Number(key.slice(1)) + 1) + ' title' : 'Slide ' + (Number(key.slice(1)) + 1) + ' second line');
+  ta.addEventListener('input', () => { wEdit[key] = ta.value; syncWordsBar(); });
+  return ta;
+}
+function openWordField(key) {
+  if (!wordsEditable() || key in wEdit) { const f = document.querySelector('#draft-words [data-key="' + key + '"]'); if (f) f.focus(); return; }
+  wEdit[key] = key === 'c' ? $('caption').value : (key[0] === 't' ? cards[Number(key.slice(1))].title : cards[Number(key.slice(1))].sub) || '';
+  renderDraftWords();
+  const f = document.querySelector('#draft-words [data-key="' + key + '"]'); if (f) f.focus();
+}
+function wordsChanged() {
+  return Object.keys(wEdit).some(k => (k === 'c' ? $('caption').value : (k[0] === 't' ? cards[Number(k.slice(1))].title : cards[Number(k.slice(1))].sub) || '') !== wEdit[k]);
+}
+function syncWordsBar() { // Save stays off for an empty title or caption (nothing postable) and when nothing changed
+  const empty = Object.keys(wEdit).some(k => (k === 'c' || k[0] === 't') && !String(wEdit[k]).trim());
+  $('words-save').disabled = empty || !wordsChanged();
+  $('words-edit-actions').hidden = !wordsEditing();
+  if (wordsEditing()) $('approve-btn').disabled = true; else $('approve-btn').disabled = reviewBlockedNow();
+}
 function renderDraftWords() {
   const ol = $('words-list'); ol.textContent = '';
-  cards.forEach(c => {
+  const can = wordsEditable();
+  $('draft-words').classList.toggle('no-edit', !can); $('words-hint').hidden = !can;
+  cards.forEach((c, i) => {
     const li = document.createElement('li');
-    const t = document.createElement('span'); t.className = 'w-title'; t.textContent = c.title || '';
-    li.appendChild(t);
-    if (c.sub) { const u = document.createElement('span'); u.className = 'w-sub'; u.textContent = c.sub; li.appendChild(u); }
+    if (('t' + i) in wEdit) li.appendChild(wordField('t' + i, wEdit['t' + i]));
+    else { const t = document.createElement('span'); t.className = 'w-title'; t.textContent = c.title || ''; li.appendChild(t); }
+    if (('s' + i) in wEdit) li.appendChild(wordField('s' + i, wEdit['s' + i]));
+    else if (c.sub) { const u = document.createElement('span'); u.className = 'w-sub'; u.textContent = c.sub; li.appendChild(u); }
+    li.addEventListener('click', e => { if (e.target.closest('textarea')) return; openWordField(e.target.closest('.w-sub') ? 's' + i : 't' + i); });
     ol.appendChild(li);
   });
-  $('words-caption').textContent = $('caption').value;
+  const capOpen = 'c' in wEdit;
+  $('words-caption').textContent = $('caption').value; $('words-caption').hidden = capOpen;
+  const ce = $('words-caption-edit'); ce.hidden = !capOpen;
+  if (capOpen) { ce.value = wEdit.c; ce.dataset.key = 'c'; if (!ce._wired) { ce._wired = true; ce.addEventListener('input', () => { wEdit.c = ce.value; syncWordsBar(); }); } }
+  syncWordsBar();
   const c = meta.ref, has = !!meta.conceptId;
   $('rewrite-btn').hidden = !has; $('draft-paste').hidden = !has;
   if (!has) $('rewrite-box').hidden = true;
@@ -996,6 +1058,19 @@ function renderDraftWords() {
   $('prev-version').hidden = !pv; $('prev-version').open = false; $('prev-words').textContent = '';
   if (pv) $('prev-words').appendChild(deckWords(pv));
 }
+$('words-caption').addEventListener('click', () => openWordField('c'));
+$('words-cancel').addEventListener('click', () => { wEdit = {}; clearMsg($('words-msg')); renderDraftWords(); });
+$('words-save').addEventListener('click', async () => {
+  const m = $('words-msg'); if (!wordsEditing() || $('words-save').disabled) return;
+  const slides = cards.map((c, i) => ({ title: String(('t' + i) in wEdit ? wEdit['t' + i] : c.title || '').trim(), sub: String(('s' + i) in wEdit ? wEdit['s' + i] : c.sub || '').trim() }));
+  const caption = String('c' in wEdit ? wEdit.c : $('caption').value).trim();
+  $('words-save').disabled = true; clearMsg(m);
+  try {
+    const bad = await saveDeckWords(slides, caption, 'These words are not postable yet:');
+    if (bad) { m.className = 'msg err'; m.textContent = bad.text; if (bad.list) { const ul = document.createElement('ul'); bad.list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }); m.appendChild(ul); } syncWordsBar(); return; }
+    wEdit = {}; await drawReview(); sayAfterSave();
+  } catch (e) { m.className = 'msg err'; m.textContent = e.message || 'Could not reach the server.'; syncWordsBar(); }
+});
 $('caption').addEventListener('input', () => { $('words-caption').textContent = $('caption').value; });
 const rewriteScores = $('rewrite-scores');
 for (let n = 1; n <= 10; n++) {
@@ -1068,7 +1143,7 @@ function openDraft(c) {
   syncLookButtons();
   showSecondLook(c);
   syncStrap(); persist();
-  saveListScroll();
+  saveListScroll(); wEdit = {}; approvedRows = []; clearMsg($('words-msg'));
   try { history.pushState({ igDraft: true }, '', '#draft'); } catch (e) {}
   $('rewrite-box').hidden = true; $('rewrite-btn').setAttribute('aria-expanded', 'false');
   openReview();
@@ -1338,25 +1413,36 @@ function parsePasted(text) {
 }
 function pasteErr(text, list) { const m = $('paste-msg'); m.className = 'msg err'; m.textContent = text; if (list && list.length) { const ul = document.createElement('ul'); list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }); m.appendChild(ul); } }
 // SOC-34 B2: Paste text on a draft saves the words (title and second line of each slide, and the caption) to that draft through the Worker.
-async function applyDraftPaste(parsed) {
+// One save for both paths (Paste text and tap-to-edit): PUT deck-text, then keep the page's copy of the words. Returns null when saved,
+// else { text, list } for the message (a 422 carries the reasons; nothing is changed on any failure).
+async function saveDeckWords(slides, caption, refusedText) {
   const c = meta.ref;
+  const r = await api('/api/concepts/' + encodeURIComponent(meta.conceptId) + '/deck-text', 'PUT', { slides, caption });
+  if (r.status === 422) return { text: refusedText, list: Array.isArray(r.data.reasons) && r.data.reasons.length ? r.data.reasons : [failText(r)] };
+  if (!r.ok) return { text: 'Could not save that: ' + failText(r) };
+  cards = cards.map((k, i) => Object.assign({}, k, slides[i])); $('caption').value = caption;
+  if (c) {
+    if (r.data.concept && typeof r.data.concept === 'object') Object.assign(c, r.data.concept);
+    else if (c.deck) { c.deck.caption = caption; (c.deck.slides || []).forEach((sl, i) => { if (slides[i]) { sl.title = slides[i].title; sl.sub = slides[i].sub; } }); }
+  }
+  persist();
+  return null;
+}
+function sayAfterSave() { // after drawReview: the slide check's own line stays under "Saved"
+  const m = $('msg'), check = m.textContent, kind = /\berr\b/.test(m.className) ? 'err' : /\bwarn\b/.test(m.className) ? 'warn' : 'ok';
+  say(kind === 'ok' ? 'ok' : kind, 'Saved. Your words are kept.', check ? [check] : null);
+}
+// SOC-34 B2: Paste text on a draft saves the words (title and second line of each slide, and the caption) to that draft through the Worker.
+async function applyDraftPaste(parsed) {
   if (parsed.slides.length !== cards.length) { pasteErr('This text has ' + parsed.slides.length + ' slides and the post has ' + cards.length + '. Keep the === SLIDE n === dividers.'); return; }
   const caption = parsed.caption !== null ? parsed.caption : $('caption').value.trim();
   const slides = parsed.slides.map(x => ({ title: x.title || '', sub: x.sub || '' }));
   const btn = $('paste-apply'); btn.disabled = true;
   try {
-    const r = await api('/api/concepts/' + encodeURIComponent(meta.conceptId) + '/deck-text', 'PUT', { slides, caption });
-    if (r.status === 422) { pasteErr('This text is not postable yet:', Array.isArray(r.data.reasons) && r.data.reasons.length ? r.data.reasons : [failText(r)]); return; }
-    if (!r.ok) { pasteErr('Could not save that: ' + failText(r)); return; }
-    cards = cards.map((k, i) => Object.assign({}, k, slides[i])); $('caption').value = caption;
-    if (c) {
-      if (r.data.concept && typeof r.data.concept === 'object') Object.assign(c, r.data.concept);
-      else if (c.deck) { c.deck.caption = caption; (c.deck.slides || []).forEach((sl, i) => { if (slides[i]) { sl.title = slides[i].title; sl.sub = slides[i].sub; } }); }
-    }
-    persist(); $('paste-overlay').style.display = 'none';
-    await drawReview();
-    const m = $('msg'), check = m.textContent, kind = /\berr\b/.test(m.className) ? 'err' : /\bwarn\b/.test(m.className) ? 'warn' : 'ok';
-    say(kind === 'ok' ? 'ok' : kind, 'Saved. Your words are kept.', check ? [check] : null);
+    const bad = await saveDeckWords(slides, caption, 'This text is not postable yet:');
+    if (bad) { pasteErr(bad.text, bad.list); return; }
+    $('paste-overlay').style.display = 'none'; wEdit = {};
+    await drawReview(); sayAfterSave();
   } catch (e) { pasteErr(e.message || 'Could not reach the server.'); }
   finally { btn.disabled = false; }
 }
@@ -1407,6 +1493,7 @@ $('approve-btn').addEventListener('click', async () => {
   if (!caption) { say('err', 'Add a caption first.'); return; }
   btn.disabled = true;
   let done = false;
+  const approvedAt = Array.from($('ready-list').querySelectorAll('.ready-item')).findIndex(b => b.dataset.id === meta.conceptId);
   try {
     const n = type === 'series' ? currentN() : null;
     const sig = deckSig(n);
@@ -1440,8 +1527,9 @@ $('approve-btn').addEventListener('click', async () => {
     numTouched = false;
     await sleep(1500);
     albumReady = loadAlbumMeta();
+    approvedRows.push({ id: meta.conceptId, title: (cards[0] && cards[0].title) || '', at: approvedAt, text: type === 'series' ? 'Approved as ' + OneLook.pad3(n) + '. In your Buffer queue once your Mac syncs' : 'Approved. In your Buffer queue once your Mac syncs' });
     await Promise.all([refreshReady(), refreshSeries(), albumReady, refreshStats()]);
-    exitDraft(false);
+    exitDraft(true);
   } catch (e) {
     say('err', e.message || 'Something went wrong.');
   } finally { if (!done) btn.disabled = reviewBlockedNow(); }
@@ -1453,6 +1541,7 @@ let reels = [];
 let reelPoll = null;
 let reelUrl = null;
 let reelOpenTok = 0;
+let reelListScroll = 0; // where the Reels list was when a reel was opened
 const reelWaiting = () => reels.some(r => r.status === 'queued' || r.status === 'rendering');
 const seconds = r => (r.durationMs / 1000).toFixed(1) + ' seconds';
 function reelTitle(r) { const t = String(r.script || ''); return t.length > 60 ? t.slice(0, 60) + '...' : t; }
@@ -1502,11 +1591,11 @@ async function loadReels() {
   } catch (e) {}
   if (current === 'trial' && reelWaiting()) reelPoll = setTimeout(loadReels, 30000);
 }
-function openTrial() {
-  show('trial'); applyConnection();
+function openTrial(at) {
+  show('trial', typeof at === 'number' ? { at } : undefined); applyConnection();
   try { history.replaceState(null, '', '#reels'); } catch (e) {}
   $('reel-make').disabled = !$('reel-script').value.trim();
-  loadReels();
+  renderReels(); loadReels();
 }
 function openCarousels() { show('ready'); try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
 $('trial-btn').addEventListener('click', openTrial);
@@ -1536,16 +1625,28 @@ async function retryReel(id) {
   try { await api('/api/reels/' + encodeURIComponent(id) + '/retry', 'POST', {}); } catch (e) {}
   loadReels();
 }
-async function approveReel(id, btn) {
-  btn.disabled = true;
-  const msg = $('reel-msg');
+// One approve for the list button and the open reel: returns { cls, text, approved } and sets the reel's status in the page's copy.
+async function postReelApprove(id) {
   try {
     const r = await api('/api/reels/' + encodeURIComponent(id) + '/approve', 'POST', {});
-    if (r.ok) { msg.className = 'msg ok'; msg.textContent = 'Approved. Open it to save it to your phone.'; }
-    else if (r.status === 409) { msg.className = 'msg warn'; msg.textContent = 'This reel was already approved.'; }
-    else { msg.className = 'msg err'; msg.textContent = 'Could not approve it. Check your connection and try again.'; }
-  } catch (e) { msg.className = 'msg err'; msg.textContent = 'Could not approve it. Check your connection and try again.'; }
+    const hit = reels.find(x => x.id === id);
+    if (r.ok) { if (hit) hit.status = 'approved'; return { cls: 'ok', approved: true, text: 'Approved. Open it to save it to your phone.' }; }
+    if (r.status === 409) { if (hit && hit.status === 'ready') hit.status = 'approved'; return { cls: 'warn', approved: true, text: 'This reel was already approved.' }; }
+  } catch (e) {}
+  return { cls: 'err', approved: false, text: 'Could not approve it. Check your connection and try again.' };
+}
+async function approveReel(id, btn) {
+  btn.disabled = true;
+  const out = await postReelApprove(id), msg = $('reel-msg');
+  msg.className = 'msg ' + out.cls; msg.textContent = out.text;
   loadReels();
+}
+// Approve on the open reel: back to the Reels list at the same place, the row showing "Approved".
+async function approveOpenReel(r) {
+  const b = $('nr-approve'); b.disabled = true;
+  const out = await postReelApprove(r.id);
+  if (!out.approved) { const m = $('nr-msg'); m.className = 'msg ' + out.cls; m.textContent = out.text; b.disabled = false; return; }
+  openTrial(reelListScroll); // no banner here: it would push the list down; the row itself now reads "Approved, ..."
 }
 function releaseReelVideo() {
   reelOpenTok++;
@@ -1553,14 +1654,15 @@ function releaseReelVideo() {
   if (reelUrl) { try { v.removeAttribute('src'); v.load(); } catch (e) {} URL.revokeObjectURL(reelUrl); reelUrl = null; }
 }
 async function openReel(r) {
+  reelListScroll = window.scrollY;
   show('reel');
   const tok = ++reelOpenTok;
-  const status = $('nr-status'), save = $('nr-save'), msg = $('nr-msg');
+  const status = $('nr-status'), save = $('nr-save'), msg = $('nr-msg'), ap = $('nr-approve');
   save.disabled = true; msg.className = 'msg';
-  // Save to phone only after Approve (18.5a): ready reels have no Save button.
+  // Approve sits on the open reel (ruling 2026-11-24); Save to phone only after Approve (18.5a).
   const canSave = r.status === 'approved' || r.status === 'saved';
   save.hidden = !canSave;
-  if (!canSave) { msg.className = 'msg warn'; msg.textContent = 'Approve this reel on the Reels screen first. Then you can save it.'; }
+  ap.hidden = r.status !== 'ready'; ap.disabled = false; ap.onclick = () => approveOpenReel(r);
   status.textContent = 'Getting your reel...';
   let res;
   try { res = await fetch(workerBase() + '/api/reels/' + encodeURIComponent(r.id) + '/video', { headers: { Authorization: 'Bearer ' + workerToken() } }); } catch (e) { res = null; }
@@ -1586,7 +1688,7 @@ async function openReel(r) {
     save.disabled = false;
   };
 }
-$('reel-back').addEventListener('click', () => openTrial());
+$('reel-back').addEventListener('click', () => openTrial(reelListScroll));
 
 // ---------- start ----------
 showSettingsState();
