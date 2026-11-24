@@ -311,10 +311,13 @@
 <div id="conn-pool" hidden>
   <div id="conn-box" class="panel">
     <h2>Connect to your approval page</h2>
-    <p class="hint">Paste these once. They stay in this browser only.</p>
-    <input type="text" id="set-base" placeholder="Worker address, e.g. https://your-worker.workers.dev" autocomplete="off">
-    <input type="password" id="set-token" placeholder="Access token" autocomplete="off">
-    <div class="row"><button class="main-btn" id="set-save" type="button">Save</button><span id="set-state" class="hint"></span></div>
+    <p class="hint">Paste your access token once. Your browser can save it for next time.</p>
+    <form id="conn-form" autocomplete="on" action="#" method="post">
+      <input type="text" id="set-user" name="username" value="orb-approval" autocomplete="username" readonly tabindex="-1" aria-hidden="true" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+      <input type="text" id="set-base" name="worker-address" placeholder="Worker address" autocomplete="off">
+      <input type="password" id="set-token" name="password" placeholder="Access token" autocomplete="current-password">
+      <div class="row"><button class="main-btn" id="set-save" type="submit">Save</button><span id="set-state" class="hint"></span></div>
+    </form>
   </div>
 </div>
 
@@ -339,6 +342,7 @@ const TYPE_KEY = 'ig_post_type_v1';
 const COVER_KEY = 'ig_series_cover_v1';
 const LEGACY_KEY = 'orb_cover_series_last';
 const LS_BASE = 'orb_worker_base';
+const DEFAULT_BASE = 'https://drliz-draft-approval.drlizlondon.workers.dev'; // not a secret; a saved address overrides it
 const LS_TOKEN = 'orb_approve_token';
 const HANDLE = '@drlizlondon';
 const $ = id => document.getElementById(id);
@@ -399,7 +403,7 @@ let ready = { drafted: [], failed: [], queued: [] };
 const fontsP = OneLook.fontsReady();
 
 function connected() { return !!(workerBase() && workerToken()); }
-function workerBase() { const raw = lsGet(LS_BASE).trim(); if (!raw) return ''; try { return new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).origin; } catch (e) { return raw.replace(/\/+$/, ''); } }
+function workerBase() { const raw = lsGet(LS_BASE).trim() || DEFAULT_BASE; if (!raw) return ''; try { return new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw).origin; } catch (e) { return raw.replace(/\/+$/, ''); } }
 function workerToken() { return lsGet(LS_TOKEN).trim(); }
 function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURIComponent(guid); }
 function albumThumbUrl(guid) { return albumUrl(guid) + '?size=thumb'; } // small, long-cached copy for lists and tiles; full size stays for rendering
@@ -520,7 +524,8 @@ function showSettingsState() {
   $('set-base').value = workerBase(); $('set-token').value = '';
   $('set-state').textContent = connected() ? 'Saved in this browser.' : 'Not connected yet.';
 }
-$('set-save').addEventListener('click', () => {
+$('conn-form').addEventListener('submit', (ev) => {
+  ev.preventDefault(); // stay on the page; the browser still offers to save the password on submit
   const b = $('set-base').value.trim(), t = $('set-token').value.trim();
   if (b) lsSet(LS_BASE, b);
   if (t) lsSet(LS_TOKEN, t);

@@ -330,13 +330,49 @@ await check('Not connected: only the connection box is visible, and no /api call
   assert.ok(await page.locator('#conn-box').isVisible());
   assert.equal(await page.locator('.ready-item').count(), 0);
   assert.ok(!(await page.locator('#new-idea-btn').isVisible())); assert.ok(!(await page.locator('#more-btn').isVisible())); assert.ok(!(await page.locator('#ready-heading').isVisible()));
-  const m = await metrics(page); assert.equal(m.controls, 3, 'two inputs and Save, got ' + m.controls);
+  const m = await metrics(page); assert.equal(m.controls, 4, 'hidden username, address, token and Save, got ' + m.controls);
   assert.equal(calls.length, 0);
   // Save then loads the drafts
   await page.fill('#set-base', W); await page.fill('#set-token', TOKEN); await page.click('#set-save');
   await page.waitForSelector('.ready-item');
   assert.ok(calls.some(c => c.path.startsWith('/api/concepts')));
   await ctx.close();
+});
+
+const DEFAULT_WORKER = 'https://drliz-draft-approval.drlizlondon.workers.dev'; // source: NightMode board/drliz-approval.json
+await check('Connect box: a fresh browser shows the Worker address prefilled and an empty token; a saved address overrides it', async () => {
+  let o = await open(PH, { connected: false });
+  assert.equal(await o.page.inputValue('#set-base'), DEFAULT_WORKER); assert.equal(await o.page.inputValue('#set-token'), '');
+  assert.ok(!(await o.page.getAttribute('#set-base', 'placeholder') || '').includes('your-worker'), 'stale placeholder hint');
+  assert.ok((await o.page.textContent('#conn-box .hint')).startsWith('Paste your access token once. Your browser can save it for next time.'));
+  await o.ctx.close();
+  o = await open(PH, { connected: false });
+  await o.page.evaluate(() => { localStorage.setItem('orb_worker_base', 'https://my-own.example.workers.dev'); });
+  await o.page.reload(); await o.page.waitForSelector('#conn-box');
+  assert.equal(await o.page.inputValue('#set-base'), 'https://my-own.example.workers.dev');
+  await o.ctx.close();
+});
+
+await check('Connect box: password-manager form (real form, password + current-password, username input) and submit does not navigate or put the token in the URL', async () => {
+  const { page, ctx } = await open(PH, { connected: false });
+  const f = await page.evaluate(() => { const t = document.getElementById('set-token'), u = document.querySelector('#conn-form input[autocomplete="username"]'); return { inForm: !!t.closest('form#conn-form'), type: t.type, ac: t.autocomplete, name: t.name, id: t.id, user: !!u, userVal: u && u.value, formAc: document.getElementById('conn-form').autocomplete, submit: document.getElementById('set-save').type }; });
+  assert.deepEqual(f, { inForm: true, type: 'password', ac: 'current-password', name: 'password', id: 'set-token', user: true, userVal: 'orb-approval', formAc: 'on', submit: 'submit' });
+  const before = page.url();
+  await page.fill('#set-base', W); await page.fill('#set-token', TOKEN);
+  const prevented = await page.evaluate(() => new Promise(res => { document.getElementById('conn-form').addEventListener('submit', e => setTimeout(() => res(e.defaultPrevented), 0)); document.getElementById('set-save').click(); }));
+  assert.equal(prevented, true, 'submit must preventDefault');
+  await page.waitForSelector('.ready-item');
+  assert.equal(page.url(), before); assert.ok(!page.url().includes(TOKEN) && !decodeURIComponent(page.url()).includes('token'), 'token in URL');
+  assert.equal(await page.evaluate(() => localStorage.getItem('orb_approve_token')), TOKEN);
+  await ctx.close();
+});
+
+await check('Connect box source: no token-shaped literal, no token in location, Worker address is the only host literal added (must fail if a token is hard-coded)', async () => {
+  const src = fs.readFileSync(FILE, 'utf8');
+  assert.ok(!/(?<!LS_)(approve[_-]?token|bearer|token)\s*[:=]\s*['"](?!orb_)[A-Za-z0-9_\-]{16,}['"]/i.test(src), 'token-shaped literal'); // LS_TOKEN = 'orb_approve_token' is a storage key name
+  assert.ok(!/location\.(href|search|hash)\s*=[^=]*token/i.test(src) && !/[?&]token=/.test(src), 'token near location/URL');
+  assert.ok(src.includes("const DEFAULT_BASE = '" + DEFAULT_WORKER + "'"));
+  assert.deepEqual([...new Set([...src.matchAll(/https:\/\/[a-z0-9.-]*workers\.dev/g)].map(m => m[0]))], [DEFAULT_WORKER]);
 });
 
 await check('Quiet lines: 1 queued reads "1 more being written"; 3 queued reads "3 more"; nothing queued or failed shows neither (must-stay-silent); failed opens More with the reason', async () => {
