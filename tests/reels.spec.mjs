@@ -33,6 +33,7 @@ const worker = http.createServer((req, res) => {
     if (req.headers.authorization !== 'Bearer ' + TOKEN) return j(401, { ok: false, error: 'access token required' });
     const p = u.pathname, m = req.method;
     if (p === '/api/concepts') return j(200, { ok: true, concepts: [] });
+    if (p === '/api/album-stats') return j(200, { ok: true, stats: null }); // SOC-34 B3: the page now asks for the album counts
     if (p === '/api/series') return j(200, { ok: true, last: 6, next: 7, assigned: [] });
     if (p === '/api/album') return j(200, { ok: true, photos: [] });
     if (p === '/api/reels' && m === 'GET') return j(200, { ok: true, reels: st.reels });

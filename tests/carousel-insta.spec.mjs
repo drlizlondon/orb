@@ -91,6 +91,7 @@ const worker = http.createServer((req, res) => {
     if (p === '/api/reels' && m === 'GET') return j(200, { ok: true, reels: st.reels || [] });
     if (p === '/api/run-now' && m === 'POST') return j(202, { ok: true, requestedAt: '2026-11-19T10:00:00Z' });
     if (p === '/api/album') return st.albumOk ? j(200, { ok: true, photos: ALBUM.map(a => ({ ...a, url: '/img-album/' + a.guid })) }) : j(502, { ok: false, error: 'album unavailable' });
+    if (p === '/api/album-stats' && m === 'GET') return j(200, { ok: true, stats: st.stats || null }); // SOC-34 B3
     if (p === '/api/series' && m === 'GET') return j(200, { ok: true, last: st.series.last, next: st.series.next, assigned: [] });
     if (p === '/api/series/floor' && m === 'POST') { const b = JSON.parse(body); st.series = { last: Math.max(st.series.last, b.last), next: Math.max(st.series.last, b.last) + 1 }; return j(200, { ok: true, last: st.series.last, next: st.series.next }); }
     if (p === '/api/publish' && m === 'PUT') { const b = JSON.parse(body); st.published.push(b); const d = b.drafts[0]; if (d.conceptId) st.draftConcept[d.id] = d.conceptId; return j(200, { ok: true, added: [d.id], kept: [] }); }
@@ -156,11 +157,12 @@ const metrics = page => page.evaluate(() => {
   const vis = e => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
   const controls = [...document.querySelectorAll('button, input, select, textarea')].filter(vis).length;
   let words = 0; const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let t;
-  while ((t = w.nextNode())) { const el = t.parentElement; if (!el || ['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'TITLE'].includes(el.tagName) || el.closest('.ready-title, .ready-tag, .ready-num, .ready-quality') || !el.checkVisibility()) continue; words += t.nodeValue.split(/\s+/).filter(Boolean).length; }
+  while ((t = w.nextNode())) { const el = t.parentElement; if (!el || ['SCRIPT', 'STYLE', 'TEXTAREA', 'OPTION', 'TITLE'].includes(el.tagName) || el.closest('.ready-title, .ready-tag, .ready-num, .ready-quality, #words-list, #words-caption, #editor-line') || !el.checkVisibility()) continue; words += t.nodeValue.split(/\s+/).filter(Boolean).length; }
   const ap = document.getElementById('approve-btn'), r = ap ? ap.getBoundingClientRect() : null;
   return { controls, words, height: document.documentElement.scrollHeight, vh: innerHeight, editable: document.querySelectorAll('[contenteditable]').length, approveInView: !!r && r.width > 0 && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
 });
-const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 7) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 27) v.push('words ' + m.words); if (m.height > 1.3 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
+// SOC-34 B caps: controls 7 plus Rewrite, Copy text, Paste text = 10; furniture words 27 plus those buttons' five words = 32 (her own words in #words-list/#words-caption are content, not furniture); 1.9 screens (was 1.3) for the copy-first card.
+const reviewViolations = m => { const v = []; if (!m.approveInView) v.push('approve outside the viewport'); if (m.controls > 10) v.push('controls ' + m.controls); if (m.editable) v.push('editable ' + m.editable); if (m.words > 32) v.push('words ' + m.words); if (m.height > 1.9 * m.vh) v.push('height ' + (m.height / m.vh).toFixed(1) + ' screens'); return v; };
 
 // ===== Simplicity caps =====
 for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
@@ -170,9 +172,9 @@ for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
     await page.waitForFunction(() => [...document.querySelectorAll('.ready-item img')].length === 6 && [...document.querySelectorAll('.ready-item img')].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
     assert.equal(await page.textContent('#ready-heading'), 'Ready to post (6)');
     const m = await metrics(page);
-    assert.ok(m.controls <= 6 + 4, 'controls ' + m.controls);
+    assert.ok(m.controls <= 6 + 5, 'controls ' + m.controls); // SOC-34 B3: the sticky bar adds Top
     assert.ok(m.height <= 2 * m.vh, 'height ' + m.height);
-    assert.ok(m.words <= 27, 'furniture words ' + m.words);
+    assert.ok(m.words <= 28, 'furniture words ' + m.words); // 27 plus the word Top
     assert.equal(await page.getByText('Check for drafts').count(), 0);
     assert.equal(await page.getByText('Refresh').count(), 0);
     assert.equal(await page.textContent('h1'), 'Instagram');
@@ -181,7 +183,7 @@ for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
     assert.match(await page.locator('.ready-title').first().textContent(), /foxtrot/);
     // must-fail: one more visible button breaks the very assert above
     await page.evaluate(() => { const b = document.createElement('button'); b.textContent = 'Check for drafts'; document.getElementById('ready-main').appendChild(b); });
-    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 4, 'the cap assert must fire on an extra button, controls ' + m2.controls);
+    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 5, 'the cap assert must fire on an extra button, controls ' + m2.controls);
     assert.deepEqual(errors, []);
     await ctx.close();
   });
@@ -242,7 +244,7 @@ await check('Swipe: on a 4-slide draft, one slide width of scrollLeft changes 1 
   assert.equal(await page.textContent('#review-count'), '1 / 4');
   assert.equal(await page.locator('#review-strip canvas').count(), 4);
   assert.match(await page.evaluate(() => getComputedStyle(document.getElementById('review-strip')).scrollSnapType), /^x/);
-  await page.evaluate(() => { const s = document.getElementById('review-strip'); s.scrollLeft = s.clientWidth; });
+  await page.evaluate(() => { const s = document.getElementById('review-strip'); s.scrollLeft = s.firstElementChild.offsetWidth + 10; }); // SOC-34 B4: slides are small now, one step = one slide plus the gap
   await page.waitForFunction(() => document.getElementById('review-count').textContent === '2 / 4');
   const ov = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth); assert.ok(ov <= 0, 'overflow ' + ov);
   await ctx.close();
@@ -1273,7 +1275,7 @@ await check('Source asserts: no en or em dash, no "calm", no Buffer or Keychain 
   assert.ok(!/[–—]/.test(src), 'dash'); assert.ok(!/calm/i.test(src), 'calm');
   assert.ok(!(/function\s+renderDeck/.test(src) && /carousel_decks_v2/.test(src) && /syncDomToState/.test(src)));
   const routes = [...new Set([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)/g)].map(m => m[1]).concat([...src.matchAll(/api\(\s*'(\/api\/[a-z/-]+)\?/g)].map(m => m[1])))].sort();
-  assert.deepEqual(routes, ['/api/album', '/api/concepts', '/api/concepts/', '/api/drafts/', '/api/publish', '/api/reels', '/api/reels/', '/api/run-now', '/api/series', '/api/series/floor']);
+  assert.deepEqual(routes, ['/api/album', '/api/album-stats', '/api/concepts', '/api/concepts/', '/api/drafts/', '/api/publish', '/api/reels', '/api/reels/', '/api/run-now', '/api/series', '/api/series/floor']);
   assert.ok(/'\/api\/drafts\/' \+ encodeURIComponent\(id\) \+ '\/approve'/.test(src));
   assert.ok(!/localStorage\.setItem\(\s*LS_TOKEN[^)]*\)\s*;?\s*\n[^]*fetch\(\s*['"]http/.test(src));
   execFileSync('node', ['/Users/lizzie/NightMode/scripts/no-stray-orb-tool.mjs'], { stdio: 'pipe' });

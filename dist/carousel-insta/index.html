@@ -96,8 +96,8 @@
   /* screen 2: check and approve */
   .top-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
   .top-row h2 { margin: 0; }
-  #review-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; width: min(100%, 460px); margin: 0 auto; border-radius: 14px; -webkit-overflow-scrolling: touch; }
-  canvas.review-slide { flex: 0 0 100%; width: 100%; height: auto; aspect-ratio: 4 / 5; scroll-snap-align: start; background: #5a2578; display: block; }
+  #review-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; width: 100%; gap: 10px; margin: 0 auto; border-radius: 14px; -webkit-overflow-scrolling: touch; }
+  canvas.review-slide { flex: 0 0 68%; width: 68%; height: auto; aspect-ratio: 4 / 5; scroll-snap-align: start; background: #5a2578; display: block; border-radius: 10px; }
   #review-count { text-align: center; font-size: 15px; font-weight: 700; margin: 6px 0 10px; }
   #review-bar, #edit-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #3a1150; border-top: 2px solid #f9c9e6; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); z-index: 50; }
   .bar-in { max-width: 520px; margin: 0 auto; }
@@ -133,12 +133,56 @@
   @media (max-width: 760px) {
     .slide-edit { grid-template-columns: minmax(0, 1fr); }
   }
+
+  /* SOC-34 B: sticky top bar, album counts, copy-first draft card */
+  #top-bar { position: sticky; top: 0; z-index: 40; background: #3a1150; margin: -16px -16px 10px; padding: 10px 16px 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; border-bottom: 1px solid rgba(249,201,230,0.3); }
+  #top-bar h1 { flex: 1 1 auto; margin: 0; font-size: 22px; }
+  #album-counts { flex: 1 1 100%; order: 3; text-align: left; font-size: 14px; padding: 2px 0; }
+  #album-counts:disabled { text-decoration: none; color: #faf1e2; opacity: 0.85; cursor: default; }
+  #unusable-panel { margin-bottom: 12px; }
+  .unusable-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 8px 0; }
+  .unusable-grid figure { margin: 0; font-size: 12px; font-weight: 700; }
+  .unusable-grid img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; background: #5a2578; display: block; }
+  .rewriting-item { background: rgba(250,241,226,0.1); border: 2px dashed #f9c9e6; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .rewriting-title { font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+  .rewriting-line { font-size: 14px; opacity: 0.9; }
+  #draft-words { margin: 4px 0 12px; }
+  #words-list { margin: 0 0 10px 24px; font-size: 16px; }
+  #words-list li { margin-bottom: 8px; overflow-wrap: anywhere; }
+  .w-title { font-weight: 800; display: block; }
+  .w-sub { display: block; opacity: 0.92; white-space: pre-wrap; }
+  #words-caption, #prev-words { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 10px; }
+  #prev-version { margin: 8px 0; font-size: 14px; }
+  #prev-version summary { cursor: pointer; font-weight: 700; }
+  #prev-words ol { margin: 6px 0 6px 22px; }
+  #rewrite-box { margin-top: 8px; }
+  #rewrite-note { min-height: 96px; }
+  #rewrite-scores button { min-width: 38px; padding: 6px 0; font-size: 14px; border-radius: 10px; }
+  #rewrite-scores button[aria-pressed="true"] { background: #f29bd0; color: #3a1150; border-color: #f29bd0; font-weight: 800; }
+  #paste-msg { margin: 8px 0 0; }
+  @media (min-width: 768px) {
+    #screen-review.col { max-width: 1000px; }
+    #review-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; scroll-snap-type: none; }
+    canvas.review-slide { flex: none; width: 100%; }
+    #review-count { display: none; }
+  }
+  @media (min-width: 1024px) {
+    #review-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
 </style>
 </head>
 <body>
 
 <section id="screen-ready" class="col">
-  <h1>Instagram</h1>
+  <div id="top-bar">
+    <h1>Instagram</h1>
+    <button id="top-btn" class="quiet-btn small-btn" type="button">Top</button>
+    <button id="album-counts" class="link-btn" type="button" hidden aria-expanded="false" aria-controls="unusable-panel"></button>
+  </div>
+  <div id="unusable-panel" class="panel" hidden>
+    <div id="unusable-grid" class="unusable-grid"></div>
+    <p id="unusable-note" class="hint">Delete these in Photos if you don't need them. Orb never deletes from your album.</p>
+  </div>
   <div id="conn-slot-ready"></div>
   <div id="ready-msg" class="msg" role="status" aria-live="polite"></div>
   <div id="ready-main">
@@ -199,6 +243,24 @@
   <div class="top-row">
     <button id="review-back" class="quiet-btn small-btn" type="button">Back</button>
     <h2 id="review-title"></h2>
+  </div>
+  <div id="draft-words">
+    <p id="editor-line" class="job-line" hidden></p>
+    <ol id="words-list"></ol>
+    <p id="words-caption"></p>
+    <div class="row" id="draft-actions">
+      <button id="rewrite-btn" class="quiet-btn small-btn" type="button" aria-expanded="false" aria-controls="rewrite-box">Rewrite</button>
+      <button id="draft-copy" class="quiet-btn small-btn" type="button">Copy text</button>
+      <button id="draft-paste" class="quiet-btn small-btn" type="button">Paste text</button>
+    </div>
+    <div id="rewrite-box" class="panel" hidden>
+      <label for="rewrite-note">What should change?</label>
+      <textarea id="rewrite-note" maxlength="1000"></textarea>
+      <div id="rewrite-scores" class="row" role="group" aria-label="Score from 1 to 10"></div>
+      <div class="row"><button id="rewrite-send" class="main-btn small-btn" type="button">Send</button></div>
+      <div id="rewrite-msg" class="msg" role="status" aria-live="polite"></div>
+    </div>
+    <details id="prev-version" hidden><summary>Previous version</summary><div id="prev-words"></div></details>
   </div>
   <div id="review-strip" tabindex="-1"></div>
   <div id="review-count">1 / 1</div>
@@ -326,6 +388,7 @@
     <h2>Paste text back in</h2>
     <p class="hint">Paste the edited text. Keep the === SLIDE n === dividers and the LABEL: lines so each block lands on the right slide. Your photos stay put.</p>
     <textarea id="paste-area" placeholder="Paste the copied (and edited) carousel text here..."></textarea>
+    <div id="paste-msg" class="msg" role="status" aria-live="polite"></div>
     <div class="row" style="justify-content:flex-end">
       <button class="quiet-btn" id="paste-cancel" type="button">Cancel</button>
       <button class="main-btn" id="paste-apply" type="button">✓ Apply to carousel</button>
@@ -483,13 +546,25 @@ function say(kind, text, list) {
   if (list && list.length) { const ul = document.createElement('ul'); list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }); m.appendChild(ul); }
 }
 function clearMsg(m) { if (m) { m.className = 'msg'; m.textContent = ''; } }
-function show(name) {
+// SOC-34 B4: leaving a draft (Back, browser back) returns to where the list was; every other change of screen starts at the top.
+const SCROLL_KEY = 'ig_list_scroll_v1'; // sessionStorage only: a scroll position, never a setting
+let listScroll = null;
+function saveListScroll() {
+  listScroll = window.scrollY;
+  try { sessionStorage.setItem(SCROLL_KEY, String(listScroll)); } catch (e) {}
+}
+function readListScroll() {
+  if (listScroll !== null) return listScroll;
+  try { const v = parseInt(sessionStorage.getItem(SCROLL_KEY), 10); return v >= 0 ? v : 0; } catch (e) { return 0; }
+}
+function show(name, o) {
   ['ready', 'trial', 'reel', 'review', 'edit'].forEach(n => { $('screen-' + n).hidden = n !== name; });
   current = name; clearMsg(msgFor(name));
   document.body.classList.toggle('has-bar', name !== 'ready' && name !== 'trial');
   if (name !== 'reel') releaseReelVideo();
   if (name !== 'trial') clearTimeout(reelPoll);
-  window.scrollTo(0, 0);
+  window.scrollTo(0, o && o.restore ? readListScroll() : 0);
+  if (name === 'ready') scheduleRewritePoll();
 }
 
 // ---------- saving ----------
@@ -538,6 +613,7 @@ function applyConnection() {
   const on = connected();
   $('ready-main').hidden = !on;
   $('trial-main').hidden = !on;
+  $('top-btn').hidden = !on;
   if (on) { if (!$('more-sheet').hidden) placeConn('conn-slot-more'); else $('conn-pool').appendChild($('conn-box')); }
   else placeConn(current === 'trial' ? 'conn-slot-trial' : 'conn-slot-ready');
 }
@@ -599,9 +675,8 @@ function queueDraw(i) {
 }
 
 // ---------- screen 1: ready to post ----------
-async function refreshReady() {
-  $('ready-heading').hidden = true; $('ready-retry').hidden = true;
-  $('ready-status').textContent = 'Getting your drafts...';
+async function refreshReady(quiet) {
+  if (!quiet) { $('ready-heading').hidden = true; $('ready-retry').hidden = true; $('ready-status').textContent = 'Getting your drafts...'; }
   try {
     const [ok, bad, wait] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed'), api('/api/concepts?status=queued')]);
     if (!ok.ok) { const e = new Error('list'); e.status = ok.status; throw e; }
@@ -610,10 +685,20 @@ async function refreshReady() {
     ready.queued = (wait.ok ? wait.data.concepts : []) || [];
     renderReady();
   } catch (e) {
+    if (quiet) return;
     $('ready-list').innerHTML = '';
     $('ready-status').textContent = readyFailText(e);
     $('ready-retry').hidden = false;
   }
+}
+// SOC-34 B1: a concept that carries `rewrite` is being rewritten (status queued); it shows as "Rewriting" until it is drafted again.
+const isRewriting = c => !!(c && c.rewrite);
+let rewritePoll = null;
+function scheduleRewritePoll() {
+  clearTimeout(rewritePoll); rewritePoll = null;
+  if (current !== 'ready' || !connected()) return;
+  if (!(ready.queued.some(isRewriting) || ready.drafted.some(isRewriting))) return;
+  rewritePoll = setTimeout(async () => { rewritePoll = null; if (current === 'ready') { await refreshReady(true); scheduleRewritePoll(); } }, 30000);
 }
 // Say why the list failed, so a lost access code is not mistaken for a broken app.
 function readyFailText(e) {
@@ -625,10 +710,19 @@ function readyFailText(e) {
 }
 function renderReady() {
   const list = $('ready-list'); list.innerHTML = '';
-  const items = ready.drafted.map((c, k) => [c, k]).filter(x => (x[0].postState || 'none') === 'none')
+  const rewriting = ready.queued.filter(isRewriting).concat(ready.drafted.filter(isRewriting));
+  rewriting.forEach(c => {
+    const pd = (c.rewrite && c.rewrite.previousDeck) || c.previousDeck || c.deck || {};
+    const s1 = (pd.slides && pd.slides[0]) || {};
+    const d = document.createElement('div'); d.className = 'rewriting-item'; d.dataset.id = c.id;
+    const t = document.createElement('span'); t.className = 'rewriting-title'; t.textContent = s1.title || previewLine(c);
+    const l = document.createElement('span'); l.className = 'rewriting-line'; l.textContent = 'Rewriting, usually a few minutes';
+    d.append(t, l); list.appendChild(d);
+  });
+  const items = ready.drafted.filter(c => !isRewriting(c)).map((c, k) => [c, k]).filter(x => (x[0].postState || 'none') === 'none')
     .sort((a, b) => { const ka = a[0].draftedAt || a[0].createdAt || '', kb = b[0].draftedAt || b[0].createdAt || ''; return ka < kb ? 1 : ka > kb ? -1 : b[1] - a[1]; }).map(x => x[0]);
   $('ready-heading').textContent = 'Ready to post (' + items.length + ')'; $('ready-heading').hidden = false;
-  $('ready-status').textContent = items.length ? '' : 'Nothing ready yet.';
+  $('ready-status').textContent = items.length || rewriting.length ? '' : 'Nothing ready yet.';
   items.forEach(c => {
     const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ready-item';
@@ -646,11 +740,12 @@ function renderReady() {
     b.addEventListener('click', () => openDraft(c));
     list.appendChild(b);
   });
-  const q = ready.queued.length, f = ready.failed.length;
+  const q = ready.queued.filter(c => !isRewriting(c)).length, f = ready.failed.length;
   $('ready-waiting').hidden = !q; $('ready-waiting').textContent = q + ' more being written';
   $('ready-failed').hidden = !f; $('ready-failed').textContent = f + ' could not be written';
+  scheduleRewritePoll();
 }
-$('ready-retry').addEventListener('click', refreshReady);
+$('ready-retry').addEventListener('click', () => refreshReady());
 $('ready-failed').addEventListener('click', openMore);
 
 function openIdea() { clearMsg($('idea-msg')); $('idea-sheet').hidden = false; }
@@ -738,9 +833,55 @@ async function loadAlbumMeta() {
     return albumPhotos;
   } catch (e) { return null; }
 }
+// ---------- SOC-34 B3: album counts from GET /api/album-stats (numbers shown only as the Worker sent them) ----------
+let albumStats = null;
+const REASON_WORDS = { resolution: 'too small', sharpness: 'blurry', exposure: 'too dark or bright' };
+const reasonWord = r => REASON_WORDS[r] || String(r);
+function agoText(iso, now) {
+  const t = Date.parse(iso); if (!isFinite(t)) return '';
+  const m = Math.floor(Math.max(0, ((now || Date.now()) - t) / 1000) / 60);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + (m === 1 ? ' minute ago' : ' minutes ago');
+  const h = Math.floor(m / 60); if (h < 24) return h + (h === 1 ? ' hour ago' : ' hours ago');
+  const d = Math.floor(h / 24); return d + (d === 1 ? ' day ago' : ' days ago');
+}
+function countsLine(st, now) {
+  if (!st || !Number.isInteger(st.photos) || !Number.isInteger(st.usable)) return '';
+  let out = 'Photos: ' + st.usable + ' usable of ' + st.photos;
+  if (Number.isInteger(st.videos)) out += ' \u00b7 Videos: ' + st.videos;
+  const a = st.at ? agoText(st.at, now) : '';
+  if (a) out += ' \u00b7 checked ' + a;
+  return out;
+}
+function renderStats() {
+  const b = $('album-counts'), line = countsLine(albumStats);
+  b.hidden = !line; b.textContent = line;
+  const un = albumStats && Array.isArray(albumStats.unusable) ? albumStats.unusable : [];
+  b.disabled = !un.length;
+  const grid = $('unusable-grid'); grid.textContent = '';
+  un.forEach(u => {
+    const f = document.createElement('figure');
+    const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = albumThumbUrl(u.guid); im.addEventListener('error', () => im.remove());
+    const cap = document.createElement('figcaption'); cap.textContent = (Array.isArray(u.reasons) ? u.reasons : []).map(reasonWord).join(', ');
+    f.append(im, cap); grid.appendChild(f);
+  });
+  if (!un.length) { $('unusable-panel').hidden = true; b.setAttribute('aria-expanded', 'false'); }
+}
+async function refreshStats() {
+  try {
+    const r = await api('/api/album-stats');
+    albumStats = r.ok && r.data.stats && typeof r.data.stats === 'object' ? r.data.stats : null;
+  } catch (e) { albumStats = null; }
+  renderStats();
+}
+$('album-counts').addEventListener('click', () => {
+  const open = $('unusable-panel').hidden; $('unusable-panel').hidden = !open; $('album-counts').setAttribute('aria-expanded', String(open));
+});
+$('top-btn').addEventListener('click', () => window.scrollTo(0, 0));
+setInterval(() => { if (albumStats) renderStats(); }, 60000);
 function loadAll() {
   albumReady = loadAlbumMeta();
-  return Promise.all([refreshReady(), refreshSeries(), albumReady]);
+  return Promise.all([refreshReady(), refreshSeries(), albumReady, refreshStats()]);
 }
 
 // ---------- screen 2: check and approve ----------
@@ -827,9 +968,66 @@ function showSecondLook(c) {
   p.hidden = false;
 }
 function reviewTitle() { return type === 'series' ? 'Post ' + OneLook.pad3(currentN()) : (meta.ref ? topicOf(meta.ref) : 'New post'); }
+// ---------- SOC-34 B1/B2/B4: the copy-first draft card (her words as plain text, then the buttons, then the small slides) ----------
+function deckWords(deck) { // numbered words of a deck object { slides, caption } as plain DOM, used for the previous version
+  const box = document.createElement('div');
+  const ol = document.createElement('ol');
+  ((deck && deck.slides) || []).forEach(sl => { const li = document.createElement('li'); li.textContent = [sl.title, sl.sub].filter(Boolean).join(' '); ol.appendChild(li); });
+  box.appendChild(ol);
+  if (deck && deck.caption) { const p = document.createElement('p'); p.textContent = deck.caption; box.appendChild(p); }
+  return box;
+}
+function renderDraftWords() {
+  const ol = $('words-list'); ol.textContent = '';
+  cards.forEach(c => {
+    const li = document.createElement('li');
+    const t = document.createElement('span'); t.className = 'w-title'; t.textContent = c.title || '';
+    li.appendChild(t);
+    if (c.sub) { const u = document.createElement('span'); u.className = 'w-sub'; u.textContent = c.sub; li.appendChild(u); }
+    ol.appendChild(li);
+  });
+  $('words-caption').textContent = $('caption').value;
+  const c = meta.ref, has = !!meta.conceptId;
+  $('rewrite-btn').hidden = !has; $('draft-paste').hidden = !has;
+  if (!has) $('rewrite-box').hidden = true;
+  const sc = c && Number.isInteger(c.editorScore) && c.editorScore >= 1 && c.editorScore <= 10 ? c.editorScore : null;
+  $('editor-line').hidden = sc === null; $('editor-line').textContent = sc === null ? '' : 'Editor ' + sc + '/10';
+  const pv = c && c.previousDeck && Array.isArray(c.previousDeck.slides) ? c.previousDeck : null;
+  $('prev-version').hidden = !pv; $('prev-version').open = false; $('prev-words').textContent = '';
+  if (pv) $('prev-words').appendChild(deckWords(pv));
+}
+$('caption').addEventListener('input', () => { $('words-caption').textContent = $('caption').value; });
+const rewriteScores = $('rewrite-scores');
+for (let n = 1; n <= 10; n++) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'quiet-btn'; b.textContent = String(n); b.dataset.score = String(n); b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => { const on = b.getAttribute('aria-pressed') !== 'true'; rewriteScores.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', String(on)); });
+  rewriteScores.appendChild(b);
+}
+$('rewrite-btn').addEventListener('click', () => {
+  const open = $('rewrite-box').hidden; $('rewrite-box').hidden = !open; $('rewrite-btn').setAttribute('aria-expanded', String(open));
+  if (open) { clearMsg($('rewrite-msg')); $('rewrite-note').focus(); }
+});
+$('rewrite-send').addEventListener('click', async () => {
+  const m = $('rewrite-msg'), note = $('rewrite-note').value.trim();
+  if (!note) { m.className = 'msg err'; m.textContent = 'Write what should change first.'; return; }
+  if (!meta.conceptId) return;
+  const pressed = rewriteScores.querySelector('button[aria-pressed="true"]');
+  const body = { note, score: pressed ? Number(pressed.dataset.score) : null };
+  const btn = $('rewrite-send'); btn.disabled = true;
+  try {
+    const r = await api('/api/concepts/' + encodeURIComponent(meta.conceptId) + '/rewrite', 'POST', body);
+    if (!r.ok) { m.className = 'msg err'; m.textContent = 'Could not send that: ' + failText(r); return; }
+    m.className = 'msg ok'; m.textContent = 'Rewriting, usually a few minutes';
+    $('rewrite-note').value = ''; rewriteScores.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    await refreshReady(true);
+    exitDraft(false);
+  } catch (e) { m.className = 'msg err'; m.textContent = e.message || 'Could not reach the server.'; }
+  finally { btn.disabled = false; }
+});
 async function drawReview() {
   const tok = ++reviewTok, strip = $('review-strip');
   strip.innerHTML = '';
+  renderDraftWords();
   const cvs = cards.map(() => { const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350; cv.className = 'review-slide'; strip.appendChild(cv); return cv; });
   strip.scrollLeft = 0;
   $('review-title').textContent = reviewTitle();
@@ -841,7 +1039,8 @@ async function drawReview() {
 }
 $('review-strip').addEventListener('scroll', () => {
   const s = $('review-strip'), n = cards.length; if (!n || !s.clientWidth) return;
-  const k = Math.min(n, Math.max(1, Math.round(s.scrollLeft / s.clientWidth) + 1));
+  const first = s.firstElementChild, step = first ? first.offsetWidth + 10 : s.clientWidth; // one small slide plus the gap
+  const k = Math.min(n, Math.max(1, Math.round(s.scrollLeft / step) + 1));
   $('review-count').textContent = k + ' / ' + n;
 });
 function openReview() { show('review'); return drawReview(); }
@@ -868,9 +1067,22 @@ function openDraft(c) {
   look = c.look ? lookOf(c.look) : (c.kind === 'life' ? 'dark' : 'photo'); // SOC-26: the Life series defaults to dark when the draft carries no look
   syncLookButtons();
   showSecondLook(c);
-  syncStrap(); persist(); openReview();
+  syncStrap(); persist();
+  saveListScroll();
+  try { history.pushState({ igDraft: true }, '', '#draft'); } catch (e) {}
+  $('rewrite-box').hidden = true; $('rewrite-btn').setAttribute('aria-expanded', 'false');
+  openReview();
 }
-$('review-back').addEventListener('click', () => show('ready'));
+// Leaving a draft: Back and the browser's back both land on the list at the same place. exitDraft(true) rides the browser's back.
+function exitDraft(restore) {
+  const pushed = !!(history.state && history.state.igDraft);
+  show('ready', restore ? { restore: true } : undefined);
+  if (pushed) { try { history.back(); } catch (e) {} }
+}
+$('review-back').addEventListener('click', () => {
+  if (history.state && history.state.igDraft) history.back(); else show('ready', { restore: true });
+});
+window.addEventListener('popstate', () => { if (current === 'review' || current === 'edit') show('ready', { restore: true }); });
 $('edit-btn').addEventListener('click', () => { renderEdit(); show('edit'); });
 
 // ---------- screen 3: edit ----------
@@ -1079,6 +1291,8 @@ function buildCopyText() {
     if (c.swipe) out += 'SWIPE: ' + c.swipe + '\n';
     if (c.photo) out += '(photo on this slide, kept)\n';
   });
+  const cap = ($('caption').value || '').trim();
+  if (cap) out += '\n=== CAPTION ===\n' + cap + '\n';
   return out.trim();
 }
 function flashBtn(id, msg) { const b = $(id); if (!b) return; if (!b.dataset.label) b.dataset.label = b.innerText; b.innerText = msg; setTimeout(() => { b.innerText = b.dataset.label; }, 1600); }
@@ -1088,18 +1302,24 @@ function fallbackCopy(text, cb) {
   try { document.execCommand('copy'); } catch (e) {}
   document.body.removeChild(ta); if (cb) cb();
 }
-$('copy-btn').addEventListener('click', () => {
-  const text = buildCopyText(), ok = () => flashBtn('copy-btn', '✓ Copied all text!');
+function copyAll(id) {
+  const text = buildCopyText(), ok = () => flashBtn(id, '✓ Copied all text!');
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok)); else fallbackCopy(text, ok);
-});
-$('paste-btn').addEventListener('click', () => { $('paste-area').value = ''; $('paste-overlay').style.display = 'flex'; });
+}
+$('copy-btn').addEventListener('click', () => copyAll('copy-btn'));
+$('draft-copy').addEventListener('click', () => copyAll('draft-copy'));
+let pasteMode = 'edit'; // 'draft' saves through the Worker (SOC-34 B2); 'edit' is the older More-sheet paste into the editor
+function openPaste(mode) { pasteMode = mode; $('paste-area').value = ''; clearMsg($('paste-msg')); $('paste-overlay').style.display = 'flex'; }
+$('paste-btn').addEventListener('click', () => openPaste('edit'));
+$('draft-paste').addEventListener('click', () => openPaste('draft'));
 $('paste-cancel').addEventListener('click', () => { $('paste-overlay').style.display = 'none'; });
-$('paste-apply').addEventListener('click', () => {
-  const text = $('paste-area').value;
-  if (!text.trim()) { alert('Paste the text first.'); return; }
+const CAPTION_DIV = /^\s*=+\s*caption\s*=+\s*$/i;
+function parsePasted(text) {
   const labelRe = /^(HANDLE|KICKER|NUM|TITLE|SUB|SWIPE)\s*:\s?(.*)$/i;
-  const slides = []; let cur = null, subMode = false;
+  const slides = []; let cur = null, subMode = false, capLines = null;
   text.split(/\r?\n/).forEach(line => {
+    if (CAPTION_DIV.test(line)) { capLines = []; cur = null; subMode = false; return; }
+    if (capLines) { capLines.push(line); return; }
     if (isDividerLine(line)) { cur = { _sub: null }; slides.push(cur); subMode = false; return; }
     if (!cur) return;
     const m = line.match(labelRe);
@@ -1114,10 +1334,42 @@ $('paste-apply').addEventListener('click', () => {
     if (cur.title === undefined && line.trim()) { cur.title = line.trim(); return; }
   });
   slides.forEach(s => { if (s._sub) s.sub = s._sub.join('\n').replace(/\s+$/, ''); delete s._sub; });
+  return { slides, caption: capLines ? capLines.join('\n').trim() : null };
+}
+function pasteErr(text, list) { const m = $('paste-msg'); m.className = 'msg err'; m.textContent = text; if (list && list.length) { const ul = document.createElement('ul'); list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }); m.appendChild(ul); } }
+// SOC-34 B2: Paste text on a draft saves the words (title and second line of each slide, and the caption) to that draft through the Worker.
+async function applyDraftPaste(parsed) {
+  const c = meta.ref;
+  if (parsed.slides.length !== cards.length) { pasteErr('This text has ' + parsed.slides.length + ' slides and the post has ' + cards.length + '. Keep the === SLIDE n === dividers.'); return; }
+  const caption = parsed.caption !== null ? parsed.caption : $('caption').value.trim();
+  const slides = parsed.slides.map(x => ({ title: x.title || '', sub: x.sub || '' }));
+  const btn = $('paste-apply'); btn.disabled = true;
+  try {
+    const r = await api('/api/concepts/' + encodeURIComponent(meta.conceptId) + '/deck-text', 'PUT', { slides, caption });
+    if (r.status === 422) { pasteErr('This text is not postable yet:', Array.isArray(r.data.reasons) && r.data.reasons.length ? r.data.reasons : [failText(r)]); return; }
+    if (!r.ok) { pasteErr('Could not save that: ' + failText(r)); return; }
+    cards = cards.map((k, i) => Object.assign({}, k, slides[i])); $('caption').value = caption;
+    if (c) {
+      if (r.data.concept && typeof r.data.concept === 'object') Object.assign(c, r.data.concept);
+      else if (c.deck) { c.deck.caption = caption; (c.deck.slides || []).forEach((sl, i) => { if (slides[i]) { sl.title = slides[i].title; sl.sub = slides[i].sub; } }); }
+    }
+    persist(); $('paste-overlay').style.display = 'none';
+    await drawReview();
+    const m = $('msg'), check = m.textContent, kind = /\berr\b/.test(m.className) ? 'err' : /\bwarn\b/.test(m.className) ? 'warn' : 'ok';
+    say(kind === 'ok' ? 'ok' : kind, 'Saved. Your words are kept.', check ? [check] : null);
+  } catch (e) { pasteErr(e.message || 'Could not reach the server.'); }
+  finally { btn.disabled = false; }
+}
+$('paste-apply').addEventListener('click', () => {
+  const text = $('paste-area').value;
+  if (!text.trim()) { alert('Paste the text first.'); return; }
+  const parsed = parsePasted(text), slides = parsed.slides;
+  if (pasteMode === 'draft' && meta.conceptId) { applyDraftPaste(parsed); return; }
   const valid = slides.filter(s => s.title || s.sub || s.kicker || s.num || s.swipe || s.handle);
   if (!valid.length) { alert("Couldn't find any slides. Keep the '=== SLIDE n ===' dividers from the copied text."); return; }
   const old = cards;
   cards = valid.map((s, i) => Object.assign(old[i] ? Object.assign({}, old[i]) : norm({}), s));
+  if (parsed.caption) $('caption').value = parsed.caption;
   persist(); $('paste-overlay').style.display = 'none'; closeSheets(); renderEdit(); show('edit');
   say('ok', 'Pasted ' + cards.length + ' slide(s). Photos were kept.');
 });
@@ -1188,8 +1440,8 @@ $('approve-btn').addEventListener('click', async () => {
     numTouched = false;
     await sleep(1500);
     albumReady = loadAlbumMeta();
-    await Promise.all([refreshReady(), refreshSeries(), albumReady]);
-    show('ready');
+    await Promise.all([refreshReady(), refreshSeries(), albumReady, refreshStats()]);
+    exitDraft(false);
   } catch (e) {
     say('err', e.message || 'Something went wrong.');
   } finally { if (!done) btn.disabled = reviewBlockedNow(); }
@@ -1340,6 +1592,7 @@ $('reel-back').addEventListener('click', () => openTrial());
 showSettingsState();
 setType(type);
 syncCoverFields();
+if (location.hash === '#draft') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} } // a reload never lands inside a draft
 if (location.hash === '#reels' || location.hash === '#trial') { applyConnection(); openTrial(); }
 if (location.hash === '#series') { cards = defaultDeck().map(norm); setType('series'); renderEdit(); show('edit'); }
 applyConnection();
