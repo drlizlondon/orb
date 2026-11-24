@@ -407,15 +407,20 @@ function place(imgW, imgH, face, rects, frame) {
   return { fx, fy, zoom, cleared, lowRes: lowResAt(sc) };
 }
 // SOC-25: ONE uniform scale on both axes (cover), never a per-axis fit: a circle stays a circle.
-function drawPhoto(ctx, im, fx, fy, zoom, dark, finish) {
+function drawPhoto(ctx, im, fx, fy, zoom, dark, finish, blur) {
   ctx.fillStyle = dark ? DARK.ground : '#bdbdba'; ctx.fillRect(0, 0, T.W, T.H); if (!im) return;
   const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
   const s = Math.max(T.W / iw, T.H / ih) * zoom, dw = iw * s, dh = ih * s;
-  ctx.drawImage(im, -(dw - T.W) * fx, -(dh - T.H) * fy, dw, dh);
+  if (blur) { // one-photo mode, slides 2+: same photo, heavy blur; drawn 8% larger so the blur has no soft dark rim at the edges
+    const bw = dw * 1.08, bh = dh * 1.08; ctx.filter = 'blur(' + ONEPHOTO.blur + 'px)';
+    ctx.drawImage(im, -(bw - T.W) * fx, -(bh - T.H) * fy, bw, bh); ctx.filter = 'none';
+  } else ctx.drawImage(im, -(dw - T.W) * fx, -(dh - T.H) * fy, dw, dh);
   if (finish !== false) applyFinish(ctx); // SOC-26: the finish, photo only, before the tint, the scrim and the words
   if (dark) return; // the dark look has no plum tint (its template has none)
   const g = ctx.createLinearGradient(0, 0, T.W * 0.55, T.H * 0.1); g.addColorStop(0, 'rgba(58,17,80,.22)'); g.addColorStop(1, 'rgba(58,17,80,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, T.W, T.H);
 }
+// One-photo mode (founder 2026-11-24): a MODE of the dark look. Slide 1 is unchanged; slides 2+ show the same photo blurred and darker.
+const ONEPHOTO = { blur: 34, dim: 'rgba(10,10,16,0.45)' }; // blur px on the 1080 slide; extra uniform darkening over the normal dark scrim
 function twoPass(cv, draw, im, opts) {
   opts = opts || {}; cv.width = T.W; cv.height = T.H; const ctx = cv.getContext('2d');
   const dark = opts.look === 'dark'; // SOC-26: same photo placement and lowRes as the photo look; the ground, the scrim and the words differ
@@ -423,10 +428,13 @@ function twoPass(cv, draw, im, opts) {
   const pre = draw(tmp.getContext('2d'));
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;
   const pl = place(iw, ih, im ? opts.face || null : null, pre.rects, opts.frame || null);
-  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish); if (dark) drawDarkScrim(ctx); draw(ctx);
+  const bl = !!(dark && opts.onePhoto && opts._later && im);
+  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish, bl); if (dark) drawDarkScrim(ctx);
+  if (bl) { ctx.fillStyle = ONEPHOTO.dim; ctx.fillRect(0, 0, T.W, T.H); }
+  draw(ctx);
   return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, lowRes: pl.lowRes, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
 }
-function renderSlide(cv, slide, i, total, im, opts) { const dk = !!opts && opts.look === 'dark'; return twoPass(cv, ctx => (dk ? drawDark : drawText)(ctx, slide, i, total), im, opts); }
+function renderSlide(cv, slide, i, total, im, opts) { const dk = !!opts && opts.look === 'dark'; if (dk && opts.onePhoto && i > 0) opts = { ...opts, _later: true }; return twoPass(cv, ctx => (dk ? drawDark : drawText)(ctx, slide, i, total), im, opts); }
 function renderSeries(cv, cover, i, total, im, opts) { return twoPass(cv, ctx => drawSeries(ctx, cover, i, total), im, opts); }
 
 // ---------- the reel overlay (SOC-18.1) ----------
