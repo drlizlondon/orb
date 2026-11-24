@@ -995,6 +995,42 @@ await check('SOC-33 One photo: hidden on Photo, off by default; on Dark ON -> sl
   assert.deepEqual(errors, []);
   await ctx.close();
 });
+const sha = page => page.evaluate(async () => { const out = []; for (const cv of document.querySelectorAll('#review-strip canvas')) { const b = new TextEncoder().encode(cv.toDataURL()); const h = await crypto.subtle.digest('SHA-256', b); out.push([...new Uint8Array(h)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 16)); } return out; });
+// Baselines: switch off = the dark deck as origin/main and 4f97749 draw it; colour blur = 4f97749 with One photo ticked (slide 1, slide 2..). Printed by this test on each tree.
+await check('SOC-33b One photo treatment: two choices, Colour blur default (pixels = 4f97749), B&W sharp is greyscale, slide 1 untouched, saved, old true = Colour blur', async () => {
+  st.drafted = [mk(4, 'idea', 'one2', { createdAt: '2026-11-19T08:00:00Z' })];
+  const { page, errors, ctx } = await open(PH);
+  await page.click('.ready-item'); await reviewReady(page);
+  await page.click('#look-dark'); await waitDark(page, true); await reviewReady(page);
+  const hOff = await sha(page); console.log('HASH off', hOff.join(','));
+  const hasStyle = await page.locator('#one-style').count();
+  if (hasStyle) assert.equal(await page.locator('#one-style').isVisible(), false, 'choice hidden when One photo is off');
+  await page.check('#one-photo'); await page.waitForTimeout(800); await reviewReady(page);
+  const hBlur = await sha(page); console.log('HASH blur', hBlur.join(','));
+  assert.equal(await page.locator('#one-style').isVisible(), true, 'choice shown when One photo is on');
+  assert.deepEqual(await page.locator('#one-style label').allInnerTexts(), ['Colour blur', 'B&W sharp']);
+  assert.equal(await page.locator('#one-style-blur').isChecked(), true, 'default Colour blur');
+  if (process.env.BASE_BLUR) assert.equal(hBlur.join(','), process.env.BASE_BLUR, 'Colour blur pixels = 4f97749');
+  if (process.env.BASE_OFF) assert.equal(hOff.join(','), process.env.BASE_OFF, 'switch off pixels = baseline');
+  const sigBlur = await page.evaluate(() => deckSig(null));
+  await page.check('#one-style-bw'); await page.waitForTimeout(800); await reviewReady(page);
+  const hBw = await sha(page); console.log('HASH bw', hBw.join(','));
+  assert.equal(hBw[0], hBlur[0], 'slide 1 identical in both modes'); assert.equal(hBw[0], hOff[0], 'slide 1 identical to off');
+  assert.notEqual(hBw[1], hBlur[1], 'B&W sharp slide 2 differs from blur');
+  assert.notEqual(await page.evaluate(() => deckSig(null)), sigBlur, 'style is in the deck signature');
+  const chroma = await page.evaluate(() => { const cv = document.querySelectorAll('#review-strip canvas')[1]; const g = cv.getContext('2d'); let mx = 0, n = 0; for (let y = 100; y < 1300; y += 97) for (let x = 40; x < 1040; x += 89) { const p = g.getImageData(x, y, 1, 1).data; mx = Math.max(mx, Math.abs(p[0] - p[1]), Math.abs(p[1] - p[2])); n++; } return { mx, n }; });
+  assert.ok(chroma.n > 100 && chroma.mx <= 6, 'near-zero chroma on B&W slide 2 (max channel gap ' + chroma.mx + ')');
+  await page.reload(); await page.waitForSelector('.ready-item'); await page.click('.ready-item'); await reviewReady(page);
+  assert.equal(await page.locator('#one-style-bw').isChecked(), true, 'B&W sharp kept across reload');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ig_onephoto_v1'))[meta.conceptId]), 'bw-sharp');
+  // backward compatibility: an old saved `true` is Colour blur
+  await page.evaluate(() => { const m = JSON.parse(localStorage.getItem('ig_onephoto_v1')); m[meta.conceptId] = true; localStorage.setItem('ig_onephoto_v1', JSON.stringify(m)); });
+  await page.reload(); await page.waitForSelector('.ready-item'); await page.click('.ready-item'); await reviewReady(page);
+  assert.equal(await page.locator('#one-photo').isChecked(), true); assert.equal(await page.locator('#one-style-blur').isChecked(), true, 'old true = Colour blur');
+  assert.equal((await sha(page)).join(','), hBlur.join(','), 'old saved true draws the Colour blur pixels');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
 await check('SOC-26 dark: the face check runs on dark too: a face-blocked photo deck is blocked on Photo and on Dark', async () => {
   st.drafted = [faceDeck('blockeddark', 'gb')];
   const { page, ctx } = await open(PH);

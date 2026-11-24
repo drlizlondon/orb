@@ -421,6 +421,16 @@ function drawPhoto(ctx, im, fx, fy, zoom, dark, finish, blur) {
 }
 // One-photo mode (founder 2026-11-24): a MODE of the dark look. Slide 1 is unchanged; slides 2+ show the same photo blurred and darker.
 const ONEPHOTO = { blur: 34, dim: 'rgba(10,10,16,0.45)' }; // blur px on the 1080 slide; extra uniform darkening over the normal dark scrim
+// SOC-33b (founder ruling 2026-11-24): the second treatment, opts.onePhotoStyle = 'bw-sharp'. Values are the approved sample (variant-bw-sharp-2.jpg).
+const BWSHARP = { sharpen: 0.6, dim: 'rgba(8,8,12,0.58)' };
+function applyBwSharp(ctx) {
+  const W = T.W, H = T.H; const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  for (let o = 0; o < d.length; o += 4) { const y = 0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2]; d[o] = d[o + 1] = d[o + 2] = y; }
+  const src = new Uint8ClampedArray(d), a = BWSHARP.sharpen; // 3x3 kernel: centre 1+4a, neighbours -a
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const o = (y * W + x) * 4; for (let k = 0; k < 3; k++) {
+    d[o + k] = src[o + k] * (1 + 4 * a) - a * (src[o - 4 + k] + src[o + 4 + k] + src[o - W * 4 + k] + src[o + W * 4 + k]); } }
+  ctx.putImageData(id, 0, 0);
+}
 function twoPass(cv, draw, im, opts) {
   opts = opts || {}; cv.width = T.W; cv.height = T.H; const ctx = cv.getContext('2d');
   const dark = opts.look === 'dark'; // SOC-26: same photo placement and lowRes as the photo look; the ground, the scrim and the words differ
@@ -429,8 +439,10 @@ function twoPass(cv, draw, im, opts) {
   const iw = im ? (im.naturalWidth || im.width) : 0, ih = im ? (im.naturalHeight || im.height) : 0;
   const pl = place(iw, ih, im ? opts.face || null : null, pre.rects, opts.frame || null);
   const bl = !!(dark && opts.onePhoto && opts._later && im);
-  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish, bl); if (dark) drawDarkScrim(ctx);
-  if (bl) { ctx.fillStyle = ONEPHOTO.dim; ctx.fillRect(0, 0, T.W, T.H); }
+  const bw = bl && opts.onePhotoStyle === 'bw-sharp'; // SOC-33b: black-and-white sharp instead of colour blur
+  drawPhoto(ctx, im, pl.fx, pl.fy, pl.zoom, dark, opts.finish, bl && !bw); if (bw) applyBwSharp(ctx);
+  if (dark) drawDarkScrim(ctx);
+  if (bl) { ctx.fillStyle = bw ? BWSHARP.dim : ONEPHOTO.dim; ctx.fillRect(0, 0, T.W, T.H); }
   draw(ctx);
   return { rects: pre.rects, blocks: pre.blocks, textTop: Math.round(pre.textTop), fits: pre.fits, faceClear: pl.cleared, lowRes: pl.lowRes, fx: +pl.fx.toFixed(4), fy: +pl.fy.toFixed(4), zoom: pl.zoom };
 }

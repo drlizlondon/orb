@@ -81,7 +81,9 @@
   #reel-script { min-height: 120px; }
   .second-look { font-size: 14px; opacity: 0.8; margin: 6px 0; overflow-wrap: anywhere; }
   .second-look .look-orig { margin-left: 8px; }
-  .look-row { display: flex; gap: 8px; margin: 10px 0 0; }
+  .look-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+  .look-row .one-style { display: inline-flex; align-items: center; gap: 12px; font-size: 14px; min-height: 44px; }
+  .look-row .one-style label { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
   .look-row .one-photo { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 0 auto; font-size: 14px; min-height: 44px; }
   .look-row .quiet-btn[aria-pressed="true"] { font-weight: 700; border-color: currentColor; }
   .job-line { font-size: 14px; opacity: 0.6; margin: 6px 0 0; }
@@ -208,6 +210,7 @@
     <button id="look-photo" class="quiet-btn small-btn" type="button" aria-pressed="true">Photo</button>
     <button id="look-dark" class="quiet-btn small-btn" type="button" aria-pressed="false">Dark</button>
     <label id="one-photo-wrap" class="one-photo" hidden><input id="one-photo" type="checkbox"> One photo</label>
+    <span id="one-style" class="one-style" role="radiogroup" aria-label="One photo treatment" hidden><label><input id="one-style-blur" name="one-style" type="radio" value="blur"> Colour blur</label><label><input id="one-style-bw" name="one-style" type="radio" value="bw-sharp"> B&amp;W sharp</label></span>
   </div>
   <label for="caption">Caption</label>
   <textarea id="caption" rows="3"></textarea>
@@ -376,9 +379,12 @@ let look = lookOf(lsGet(LOOK_KEY));
 // post (the Worker has no field for it; the posted JPGs carry the rendering, so nothing else needs it).
 const ONEPHOTO_KEY = 'ig_onephoto_v1';
 let onePhoto = readOnePhoto();
+let onePhotoStyle = readOneStyle();
 const onePhotoId = () => meta.conceptId || '_local';
-function readOnePhoto() { try { const m = JSON.parse(lsGet(ONEPHOTO_KEY) || '{}'); return !!(m && m[onePhotoId()] === true); } catch (e) { return false; } }
-function saveOnePhoto() { try { const m = JSON.parse(lsGet(ONEPHOTO_KEY) || '{}') || {}; if (onePhoto) m[onePhotoId()] = true; else delete m[onePhotoId()]; lsSet(ONEPHOTO_KEY, JSON.stringify(m)); } catch (e) {} }
+function readOnePhoto() { try { const m = JSON.parse(lsGet(ONEPHOTO_KEY) || '{}'); return !!(m && (m[onePhotoId()] === true || m[onePhotoId()] === 'bw-sharp')); } catch (e) { return false; } }
+function readOneStyle() { try { const m = JSON.parse(lsGet(ONEPHOTO_KEY) || '{}'); return (m && m[onePhotoId()] === 'bw-sharp') ? 'bw-sharp' : 'blur'; } catch (e) { return 'blur'; } }
+// stored per concept: true = on, Colour blur (also what an old saved true means); 'bw-sharp' = on, B&W sharp
+function saveOnePhoto() { try { const m = JSON.parse(lsGet(ONEPHOTO_KEY) || '{}') || {}; if (onePhoto) m[onePhotoId()] = onePhotoStyle === 'bw-sharp' ? 'bw-sharp' : true; else delete m[onePhotoId()]; lsSet(ONEPHOTO_KEY, JSON.stringify(m)); } catch (e) {} }
 const oneOn = () => look === 'dark' && onePhoto;
 let current = 'ready';
 let seriesInfo = { last: null, next: null };
@@ -573,7 +579,7 @@ async function drawInto(cv, i) {
   const has = !!(sc.photo && im);
   const opts = { face: has ? faceOf(sc) : null, frame: sc.frame || null };
   if (dark) opts.look = 'dark';
-  if (one) opts.onePhoto = true;
+  if (one) { opts.onePhoto = true; if (onePhotoStyle === 'bw-sharp') opts.onePhotoStyle = 'bw-sharp'; }
   const r = (type === 'series' && i === 0 && !dark) ? OneLook.renderSeries(cv, coverFor(), i, cards.length, im, opts) : OneLook.renderSlide(cv, slideFor(c), i, cards.length, im, opts);
   return Object.assign({ hasPhoto: has }, r);
 }
@@ -834,8 +840,9 @@ $('review-strip').addEventListener('scroll', () => {
   $('review-count').textContent = k + ' / ' + n;
 });
 function openReview() { show('review'); return drawReview(); }
-function syncOnePhoto() { $('one-photo-wrap').hidden = look !== 'dark'; $('one-photo').checked = onePhoto; }
-$('one-photo').addEventListener('change', () => { onePhoto = $('one-photo').checked; saveOnePhoto(); drawReview(); });
+function syncOnePhoto() { $('one-photo-wrap').hidden = look !== 'dark'; $('one-photo').checked = onePhoto; $('one-style').hidden = !(look === 'dark' && onePhoto); $('one-style-blur').checked = onePhotoStyle !== 'bw-sharp'; $('one-style-bw').checked = onePhotoStyle === 'bw-sharp'; }
+$('one-photo').addEventListener('change', () => { onePhoto = $('one-photo').checked; saveOnePhoto(); syncOnePhoto(); drawReview(); });
+for (const id of ['one-style-blur', 'one-style-bw']) $(id).addEventListener('change', () => { onePhotoStyle = $('one-style-bw').checked ? 'bw-sharp' : 'blur'; saveOnePhoto(); drawReview(); });
 function syncLookButtons() { syncOnePhoto(); $('look-photo').setAttribute('aria-pressed', String(look === 'photo')); $('look-dark').setAttribute('aria-pressed', String(look === 'dark')); }
 async function setLook(next) {
   if (look === next) return;
@@ -852,7 +859,7 @@ function openDraft(c) {
   $('caption').value = (c.deck && c.deck.caption) || '';
   meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id, ref: c };
   setType(isSeries(c) ? 'series' : 'words');
-  onePhoto = readOnePhoto();
+  onePhoto = readOnePhoto(); onePhotoStyle = readOneStyle();
   look = c.look ? lookOf(c.look) : (c.kind === 'life' ? 'dark' : 'photo'); // SOC-26: the Life series defaults to dark when the draft carries no look
   syncLookButtons();
   showSecondLook(c);
@@ -1123,7 +1130,7 @@ function slideText(c, i, n) {
   if (type === 'series' && i === 0) return [cover.kicker, cover.h1, cover.h2, cover.h3, cover.h4, cover.h5, c.title, OneLook.pad3(n)].filter(x => x && String(x).trim()).join(' ');
   return [c.kicker, c.num, c.title, c.sub, c.swipe].filter(x => x && x.trim()).join(' ');
 }
-function deckSig(n) { return JSON.stringify([type, look, oneOn(), n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame, c.offsets])]); }
+function deckSig(n) { return JSON.stringify([type, look, oneOn(), oneOn() ? onePhotoStyle : '', n, cover, cards.map(c => [c.kicker, c.num, c.title, c.sub, c.swipe, c.photo, c.handle, c.frame, c.offsets])]); }
 async function renderAllPngs() {
   await OneLook.fontsReady();
   for (const c of cards) if (c.photo && isRemote(c.photo) && !(await loadImg(c.photo))) throw new Error('A photo on this deck cannot be read for export (the server did not allow it). Pick it again from "Use my photos".');
