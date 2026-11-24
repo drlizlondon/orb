@@ -965,6 +965,36 @@ await check('SOC-26 dark look: every slide of a 4-slide deck gets the dark fade 
   assert.equal(await page.locator('#look-plain').count(), 0, 'no Plain button any more');
   await ctx.close();
 });
+await check('SOC-33 One photo: hidden on Photo, off by default; on Dark ON -> slides 2+ render with slide 1 photo + onePhoto true, slide 1 untouched; OFF restores each slide photo; saved across reload; part of the deck signature', async () => {
+  st.drafted = [mk(4, 'idea', 'one1', { createdAt: '2026-11-19T08:00:00Z' })];
+  const { page, errors, ctx } = await open(PH);
+  await page.click('.ready-item'); await reviewReady(page);
+  assert.equal(await page.locator('#one-photo-wrap').isVisible(), false, 'hidden on the Photo look');
+  await page.click('#look-dark'); await waitDark(page, true); await reviewReady(page);
+  assert.equal(await page.locator('#one-photo-wrap').isVisible(), true);
+  assert.equal(await page.locator('#one-photo-wrap').innerText(), 'One photo');
+  assert.equal(await page.locator('#one-photo').isChecked(), false, 'default off');
+  await page.evaluate(() => { window.__rs = []; const f = OneLook.renderSlide; OneLook.renderSlide = function (cv, sl, i, n, im, o) { window.__rs.push({ i, src: im && im.src, one: !!(o && o.onePhoto) }); return f.apply(this, arguments); }; });
+  const sigOff = await page.evaluate(() => deckSig(null));
+  const ownPhotos = await page.evaluate(() => cards.map(c => c.photo));
+  const hOff = await stripHash(page);
+  assert.ok(new Set(ownPhotos).size > 1, 'fixture slides have different photos');
+  await page.check('#one-photo'); await page.waitForTimeout(800); await reviewReady(page);
+  const rs = await page.evaluate(() => window.__rs.slice(-4));
+  const src0 = await page.evaluate(() => cards[0].photo);
+  for (const r of rs) { assert.equal(r.one, r.i > 0, 'onePhoto flag only on slides 2+ (slide ' + (r.i + 1) + ')'); assert.ok(r.src.endsWith(src0.split('/').pop()) || r.src === src0 || r.src.includes(src0.split('/').pop()), 'slide ' + (r.i + 1) + ' uses slide 1 photo'); }
+  assert.notEqual(await page.evaluate(() => deckSig(null)), sigOff, 'signature changes with the switch');
+  const hOn = await stripHash(page);
+  assert.equal(hOn[0], hOff[0], 'slide 1 identical ON and OFF');
+  assert.notEqual(hOn[1], hOff[1], 'slide 2 is different when ON');
+  await page.reload(); await page.waitForSelector('.ready-item'); await page.click('.ready-item'); await reviewReady(page);
+  assert.equal(await page.locator('#one-photo').isChecked(), true, 'kept across reload');
+  await page.uncheck('#one-photo'); await page.waitForTimeout(800); await reviewReady(page);
+  assert.equal(await page.evaluate(() => cards.map(c => c.photo).join()), ownPhotos.join(), 'own photos kept');
+  assert.deepEqual(await stripHash(page), hOff, 'OFF restores the original pixels');
+  assert.deepEqual(errors, []);
+  await ctx.close();
+});
 await check('SOC-26 dark: the face check runs on dark too: a face-blocked photo deck is blocked on Photo and on Dark', async () => {
   st.drafted = [faceDeck('blockeddark', 'gb')];
   const { page, ctx } = await open(PH);
