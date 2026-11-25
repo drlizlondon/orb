@@ -42,6 +42,7 @@
   label { display: block; font-size: 14px; font-weight: 700; margin-top: 6px; }
 
   /* messages */
+  #msg-actions:not(:empty) { margin-bottom: 8px; }
   .msg { display: none; padding: 10px 14px; border-radius: 12px; font-size: 15px; font-weight: 700; line-height: 1.4; max-height: 34vh; overflow-y: auto; margin-bottom: 8px; }
   .msg.ok { display: block; background: #faf1e2; color: #3a1150; }
   .msg.warn { display: block; background: #f9c9e6; color: #3a1150; }
@@ -301,6 +302,7 @@
   <div id="review-bar">
     <div class="bar-in">
       <div id="msg" class="msg" role="status" aria-live="polite"></div>
+      <div id="msg-actions"></div>
       <div class="bar-row">
         <button id="approve-btn" class="main-btn" type="button">Approve</button>
         <button id="edit-btn" class="quiet-btn" type="button">Edit</button>
@@ -564,10 +566,10 @@ function msgFor(name) {
 }
 function say(kind, text, list) {
   const m = msgFor(); if (!m) return;
-  m.className = 'msg ' + kind; m.textContent = text;
+  m.className = 'msg ' + kind; m.textContent = text; if (m === $('msg')) $('msg-actions').textContent = '';
   if (list && list.length) { const ul = document.createElement('ul'); list.forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }); m.appendChild(ul); }
 }
-function clearMsg(m) { if (m) { m.className = 'msg'; m.textContent = ''; } }
+function clearMsg(m) { if (m) { m.className = 'msg'; m.textContent = ''; if (m === $('msg')) $('msg-actions').textContent = ''; } }
 // SOC-34 B4: leaving a draft (Back, browser back) returns to where the list was; every other change of screen starts at the top.
 const SCROLL_KEY = 'ig_list_scroll_v1'; // sessionStorage only: a scroll position, never a setting
 let listScroll = null;
@@ -933,6 +935,17 @@ function applyChecks(results) {
   }
   $('approve-btn').disabled = blocked || wordsEditing();
   if (text) say(kind, text); else clearMsg($('msg'));
+  if (blocked && !wordsEditing() && msgFor() === $('msg')) addAnyway([text]); // override ruling 2026-11-25: she can approve a flagged draft
+}
+// "Approve anyway": a quiet button under a block message. It asks once, then runs the normal approve flow with override:true.
+function addAnyway(reasons) {
+  const m = msgFor(); if (!m || m !== $('msg') || !reasons || !reasons.length) return;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'quiet-btn small-btn'; b.id = 'approve-anyway'; b.textContent = 'Approve anyway';
+  b.addEventListener('click', () => {
+    if (!confirm('Approve with this flagged? ' + reasons.join(' '))) return;
+    doApprove({ reasons: reasons.slice() });
+  });
+  $("msg-actions").appendChild(b);
 }
 // ---------- SOC-21: slides from her caption (deterministic: her words only, no AI, no network) ----------
 let slidesUndo = null;
@@ -1488,7 +1501,8 @@ async function renderAllPngs() {
   }
   return out;
 }
-$('approve-btn').addEventListener('click', async () => {
+$('approve-btn').addEventListener('click', () => doApprove(null));
+async function doApprove(override) {
   const btn = $('approve-btn');
   if (cards.length < 2) { say('err', 'A post needs at least 2 slides.'); return; }
   if (cards.length > 10) { say('err', 'Instagram allows 10 slides. Delete one first.'); return; }
@@ -1516,7 +1530,7 @@ $('approve-btn').addEventListener('click', async () => {
       if (!pub.ok) { say('err', 'Could not send your slides: ' + failText(pub)); return; }
       meta.pending = { id, sig };
     }
-    const ap = await api('/api/drafts/' + encodeURIComponent(id) + '/approve', 'POST', { caption });
+    const ap = await api('/api/drafts/' + encodeURIComponent(id) + '/approve', 'POST', override ? { caption, override: true, overrideReasons: override.reasons } : { caption });
     if (ap.status === 409 && ap.data.error === 'series number taken') {
       meta.pending = null;
       const nx = ap.data.next; $('series-num').value = String(nx); numTouched = true;
@@ -1524,7 +1538,7 @@ $('approve-btn').addEventListener('click', async () => {
       say('err', OneLook.pad3(n) + ' was just used. The next free number is ' + OneLook.pad3(nx) + '. Tap approve again.');
       return;
     }
-    if (ap.status === 422) { say('err', 'Not approved yet. Fix this and tap approve again:', (ap.data.reasons && ap.data.reasons.length) ? ap.data.reasons : [failText(ap)]); return; }
+    if (ap.status === 422) { const why = (ap.data.reasons && ap.data.reasons.length) ? ap.data.reasons : [failText(ap)]; say('err', 'Not approved yet. Fix this and tap approve again:', why); if (ap.data.reasons && ap.data.reasons.length) addAnyway(why); return; }
     if (!ap.ok) { say('err', 'Could not approve: ' + failText(ap)); return; }
     meta.pending = null; done = true;
     say('ok', type === 'series' ? 'Approved as ' + OneLook.pad3(n) + '. In your Buffer queue once your Mac syncs' : 'Approved. In your Buffer queue once your Mac syncs');
@@ -1537,7 +1551,7 @@ $('approve-btn').addEventListener('click', async () => {
   } catch (e) {
     say('err', e.message || 'Something went wrong.');
   } finally { if (!done) btn.disabled = reviewBlockedNow(); }
-});
+}
 function reviewBlockedNow() { return lastRes.some(r => r && (r.faceClear === false || r.fits === false || (r.hasPhoto && r.lowRes === true))); }
 
 // ---------- reels (SOC-18.5 + 18.5a) ----------
