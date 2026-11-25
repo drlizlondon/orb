@@ -496,10 +496,12 @@ function albumUrl(guid) { return workerBase() + '/img-album/' + encodeURICompone
 function albumThumbUrl(guid) { return albumUrl(guid) + '?size=thumb'; } // small, long-cached copy for lists and tiles; full size stays for rendering
 function guidOf(url) { const m = /\/img-album\/([^/?#]+)$/.exec(url || ''); return m ? decodeURIComponent(m[1]) : null; }
 function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
-function isSeries(c) { return c.kind === 'series'; }
+// SOC-39: a concept that carries a series string decides by it (only earn-more is a numbered series post); no series string = the old kind rule.
+function isSeries(c) { return typeof c.series === 'string' ? c.series === 'earn-more' : c.kind === 'series'; }
 // One topic tag per post, from the post's kind. A Life post is Life, never a words-over-photos tag.
-const TOPICS = { series: 'Work less, do more', life: 'Life', idea: 'One-off' };
-function topicOf(c) { return (c && TOPICS[c.kind]) || (isSeries(c || {}) ? TOPICS.series : TOPICS.idea); }
+const TOPICS = { series: 'Work less, do more', life: 'Life', idea: 'One-off', build: 'Build' };
+function topicKey(c) { return c && typeof c.series === 'string' ? (c.series === 'earn-more' ? 'series' : (TOPICS[c.series] ? c.series : c.kind)) : (c && c.kind); }
+function topicOf(c) { return (c && TOPICS[topicKey(c)]) || (isSeries(c || {}) ? TOPICS.series : TOPICS.idea); }
 // The number a numbered (series) post carries: only the one on its own record. Never the shared "next" number (several cards
 // would show the same one), and never on Life or One-off posts. The review screen still shows next.
 function numberOf(c) {
@@ -994,7 +996,7 @@ function secondLookLine(rv) {
 function showSecondLook(c) {
   const jl = $('job-line'), JOBS = ['go-to', 'buyers', 'right-people']; // SOC-23: the job the drafter gave this post, muted, above the Second look line
   const sl = $('series-line');
-  if (c && TOPICS[c.kind]) { sl.textContent = TOPICS[c.kind]; sl.hidden = false; } else { sl.textContent = ''; sl.hidden = true; }
+  if (c && TOPICS[topicKey(c)]) { sl.textContent = TOPICS[topicKey(c)]; sl.hidden = false; } else { sl.textContent = ''; sl.hidden = true; }
   if (c && JOBS.includes(c.job)) { jl.textContent = 'Job: ' + c.job; jl.hidden = false; } else { jl.textContent = ''; jl.hidden = true; }
   const p = $('second-look'), od = $('orig-deck');
   od.hidden = true; od.textContent = '';
