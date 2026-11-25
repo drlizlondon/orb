@@ -50,6 +50,7 @@
   .msg ul { margin: 6px 0 0 18px; font-weight: 500; }
 
   /* screen 1: ready to post */
+  #ready-filter { width: auto; max-width: 100%; margin: 0 0 6px; }
   #ready-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 12px; }
   .ready-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: rgba(250,241,226,0.1); color: #faf1e2; border: 2px solid #f9c9e6; border-radius: 14px; padding: 8px; }
   .ready-pic { flex: 0 0 72px; width: 72px; height: 90px; border-radius: 8px; overflow: hidden; background: #5a2578; display: block; }
@@ -205,6 +206,7 @@
     <p id="ready-status" class="hint"></p>
     <button id="ready-retry" class="quiet-btn" type="button" hidden>Try again</button>
     <h2 id="ready-heading" hidden>Ready to post (0)</h2>
+    <select id="ready-filter" aria-label="Show one stream" hidden></select>
     <div id="ready-list"></div>
     <p id="ready-waiting" hidden></p>
     <button id="ready-failed" class="link-btn" type="button" hidden></button>
@@ -499,7 +501,7 @@ function isRemote(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); 
 // SOC-39: a concept that carries a series string decides by it (only earn-more is a numbered series post); no series string = the old kind rule.
 function isSeries(c) { return typeof c.series === 'string' ? c.series === 'earn-more' : c.kind === 'series'; }
 // One topic tag per post, from the post's kind. A Life post is Life, never a words-over-photos tag.
-const TOPICS = { series: 'Work less, do more', life: 'Life', idea: 'One-off', build: 'Build' };
+const TOPICS = { series: 'Earn more', life: 'Life', idea: 'One-off', build: 'Build' };
 function topicKey(c) { return c && typeof c.series === 'string' ? (c.series === 'earn-more' ? 'series' : (TOPICS[c.series] ? c.series : c.kind)) : (c && c.kind); }
 function topicOf(c) { return (c && TOPICS[topicKey(c)]) || (isSeries(c || {}) ? TOPICS.series : TOPICS.idea); }
 // The number a numbered (series) post carries: only the one on its own record. Never the shared "next" number (several cards
@@ -746,9 +748,19 @@ function renderReady() {
     const l = document.createElement('span'); l.className = 'rewriting-line'; l.textContent = 'Rewriting, usually a few minutes';
     d.append(t, l); list.appendChild(d);
   });
-  const items = ready.drafted.filter(c => !isRewriting(c)).map((c, k) => [c, k]).filter(x => (x[0].postState || 'none') === 'none')
+  const all = ready.drafted.filter(c => !isRewriting(c)).map((c, k) => [c, k]).filter(x => (x[0].postState || 'none') === 'none')
     .sort((a, b) => { const ka = a[0].draftedAt || a[0].createdAt || '', kb = b[0].draftedAt || b[0].createdAt || ''; return ka < kb ? 1 : ka > kb ? -1 : b[1] - a[1]; }).map(x => x[0]);
-  $('ready-heading').textContent = 'Ready to post (' + items.length + ')'; $('ready-heading').hidden = false;
+  // SOC-41: one native filter over the streams that have ready posts; the remembered choice falls back to All when its stream is empty.
+  const counts = {}; all.forEach(c => { const k = topicKey(c) || 'idea'; counts[k] = (counts[k] || 0) + 1; });
+  const streams = ['series', 'build', 'life', 'idea'].filter(k => counts[k]);
+  const want = lsGet('orb.readyFilter'), pick = streams.includes(want) ? want : '';
+  const sel = $('ready-filter'); sel.innerHTML = '';
+  [['', 'All (' + all.length + ')']].concat(streams.map(k => [k, TOPICS[k] + ' (' + counts[k] + ')'])).forEach(o => {
+    const op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op);
+  });
+  sel.value = pick; sel.hidden = !all.length;
+  const items = pick ? all.filter(c => (topicKey(c) || 'idea') === pick) : all;
+  $('ready-heading').textContent = 'Ready to post (' + (pick ? items.length + ' of ' + all.length : items.length) + ')'; $('ready-heading').hidden = false;
   $('ready-status').textContent = items.length || rewriting.length ? '' : 'Nothing ready yet.';
   items.forEach(c => {
     const s1 = (c.deck && c.deck.slides && c.deck.slides[0]) || {};
@@ -781,6 +793,7 @@ function renderReady() {
   $('ready-failed').hidden = !f; $('ready-failed').textContent = f + ' could not be written';
   scheduleRewritePoll();
 }
+$('ready-filter').addEventListener('change', () => { lsSet('orb.readyFilter', $('ready-filter').value); renderReady(); });
 $('ready-retry').addEventListener('click', () => refreshReady());
 $('ready-failed').addEventListener('click', openMore);
 

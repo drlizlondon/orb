@@ -14,7 +14,7 @@ test('earn-more concept of kind idea is a series post (cover + number)', () => {
   const c = { kind: 'idea', series: 'earn-more', seriesNumber: 7 };
   assert.equal(isSeries(c), true);
   assert.equal(numberOf(c), 7);
-  assert.equal(topicOf(c), 'Work less, do more');
+  assert.equal(topicOf(c), 'Earn more');
 });
 test('build concept is not a series post, even with kind series (G6)', () => {
   const c = { kind: 'series', series: 'build', seriesNumber: 7 };

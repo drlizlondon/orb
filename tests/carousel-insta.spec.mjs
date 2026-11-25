@@ -172,18 +172,18 @@ for (const [vpName, vp] of [['390', PH], ['1440', DT]]) {
     await page.waitForFunction(() => [...document.querySelectorAll('.ready-item img')].length === 6 && [...document.querySelectorAll('.ready-item img')].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
     assert.equal(await page.textContent('#ready-heading'), 'Ready to post (6)');
     const m = await metrics(page);
-    assert.ok(m.controls <= 6 + 5, 'controls ' + m.controls); // SOC-34 B3: the sticky bar adds Top
+    assert.ok(m.controls <= 6 + 6, 'controls ' + m.controls); // SOC-34 B3: the sticky bar adds Top; SOC-41: the stream filter adds one select
     assert.ok(m.height <= 2 * m.vh, 'height ' + m.height);
     assert.ok(m.words <= 28, 'furniture words ' + m.words); // 27 plus the word Top
     assert.equal(await page.getByText('Check for drafts').count(), 0);
     assert.equal(await page.getByText('Refresh').count(), 0);
     assert.equal(await page.textContent('h1'), 'Instagram');
-    const tags = await page.locator('.ready-tag').allTextContents(); assert.equal(tags.filter(x => x === 'Work less, do more').length, 4); assert.equal(tags.filter(x => x === 'One-off').length, 2);
+    const tags = await page.locator('.ready-tag').allTextContents(); assert.equal(tags.filter(x => x === 'Earn more').length, 4); assert.equal(tags.filter(x => x === 'One-off').length, 2);
     // newest first
     assert.match(await page.locator('.ready-title').first().textContent(), /foxtrot/);
     // must-fail: one more visible button breaks the very assert above
     await page.evaluate(() => { const b = document.createElement('button'); b.textContent = 'Check for drafts'; document.getElementById('ready-main').appendChild(b); });
-    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 5, 'the cap assert must fire on an extra button, controls ' + m2.controls);
+    const m2 = await metrics(page); assert.ok(m2.controls > 6 + 6, 'the cap assert must fire on an extra button, controls ' + m2.controls);
     assert.deepEqual(errors, []);
     await ctx.close();
   });
@@ -1123,7 +1123,7 @@ await check('SOC-26 a concept whose look is the old "plain" opens dark; a life c
   const life2 = mk(3, 'life', 'hotel', { createdAt: t(4) }); delete life2.look;
   st.drafted = [mk(3, 'series', 'sierra', { createdAt: t(2) }), life, mk(3, 'idea', 'india', { createdAt: t(3) }), life2];
   const { page, ctx } = await open(PH);
-  const want = { sierra: 'Work less, do more', golf: 'Life', india: 'One-off', hotel: 'Life' };
+  const want = { sierra: 'Earn more', golf: 'Life', india: 'One-off', hotel: 'Life' };
   for (const tag of Object.keys(want)) {
     await openItem(page, tag); await reviewReady(page);
     assert.equal(await page.textContent('#series-line'), want[tag]);
@@ -1200,7 +1200,7 @@ await check('TIDY topic tag: a Life draft is tagged Life (never "Words over my p
   const { page, ctx } = await open(PH);
   await page.waitForFunction(() => document.querySelectorAll('.ready-item').length === 3);
   const tagOf = async t => (await page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-tag').allTextContents());
-  assert.deepEqual(await tagOf('lx'), ['Life']); assert.deepEqual(await tagOf('sx'), ['Work less, do more']); assert.deepEqual(await tagOf('ix'), ['One-off']);
+  assert.deepEqual(await tagOf('lx'), ['Life']); assert.deepEqual(await tagOf('sx'), ['Earn more']); assert.deepEqual(await tagOf('ix'), ['One-off']);
   for (const t of ['sx', 'lx', 'ix']) assert.equal((await page.locator('.ready-item', { hasText: 'Fixture ' + t }).locator('.ready-tag').count()), 1, 'exactly one topic tag');
   await ctx.close();
 });
