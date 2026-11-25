@@ -2,7 +2,7 @@
 // reaches a returning visitor on the next load instead of being pinned to the old cache.
 // The cache name carries the build hash (scripts/build.mjs rewrites it); activate deletes older orbit-* caches.
 // Paths are relative to where this worker lives, so it works at a domain root or under /orb/.
-const BUILD='orbit-c17ec0ff2e2e';
+const BUILD='orbit-d5a31acd52b7';
 const BASE=new URL('./',self.location).pathname;
 const SHELL=['','app/','app.js','inspector.js','style.css','manifest.webmanifest','icon-192.png','icon-512.png'].map(p=>BASE+p);
 self.addEventListener('install',event=>{event.waitUntil(caches.open(BUILD).then(cache=>cache.addAll(SHELL.map(url=>new Request(url,{cache:'reload'})))).then(()=>self.skipWaiting()));});

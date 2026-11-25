@@ -101,10 +101,18 @@ export const RETIRED_IDS = ['cover'];
 const RENAMED = {igc: ['Instagram Carousel', 'Instagram'], cards: ['LinkedIn Carousel', 'LinkedIn posts']};
 
 // Pure. Drops retired tiles and renames untouched old default titles. Returns the same array when nothing changed.
+// A saved Publishing Desk tile from before 5227054 pointed at the wrong product (host match below). Rewrite only that.
+const WRONG_DESK_HOST = 'portfoliocommander';
+function isWrongDesk(t) {
+  return (t.id === 'ppd' || /desk/i.test(t.title)) && domainOf(t.url)?.toLowerCase().includes(WRONG_DESK_HOST);
+}
+
 export function migrateSaved(saved) {
   let changed = false;
   const out = [];
+  const desk = projects.find(p => p.id === 'ppd');
   for (const t of saved) {
+    if (desk && isWrongDesk(t)) { changed = true; out.push({...t, title: desk.title, url: desk.url, desc: desk.description, icon: SEED_ICONS.ppd}); continue; }
     if (RETIRED_IDS.includes(t.id)) { changed = true; continue; }
     const r = RENAMED[t.id];
     if (r && t.title === r[0]) { changed = true; out.push({...t, title: r[1]}); continue; }

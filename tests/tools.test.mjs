@@ -144,3 +144,21 @@ test('TIDY LinkedIn editor says first card, not cover',()=>{
  assert.ok(!/\bcover\b/i.test(src.replace(/object-fit:\s*cover/g,'')),'the word cover is still in the LinkedIn editor');
  assert.ok(/first-card/.test(src));
 });
+
+test('DESK saved desk tile pointing at the wrong product is rewritten to Publishing Desk on load',()=>{
+ const old={id:'ppd',title:'Portfolio Publishing Desk',url:'https://portfoliocommander.lovable.app',desc:'old',icon:'https://portfoliocommander.lovable.app/favicon.ico',addedAt:7};
+ const s=memory({[TOOLS_KEY]:exportTools([old]),[SEEN_KEY]:JSON.stringify(projects.map(p=>p.id))});
+ const t=loadTools(s,9).find(x=>x.id==='ppd');
+ assert.equal(t.url,'https://publishingdesk.lovable.app');assert.equal(t.title,'Publishing Desk');assert.equal(t.addedAt,7);
+ assert.match(s.getItem(TOOLS_KEY),/publishingdesk\.lovable\.app/);
+ const byTitle=memory({[TOOLS_KEY]:exportTools([{...old,id:'x1',title:'Portfolio desk',url:'https://portfoliocommander.drlizlondon.workers.dev'}]),[SEEN_KEY]:JSON.stringify(projects.map(p=>p.id))});
+ assert.equal(loadTools(byTitle,9).find(x=>x.id==='x1').url,'https://publishingdesk.lovable.app');
+});
+test('DESK false alarm: other saved entries, a removed default and an edited title are untouched',()=>{
+ const mk=(id,title,url)=>({id,title,url,desc:'d',icon:'',addedAt:1});
+ const saved=[mk('bpp','My planner','https://bigpictureplanner.app'),mk('ppd','My own desk name','https://publishingdesk.lovable.app'),mk('t1','Commander','https://portfoliocommander.lovable.app')];
+ const s=memory({[TOOLS_KEY]:exportTools(saved),[SEEN_KEY]:JSON.stringify(projects.map(p=>p.id))});
+ const out=loadTools(s,9);
+ assert.deepEqual(out,saved);
+ assert.ok(!out.some(x=>x.id==='da'),'removed default stays removed');
+});
