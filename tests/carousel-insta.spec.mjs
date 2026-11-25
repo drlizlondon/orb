@@ -393,6 +393,20 @@ await check('Quiet lines: 1 queued reads "1 more being written"; 3 queued reads 
   await o.ctx.close();
 });
 
+await check('Retired (superseded) drafts are not counted as "could not be written"; a real failure still is (must-fail)', async () => {
+  const sup = { id: 'c-s', concept: 'Retired one', lane: 'wide', kind: 'idea', status: 'failed', reasons: ['Superseded: cut to best 10 by founder'] };
+  const real = { id: 'c-r', concept: 'Broke', lane: 'wide', kind: 'idea', status: 'failed', reasons: ['model error'] };
+  st.queued = 0; st.failed = [sup]; let o = await open(PH);
+  assert.ok(!(await o.page.locator('#ready-failed').isVisible()), 'superseded counted');
+  await o.ctx.close();
+  st.failed = [sup, real]; o = await open(PH);
+  assert.equal(await o.page.textContent('#ready-failed'), '1 could not be written');
+  await o.page.click('#ready-failed');
+  const more = await o.page.textContent('#more-failed');
+  assert.match(more, /model error/); assert.ok(!/uperseded/.test(more));
+  await o.ctx.close();
+});
+
 await check('Nothing ready: "Nothing ready yet."; and a failed list call shows "Could not get your drafts." with a working Try again', async () => {
   st.drafted = []; let o = await open(PH, { noWait: true });
   await o.page.waitForFunction(() => document.getElementById('ready-status').textContent === 'Nothing ready yet.');

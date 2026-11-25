@@ -703,7 +703,8 @@ async function refreshReady(quiet) {
     const [ok, bad, wait] = await Promise.all([api('/api/concepts?status=drafted'), api('/api/concepts?status=failed'), api('/api/concepts?status=queued')]);
     if (!ok.ok) { const e = new Error('list'); e.status = ok.status; throw e; }
     ready.drafted = ok.data.concepts || [];
-    ready.failed = (bad.ok ? bad.data.concepts : []) || [];
+    // Retired drafts (Worker retire route: status failed, reasons[0] 'superseded: ...') are hidden on purpose, not 'could not be written'.
+    ready.failed = ((bad.ok ? bad.data.concepts : []) || []).filter(c => !String((c.reasons && c.reasons[0]) || '').toLowerCase().startsWith('superseded'));
     ready.queued = (wait.ok ? wait.data.concepts : []) || [];
     renderReady();
   } catch (e) {
