@@ -291,8 +291,8 @@
   <p id="second-look" class="second-look" hidden></p>
   <div id="orig-deck" role="region" aria-label="The original words" hidden></div>
   <div id="look-row" class="look-row" role="group" aria-label="Style">
-    <button id="look-photo" class="quiet-btn small-btn" type="button" aria-pressed="true">Photo</button>
-    <button id="look-dark" class="quiet-btn small-btn" type="button" aria-pressed="false">Dark</button>
+    <button id="look-photo" class="quiet-btn small-btn" type="button" aria-pressed="false">Photo</button>
+    <button id="look-dark" class="quiet-btn small-btn" type="button" aria-pressed="true">Dark</button>
     <label id="one-photo-wrap" class="one-photo" hidden><input id="one-photo" type="checkbox"> One photo</label>
     <span id="one-style" class="one-style" role="radiogroup" aria-label="One photo treatment" hidden><label><input id="one-style-blur" name="one-style" type="radio" value="blur"> Colour blur</label><label><input id="one-style-bw" name="one-style" type="radio" value="bw-sharp"> B&amp;W sharp</label></span>
   </div>
@@ -463,7 +463,7 @@ let type = readType();
 let cover = readCover();
 let meta = { evidence: '', pending: null, conceptId: null };
 const LOOK_KEY = 'ig_look_v1'; // SOC-24/26: photo | dark for an item with no concept id (kept on this device)
-const lookOf = v => (v === 'dark' || v === 'plain') ? 'dark' : 'photo'; // SOC-26: a saved 'plain' (the retired SOC-24 look) opens as dark
+const lookOf = v => v === 'photo' ? 'photo' : 'dark'; // SOC-38 A1: only a chosen 'photo' stays photo; nothing saved, 'dark' or the retired 'plain' (SOC-26) open as dark
 let look = lookOf(lsGet(LOOK_KEY));
 // SOC-33: "One photo" (dark look only): slides 2+ reuse slide 1's photo, blurred and dimmed. Off by default. Kept on this device per
 // post (the Worker has no field for it; the posted JPGs carry the rendering, so nothing else needs it).
@@ -543,7 +543,7 @@ async function checkCover(c) {
       if (im) {
         await albumReady;
         const face = Object.prototype.hasOwnProperty.call(albumFaces, s1.photo) ? albumFaces[s1.photo] : null;
-        const dark = (c.look ? lookOf(c.look) : (c.kind === 'life' ? 'dark' : 'photo')) === 'dark';
+        const dark = lookOf(c.look) === 'dark';
         const opts = { face }; if (dark) opts.look = 'dark';
         const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350;
         const slide = { handle: HANDLE, kicker: s1.kicker, num: s1.num, title: s1.title, sub: s1.sub, swipe: s1.swipe };
@@ -1156,7 +1156,7 @@ function openDraft(c) {
   meta = { evidence: (c.deck && c.deck.evidence) || c.concept || '', pending: null, conceptId: c.id, ref: c };
   setType(isSeries(c) ? 'series' : 'words');
   onePhoto = readOnePhoto(); onePhotoStyle = readOneStyle();
-  look = c.look ? lookOf(c.look) : (c.kind === 'life' ? 'dark' : 'photo'); // SOC-26: the Life series defaults to dark when the draft carries no look
+  look = lookOf(c.look); // SOC-38 A1: a draft with no stored look opens as dark
   syncLookButtons();
   showSecondLook(c);
   syncStrap(); persist();
